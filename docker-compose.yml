@@ -1,0 +1,17 @@
+services:
+  metrics:
+    build: /metrics
+    ports:
+      - "8000:5000"
+    volumes:
+      - ./metrics
+    environment:
+      FLASK_ENV: development
+  rpyc:
+    build: /rpyc_server
+    ports: 
+      - "8001:18861"
+    volumes:
+      - ./rpyc_server
+
+    
