@@ -354,7 +354,7 @@ def get_provision():
     """
     In user request:
     required params: service_type, area, provision_type
-    optional params: city, without_services_options, load_options, provision_option
+    optional params: is_weighted, service_coef
     :return: dict of FeatureCollections houses and services
     """
     user_request = request.get_json(force=True)
@@ -379,6 +379,33 @@ def get_provision_info():
         abort(400, description=result[1])
     else:
         return jsonify(result)
+
+
+@app.route('/provision/aggregate', methods=["POST"])
+@cross_origin()
+def get_provision_aggregated():
+    """
+    In user request:
+    required params: service_types, area_type, provision_type
+    optional params: is_weighted, service_coef
+    :return: FeatureCollections of territorial units
+    """
+    user_request = request.get_json(force=True)
+    result = BCAM.get_provision_aggregated(**user_request)
+    return jsonify(result)
+
+@app.route('/provision/top_objects', methods=["POST"])
+@cross_origin()
+def get_provision_top():
+    """
+    In user request:
+    required params: service_types, area_type, area_value, provision_type
+    optional params: is_weighted, service_coef
+    :return: dict of FeatureCollections of houses, services
+    """
+    user_request = request.get_json(force=True)
+    result = BCAM.get_top_provision_objects(**user_request)
+    return jsonify(result)
 
 
 # ######################### Well-being #############################
@@ -412,6 +439,19 @@ def get_wellbeing_info():
         abort(400, description=result[1])
     else:
         return jsonify(result)
+
+
+@app.route('/wellbeing/aggregate', methods=["POST"])
+@cross_origin()
+def get_wellbeing_aggregate():
+    """
+    In user request:
+    required params: area_type, provision_type and either living_situation_id or user_service_types
+    :return: FeatureCollections of houses
+    """
+    user_request = request.get_json(force=True)
+    result = CMM.get_wellbeing_aggregated(BCAM, **user_request)
+    return jsonify(result)
 
 
 if __name__ == '__main__':

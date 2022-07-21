@@ -23,6 +23,7 @@ joblib==1.1.0
 kiwisolver==1.4.2
 MarkupSafe==2.1.1
 matplotlib==3.3.4
+momepy==0.5.3
 munch==2.5.0
 networkx==2.6.3
 numpy==1.19.5

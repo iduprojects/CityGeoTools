@@ -1,17 +1,28 @@
+version: '3.9'
 services:
-  metrics:
-    build: /metrics
+  rpyc_metrics_server:
+    build: rpyc_server/
+    image: oneonwar/rpyc_metrics_server:0.0.4
+    env_file:
+      - .env
+    container_name: rpyc
     ports:
-      - "8000:5000"
-    volumes:
-      - ./metrics
-    environment:
-      FLASK_ENV: development
-  rpyc:
-    build: /rpyc_server
-    ports: 
-      - "8001:18861"
-    volumes:
-      - ./rpyc_server
+      - "18861:18861"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "18861"]
+      interval: 1m
+      retries: 30
 
-    
+
+  idu_metrics:
+    build: metrics/
+    image: oneonwar/idu_metrics:2.0.1
+    container_name: metrics
+    env_file:
+      - .env
+    restart: unless-stopped
+    depends_on:
+      rpyc_metrics_server:
+        condition: service_healthy
+    ports:
+      - "5000:5000"

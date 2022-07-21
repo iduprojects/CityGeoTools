@@ -2,7 +2,7 @@ import geopandas as gpd
 import shapely
 import pandas as pd
 import math
-import requests
+import json
 import numpy as np
 import shapely.wkt
 import ast
@@ -212,7 +212,7 @@ class City_Metrics_Methods():
     def get_instagram_data(self, year, season, day_time):
         city_inf_model = self.cities_inf_model["Saint_Petersburg"]
         file = city_inf_model.get_instagram_data(year, season, day_time)
-        result = eval(gpd.GeoDataFrame.from_features(file).set_crs(3857).to_crs("EPSG:4326").to_json())
+        result = eval(gpd.GeoDataFrame.from_features(file).set_crs(3857).to_crs(4326).to_json()) if file else None
         return result
 
     # ########################## House location  #####################################
@@ -645,7 +645,7 @@ class City_Metrics_Methods():
 
     # ######################################### Wellbeing ##############################################
     def get_wellbeing(self, BCAM, living_situation_id=None, user_service_types=None, area=None,
-                      provision_type="calculated", city="Saint_Petersburg", wellbeing_option=None):
+                      provision_type="calculated", city="Saint_Petersburg", wellbeing_option=None, return_dfs=False):
         """
         :param BCAM: class containing get_provision function --> class
         :param living_situation_id: living situation id from DB --> int (default None)
@@ -674,21 +674,28 @@ class City_Metrics_Methods():
 
         houses = gpd.GeoDataFrame.from_features(provision["houses"]).set_crs(4326)
         services = gpd.GeoDataFrame.from_features(provision["services"]).set_crs(4326)
-        provision_columns = houses.filter(regex="provision")
+        provision_columns = houses.filter(regex="provision").replace("None", np.nan)
+        unprovided_columns = list(houses.filter(regex="unprovided").columns)
 
         available_service_type = [t.split("_provision")[0] for t in provision_columns.columns]
         service_coef = service_coef[service_coef["service_code"].isin(available_service_type)]
-        houses["wellbeing"] = provision_columns.apply(lambda x: self.calculate_wellbeing(x, service_coef), axis=1)
-        houses["mean_provision"] = provision_columns.apply(lambda x: x[x != "None"].mean() if len(x[x != "None"]) > 0 else 0, axis=1)
-        houses = houses.drop(list(provision_columns.columns) + list(houses.filter(regex="demand").columns) +
-                             list(houses.filter(regex="num_available_services").columns), axis=1)
+        provision_columns = provision_columns.reindex(sorted(provision_columns.columns), axis=1)
+        weighted_provision_columns = provision_columns * service_coef.set_axis(provision_columns.columns)["evaluation"]
+        houses["mean_provision"] = weighted_provision_columns.apply(
+            lambda x: x.mean() if len(x[x.notna()]) > 0 else None, axis=1)
+        wellbeing = self.calculate_wellbeing(provision_columns, service_coef)
+        houses = houses.drop(list(houses.filter(regex="demand").columns) + unprovided_columns +
+                             list(houses.filter(regex="available").columns), axis=1).join(wellbeing)
 
         if wellbeing_option:
             houses = houses[houses["wellbeing"].between(*wellbeing_option)]
             # PLUG!!! There must be slice by functional object id for services
 
-        return {"houses": eval(houses.reset_index(drop=True).fillna("None").to_crs(4326).to_json()),
-                "services": eval(services.reset_index(drop=True).fillna("None").to_crs(4326).to_json())}
+        if return_dfs:
+            return {"houses": houses.to_crs(4326), "services": services.to_crs(4326)}
+
+        return {"houses": eval(houses.reset_index().fillna("None").to_crs(4326).to_json()),
+                "services": eval(services.reset_index().fillna("None").to_crs(4326).to_json())}
 
     def get_wellbeing_info(self, BCAM, object_type, functional_object_id, provision_type="calculated",
                            living_situation_id=None, user_service_types=None, city="Saint_Petersburg"):
@@ -717,30 +724,36 @@ class City_Metrics_Methods():
                                           list(service_coef["service_code"]), provision_type)
         if type(objects) is tuple:
             return objects
-
+        
         houses = gpd.GeoDataFrame.from_features(objects["houses"]).fillna(-1).set_crs(4326)
         services = gpd.GeoDataFrame.from_features(objects["services"]).fillna(-1).set_crs(4326)
 
-        provision_columns = houses.filter(regex="provision")
+        provision_columns = houses.filter(regex="provision").replace("None", np.nan)
         set_demand_columns = list(houses.filter(regex="demand").columns)
-        set_num_service_columns = list(houses.filter(regex="num_available_services").columns)
+        set_num_service_columns = list(houses.filter(regex="available").columns)
+        unprovided_columns = list(houses.filter(regex="unprovided").columns)
 
         available_service_type = [t.split("_provision")[0] for t in provision_columns.columns]
-        service_coef = service_coef[service_coef["service_code"].isin(available_service_type)]
-        houses["wellbeing"] = provision_columns.apply(lambda x: self.calculate_wellbeing(x, service_coef), axis=1)
+        service_coef = service_coef[service_coef["service_code"].isin(available_service_type)].sort_values(
+            "service_code")
+        wellbeing = self.calculate_wellbeing(provision_columns, service_coef)
 
         if object_type == "house":
-            houses["mean_provision"] = provision_columns.apply(lambda x: x[x != "None"].mean() if len(x[x != "None"]) > 0 else 0, axis=1)
-            houses = houses.drop(set_demand_columns + set_num_service_columns + list(provision_columns.columns), axis=1)
+            provision_columns = provision_columns.reindex(sorted(provision_columns.columns), axis=1)
+            weighted_provision_columns = provision_columns * service_coef.set_axis(provision_columns.columns)[
+                "evaluation"]
+            houses["mean_provision"] = weighted_provision_columns.apply(
+                lambda x: x.mean() if len(x[x.notna()]) > 0 else None, axis=1)
+            houses = houses.drop(set_demand_columns + set_num_service_columns + unprovided_columns, axis=1).join(
+                wellbeing)
             service_types_info = self.calculate_wellbeing(provision_columns.iloc[0], service_coef, get_provision=True)
 
         elif object_type == "service":
             service_type = services.iloc[0]["city_service_type"]
             service_code = city_inf_model.get_service_code(service_type)
             drop_col = [col for col in set_demand_columns if service_code not in col] + \
-                       [col for col in set_num_service_columns if service_code not in col] + \
-                       [col for col in provision_columns.columns if service_code not in col]
-            houses = houses.drop(drop_col, axis=1)
+                       [col for col in set_num_service_columns if service_code not in col]
+            houses = houses.drop(drop_col + unprovided_columns, axis=1).join(wellbeing)
             isochrone = gpd.GeoDataFrame.from_features(objects["isochrone"]).set_crs(4326)
 
         outcome_dict = {"houses": eval(houses.reset_index(drop=True).fillna("None").to_crs(4326).to_json()),
@@ -752,31 +765,51 @@ class City_Metrics_Methods():
             outcome_dict["isochrone"] = eval(isochrone.to_json())
         return outcome_dict
 
+    def get_wellbeing_aggregated(self, BCAM, area_type, living_situation_id=None, user_service_types=None,
+                                 provision_type="calculated", city="Saint_Petersburg"):
+
+        city_inf_model, city_crs = self.cities_inf_model[city], self.cities_crs[city]
+        block = city_inf_model.Base_Layer_Blocks.copy().to_crs(city_crs)
+        mo = city_inf_model.Base_Layer_Municipalities.copy().to_crs(city_crs)
+        district = city_inf_model.Base_Layer_Districts.copy().to_crs(city_crs)
+
+        wellbeing = self.get_wellbeing(BCAM=BCAM, living_situation_id=living_situation_id, return_dfs=True,
+                                       user_service_types=user_service_types, provision_type=provision_type)
+        houses = wellbeing["houses"]
+        houses_mean_provision = houses.groupby([f"{area_type}_id"]).mean().filter(regex="provision")
+        houses_mean_wellbeing = houses.groupby([f"{area_type}_id"]).mean().filter(regex="wellbeing")
+        houses_mean_stat = pd.concat([houses_mean_provision, houses_mean_wellbeing], axis=1)
+        units = eval(area_type).set_index("id").drop(["center"], axis=1).join(houses_mean_stat)
+        return json.loads(units.reset_index().fillna("None").to_crs(4326).to_json())
+
     def calculate_wellbeing(self, loc, coef_df, get_provision=False):
-        """
-        :param loc: Series object containing provision evaluation with service type as index --> Series
-        :param coef_df: DataFrame object containing columns with service types and coefficients --> DataFrame
-        :param get_provision: option that define a return --> bool (default False)
-                False - wellbeing evaluation for house as int,
-                True - DataFrame with columns 'provision', 'coefficient' and 'wellbeing' for service types
-        :return: see above
-        """
 
-        provision = loc.sort_index()
-        provision.index = [idx.split("_provision_")[0] for idx in provision.index]
-        available_type = provision != 'None'
-        provision = provision[available_type]
-        coef_df = coef_df.sort_values(by="service_code").set_index("service_code")["evaluation"][available_type]
-
-        coef = list(coef_df)
-        provision = list(provision)
-        weighted_provision = [1 + 2 * coef[i] * (-1 + provision[i]) if coef[i] <= 0.5
-                              else provision[i] ** (8 * coef[i] - 3) for i in range(len(provision))]
         if get_provision:
-            return pd.DataFrame({"service_code": list(coef_df.index),
-                                 "provision": provision, "coefficient": coef, "wellbeing": weighted_provision})
+            provision = loc.sort_index()
+            provision.index = [idx.split("_provision_")[0] for idx in provision.index]
+            available_type = provision.notna()
+            provision = provision[available_type]
+            coef_df = coef_df.sort_values(by="service_code").set_index("service_code")["evaluation"][available_type]
+            coef = list(coef_df)
+            provision = list(provision)
+            weighted_provision = [1 + 2 * coef[i] * (-1 + provision[i]) if coef[i] <= 0.5
+                                  else provision[i] ** (8 * coef[i] - 3) for i in range(len(provision))]
+            result = pd.DataFrame({"service_code": list(coef_df.index), "provision": provision,
+                                   "coefficient": coef, "wellbeing": weighted_provision}).round(2)
+            return result
+
         else:
-            return min(weighted_provision) if len(weighted_provision) > 0 else 0
+            provision = loc.reindex(sorted(loc.columns), axis=1).to_numpy()
+            coef_df = coef_df.sort_values(by="service_code").set_index("service_code")["evaluation"]
+            coef = list(coef_df)
+            weighted_provision = [list(1 + 2 * coef[i] * (-1 + provision[:, i])) if coef[i] <= 0.5
+                                  else list(provision[:, i] ** (8 * coef[i] - 3)) for i in range(len(coef))]
+            weighted_provision = np.array(weighted_provision).T
+            general_wellbeing = np.nansum(weighted_provision * coef / sum(coef), axis=1)
+            weighted_provision = np.c_[weighted_provision, general_wellbeing]
+            weighted_index = [t + "_wellbeing" for t in coef_df.index] + ["wellbeing"]
+            weighted_series = pd.DataFrame(weighted_provision, columns=weighted_index, index=loc.index).round(2)
+            return weighted_series
 
     def parse_service_coefficients(self, user_service_types=None, living_situation_id=None):
         """
@@ -802,8 +835,6 @@ class City_Metrics_Methods():
             service_coef = service_coef[service_coef["service_code"] != "houses"]
 
         return service_coef
-
-
 
 
 

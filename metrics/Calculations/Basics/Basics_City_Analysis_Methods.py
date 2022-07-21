@@ -4,15 +4,18 @@ import pyproj
 import shapely
 import geopandas as gpd
 import pandas as pd
+import json
 import networkx as nx
 import osmnx as ox
 import numpy as np
 import io
 import pca
+import momepy
 import ast
 import matplotlib
 
 from matplotlib import pyplot as plt
+from shapely import wkt
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 
 matplotlib.use('Agg')
@@ -116,7 +119,7 @@ class Basics_City_Analysis_Methods():
         return eval(gdf.to_json())
 
     # ############################## Transport isochrone ##############################
-    def transport_isochrone(self, city, travel_type, x_from, y_from, weight_value, weight_type="weight"):
+    def transport_isochrone(self, city, travel_type, x_from, y_from, weight_value, weight_type="weight", routes=False):
         """
         :param city: city name to get access to information model and crs --> str
         :param travel_type: 'public_transport' --> str
@@ -150,6 +153,19 @@ class Basics_City_Analysis_Methods():
 
         isochrone = gpd.GeoDataFrame({"travel_type": ["Общественный транспорт"], "weight_type": [weight_type]},
                                      geometry=[sub_sub_nodes['geometry'].unary_union]).set_crs(city_crs).to_crs(4326)
+
+        if routes == "True":
+            sub_graph = multi_modal_graph.subgraph(sub_sub_nodes.index)
+            sub_graph = nx.convert_node_labels_to_integers(sub_graph)
+            stops, routes = momepy.nx_to_gdf(sub_graph, points=True, lines=True, spatial_weights=False)
+            routes = routes[routes["type"] != "walk"][["type", "length", "weight", "geometry"]].round(2)
+            routes = routes.drop_duplicates().rename(columns={"weight": "time"})
+            routes["geometry"] = routes["geometry"].apply(lambda x: wkt.loads(x))
+            stops = stops[["bus", "trolleybus", "tram", "subway", "geometry"]].dropna()
+            stops = stops.replace({True: "True", False: "False"})
+            return {"isochrone": eval(isochrone.to_json()),
+                    "routes": eval(routes.set_crs(city_crs).to_crs(4326).to_json()),
+                    "stops": eval(stops.set_crs(city_crs).to_crs(4326).to_json())}
 
         return eval(isochrone.to_json())
 
@@ -370,7 +386,7 @@ class Basics_City_Analysis_Methods():
     # TODO: Geojson services_provision must have a column 'houses_total_demand'
 
     def get_provision(self, service_type, area=None, provision_type="calculated", city="Saint_Petersburg",
-                      is_weighted=False, service_coef=None):
+                      is_weighted=False, service_coef=None, return_dfs=False, detailed_info=True):
         """
         :param city: city to chose data and projection --> str
         :param service_type: one of service types --> str / list of types --> list
@@ -431,7 +447,7 @@ class Basics_City_Analysis_Methods():
         indices_column_original = [service_type + "_indices_original_" + provision_type for service_type in service_types]
         indices_column_processed = [service_type + "_indices_processed_" + provision_type for service_type in service_types]
 
-        provision_df = houses_in_area[provision_column]
+        provision_df = houses_in_area[provision_column].round(2)
         demand_df = houses_in_area[demand_column]
 
         # Count services in house's available area
@@ -439,8 +455,13 @@ class Basics_City_Analysis_Methods():
             lambda col: col.apply(lambda row: len(row) if type(row) is list else 0))
         num_available_services.columns = num_available_services.columns.str.replace(
             "_indices_original_" + provision_type, "_num_available_services")
-        houses = pd.concat([houses_in_area[["address", "population", "geometry"]],
+
+        houses = pd.concat([houses_in_area[["address", "population", "geometry", "block_id", "mo_id", "district_id"]],
                             provision_df, demand_df, num_available_services], axis=1)
+        if detailed_info:
+            houses = houses.join(self.add_columns_with_unprovided_people(
+                houses_in_area, demand_df, service_types, provision_type, indices_column_original, indices_column_processed
+            ))
 
         # Calculate weighted provision
         if is_weighted:
@@ -459,6 +480,9 @@ class Basics_City_Analysis_Methods():
         services = services.loc[all_services_loc]
         services["is_available"] = services.index.isin(available_service_loc)
         services["is_available"] = services["is_available"].replace({True: "True", False: "False"})
+
+        if return_dfs:
+            return {"houses": houses.to_crs(4326), "services": services.to_crs(4326)}
 
         return {"houses": eval(houses.reset_index().fillna("None").to_crs(4326).to_json()),
                 "services": eval(services.reset_index().fillna("None").to_crs(4326).to_json())}
@@ -506,7 +530,7 @@ class Basics_City_Analysis_Methods():
         indices_column_original = [service_type + "_indices_original_" + provision_type for service_type in service_types]
         indices_column_processed = [service_type + "_indices_processed_" + provision_type for service_type in service_types]
 
-        provision_df = houses_provision[provision_column]
+        houses_provision[provision_column] = houses_provision[provision_column].round(2)
         demand_df = houses_provision[demand_column]
 
         # Count services in house's available area
@@ -517,10 +541,15 @@ class Basics_City_Analysis_Methods():
 
         if object_type == "house":
             houses = houses_provision.loc[[functional_object_id]]
-            all_services_loc = houses[indices_column_processed].apply(lambda x: x.sum(), axis=1).explode()
+            all_services_loc = houses[indices_column_processed].apply(
+                lambda x: [s for s in x.sum()
+                           if services_provision["houses_demand_processed_normative"][s][functional_object_id] > 0],
+                axis=1).explode()
             all_services_loc = list(set(all_services_loc.dropna()))
-            all_services_loc = services_provision[services_provision.index.isin(all_services_loc)].index
-            available_service_loc = houses[indices_column_original].apply(lambda x: x.sum(), axis=1).explode()
+            available_service_loc = houses[indices_column_original].apply(
+                lambda x: [s for s in x.sum()
+                           if services_provision["houses_demand_original_normative"][s][functional_object_id] > 0],
+                axis=1).explode()
             available_service_loc = list(set(available_service_loc.dropna()))
             services = services_provision.loc[all_services_loc]
 
@@ -529,7 +558,12 @@ class Basics_City_Analysis_Methods():
             services = services[["address", "city_service_type", "service_name", "house_demand", "capacity", "geometry"]]
             services["is_available"] = services.index.isin(available_service_loc)
             services["is_available"] = services["is_available"].replace({True: "True", False: "False"})
+
+            provision_num_people = self.add_columns_with_unprovided_people(
+                houses, demand_df.loc[[functional_object_id]], service_types, provision_type, indices_column_original,
+                indices_column_processed)
             houses = houses[["address", "population", "geometry"] + provision_column + demand_column]
+            houses = houses.join(provision_num_people)
 
             if is_weighted:
                 houses["provision_weighted"] = self.get_weighted_provision(houses, provision_column, service_coef)
@@ -556,8 +590,11 @@ class Basics_City_Analysis_Methods():
             house_demand = pd.Series(houses_indices).rename("house_demand")
             houses = houses_provision.loc[list(houses_indices.keys())]
 
-            houses = houses[["address", "population", "geometry"] + provision_column + demand_column]
-            houses = houses.join(house_demand)
+            provision_num_people = self.add_columns_with_unprovided_people(
+                houses, demand_df.loc[houses.index], service_types, provision_type,
+                indices_column_original, indices_column_processed)
+            houses = houses[["address", "population", "geometry"] + provision_column + demand_column].join(house_demand)
+            houses = houses.join(provision_num_people)
 
             available_houses = services["houses_demand_original_" + provision_type][functional_object_id].keys()
             houses["is_available"] = houses.index.isin(available_houses)
@@ -580,7 +617,6 @@ class Basics_City_Analysis_Methods():
                     city, travel_type="walk", x_from=service_coord[1], y_from=service_coord[0], weight_type="meter",
                     weight_value=str(service_normative[1]))
 
-        print(services)
         outcome_dict = {"houses": eval(houses.reset_index().fillna("None").to_crs(4326).to_json()),
                         "services": eval(services.reset_index().fillna("None").to_crs(4326).to_json())}
 
@@ -588,6 +624,82 @@ class Basics_City_Analysis_Methods():
             outcome_dict["isochrone"] = isochrone
 
         return outcome_dict
+
+    def get_provision_aggregated(self, service_types, area_type, provision_type="calculated", is_weighted=False,
+                                 service_coef=None, city="Saint_Petersburg"):
+
+        city_inf_model, city_crs = self.cities_inf_model[city], self.cities_crs[city]
+        block = city_inf_model.Base_Layer_Blocks.copy().to_crs(city_crs)
+        mo = city_inf_model.Base_Layer_Municipalities.copy().to_crs(city_crs)
+        district = city_inf_model.Base_Layer_Districts.copy().to_crs(city_crs)
+
+        provision = self.get_provision(service_type=service_types, provision_type=provision_type, detailed_info=False,
+                                       is_weighted=is_weighted, service_coef=service_coef, return_dfs=True)
+        houses = provision["houses"]
+        houses_mean_provision = houses.groupby([f"{area_type}_id"]).mean().filter(regex="provision")
+        units = eval(area_type).set_index("id").drop(["center"], axis=1).join(houses_mean_provision)
+        return json.loads(units.reset_index().fillna("None").to_crs(4326).to_json())
+
+    def get_top_provision_objects(self, service_types, area_type, area_value, provision_type="calculated",
+                                  is_weighted=False, service_coef=None, city="Saint_Petersburg"):
+
+        provision = self.get_provision(service_type=service_types, provision_type=provision_type, return_dfs=True,
+                                       area={area_type: area_value}, is_weighted=is_weighted, service_coef=service_coef,
+                                       detailed_info=False)
+        houses = provision["houses"]
+
+        city_inf_model, city_crs = self.cities_inf_model[city], self.cities_crs[city]
+        services = self.cities_inf_model[city].services_provision.copy().set_crs(city_crs)
+        services = services[(services[f"{area_type}_id"] == area_value) &
+                            (services["city_service_type_code"].isin(service_types))]
+
+        unprovided = houses.filter(regex="unprovided")
+        unprovided = unprovided.join(unprovided.sum(axis=1).rename("total_unprovided"))
+        unprovided = unprovided[unprovided["total_unprovided"] > 0]
+        houses_top10_unprovided = unprovided.sort_values("total_unprovided", ascending=False)[:10]
+        houses_top10_unprovided = pd.concat([houses[["address", "geometry"]], houses.filter(regex="provision")], axis=1
+                                            ).join(houses_top10_unprovided, how="right")
+
+        services = services.dropna(subset=[f"houses_demand_processed_{provision_type}"])
+        services[f"houses_total_demand_processed_{provision_type}"] = services[
+            f"houses_demand_processed_{provision_type}"].apply(lambda x: sum(x.values()) if x else None)
+        service_vacancy_all = services["capacity"] - services[f"houses_total_demand_processed_{provision_type}"]
+        service_vacancy_available = services["capacity"] - services[f"houses_total_demand_original_{provision_type}"]
+        service_vacancy = pd.concat([service_vacancy_all.rename("total_vacancy"),
+                                     service_vacancy_available.rename("vacancy_after_people_in_zone")], axis=1)
+        services_top10_loaded = service_vacancy.sort_values(["total_vacancy", "vacancy_after_people_in_zone"])[:10]
+        services_top10_loaded = services[["city_service_type_code", "capacity", "address", "geometry"]].join(
+            services_top10_loaded, how="right")
+
+        return {"houses": json.loads(houses_top10_unprovided.reset_index().fillna("None").to_crs(4326).to_json()),
+                "services": json.loads(services_top10_loaded.reset_index().fillna("None").to_crs(4326).to_json())}
+
+    def add_columns_with_unprovided_people(self, house_slice, demand_df, service_types, provision_type,
+                                           indices_column_original, indices_column_processed):
+
+        go_to_available = house_slice[indices_column_original].apply(
+            lambda col: self.get_num_people(col, house_slice, provision_type, "available"), axis=1)
+        go_to_available.columns = go_to_available.columns.str.replace(
+            "_indices_original_" + provision_type, "_available_num_people")
+        go_to_unavailable = house_slice[indices_column_processed].apply(
+            lambda col: self.get_num_people(col, house_slice, provision_type, "unavailable"), axis=1)
+        go_to_unavailable.columns = go_to_unavailable.columns.str.replace(
+            "_indices_processed_" + provision_type, "_unavailable_num_people")
+
+        unprovided = demand_df.to_numpy() - go_to_available.to_numpy()
+        need_service = unprovided - go_to_unavailable.to_numpy()
+        unprovided_columns_name = [service_type + "_unprovided_people" for service_type in service_types]
+        need_service_columns_name = [service_type + "_need_service_num_people" for service_type in service_types]
+        unprovided = pd.DataFrame(unprovided, columns=unprovided_columns_name, index=demand_df.index)
+        need_service = pd.DataFrame(need_service, columns=need_service_columns_name, index=demand_df.index)
+
+        return pd.concat([go_to_available, go_to_unavailable, unprovided, need_service], axis=1)
+
+    @staticmethod
+    def get_num_people(loc, houses_provision, provision_type, availability):
+        people_go_to = houses_provision[provision_type + "_people_go_to_" + availability][loc.name]
+        num_people = loc.apply(lambda x: sum([v for k, v in people_go_to.items() if k in x]))
+        return num_people
 
     def get_weighted_provision(self, houses, provision_column, service_coef):
         """
@@ -598,8 +710,9 @@ class Basics_City_Analysis_Methods():
         """
         if service_coef:
             service_coef = np.array(list(dict(sorted(service_coef.items())).values()))
-            provision_weighted = houses[sorted(provision_column)].apply(lambda x: sum(x.values * service_coef), axis=1)
+            provision_weighted = houses[sorted(provision_column)].apply(
+                lambda x: np.nansum(x.values * service_coef), axis=1)
         else:
             provision_weighted = houses[provision_column].apply(lambda x: sum(x) / len(provision_column), axis=1)
 
-        return provision_weighted
+        return provision_weighted.round(2)

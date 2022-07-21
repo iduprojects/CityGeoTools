@@ -32,9 +32,8 @@ class InterfaceCityInformationModel:
         self.engine = create_engine("postgresql://" + os.environ["POSTGRES"])
         self.db_api = "http://" + os.environ["DB_API"]
         self.db_api_provision = "http://" + os.environ["DB_API_PROVISION"]
-        self.rpyc_server = os.environ['RPYC_SERVER']
 
-        self.rpyc_connect = rpyc.connect(self.rpyc_server,
+        self.rpyc_connect = rpyc.connect("rpyc_metrics_server",
                                          18861,
                                          config={'allow_public_attrs': True, 
                                                  "allow_pickle": True})
@@ -46,7 +45,7 @@ class InterfaceCityInformationModel:
                            'Public_Transport_Stops','Spacematrix_Blocks','Block_Diversity',
                            'Base_Layer_Blocks','Base_Layer_Municipalities','Base_Layer_Districts',
                            'Connectivity_Metrics_Data_Points','Hose_Location_service_ratio']
-        self.provisions = ['houses_provision','services_provision']
+        self.provisions = ['houses_provision','services_provision', "Social_groups"]
         
         for attr_name in self.attr_names:
             print(attr_name)
@@ -72,7 +71,8 @@ class InterfaceCityInformationModel:
 
     def get_instagram_data(self, year, season, day_time):
         filename = f'grid_even_num_{year}_top_10_{season}_{day_time}'
-        file = requests.get(self.mongo_address + "/uploads/instagram/" + filename).json()
+        response = requests.get(self.mongo_address + "/uploads/instagram/" + filename)
+        file = response.json() if response.status_code == 200 else None
         return file
 
     def get_service_normative(self, code):
@@ -92,6 +92,14 @@ class InterfaceCityInformationModel:
             GROUP BY t.code"""
         df = pd.read_sql(sql_query, con=self.engine)
         return df
+
+    def get_service_type(self, id):
+        sql_query = f"""
+            SELECT t.city_service_type_code
+            FROM all_services t
+            WHERE t.functional_object_id = '{id}'"""
+        df = pd.read_sql(sql_query, con=self.engine)
+        return df["city_service_type_code"][0]
 
     def get_service_code(self, ru_code):
         sql_query = f"""

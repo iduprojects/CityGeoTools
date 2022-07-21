@@ -132,11 +132,7 @@ async def Weighted_voronoi_calculation(user_request: schemas.WeightedVoronoiCalc
 @router.get("/instagram_concentration/get_squares", response_model=FeatureCollection,
             tags=[Tags.instagram])
 async def instagram_get_squares(query_params: schemas.InstagramGetSquaresQueryParams = Depends()):
-    filename = f"grid_even_num_{query_params.year}_top_10_{query_params.season}_{query_params.day_time}.geojson"
-    src_folder = "Data/Support_files/Instagram_"
-    f = os.path.join(settings.DATA_DIR, src_folder, filename)
-
-    result = eval(gpd.read_file(f).to_crs("EPSG:4326").to_json())
+    result = CMM.get_instagram_data(query_params.year, query_params.season, query_params.day_time)
     return result
 
 
@@ -183,7 +179,6 @@ async def House_selection_calculations(user_request: schemas.HouseSelectionHouse
     """
     result = CMM.House_selection(user_request.dict())
     return result
-
 
 @router.post("/blocks_clusterization/get_blocks", response_model=FeatureCollection,
              tags=[Tags.blocks_clusterization])

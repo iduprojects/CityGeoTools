@@ -411,6 +411,29 @@
 							  "service_coef": "None or dict, default - None (service type as key and coefficient as value, sum of coefficient must be equal 1)"}},
 			"Url_format": "null"},
 
+		"/provision/aggregate": {
+			"description": "return geojson that contains aggregated information about houses regarding services provision",
+			"method": "POST",
+			"data": {"description": "params 'service_types', 'area_type', 'provision_type' necessarily have to be in request. Params 'is_weighted', 'service_coef' are optional.",
+					"data":  {"service_types": "list of string (['cafes', 'schools'])",
+							  "area_type":  "string (district/mo)",
+							  "provision_type": "string (calculated or normative)",
+						      "is_weighted": "boolean, default - False (False - return services provision evaluations separately (bars_provision, ... etc.),  True - return in addition weighted service evaluation (provision_weighted)). If service_coef is not specified, provision_weighted will be calculated as an average value of services provision",
+							  "service_coef": "None or dict, default - None (service type as key and coefficient as value, sum of coefficient must be equal 1)"}},
+			"Url_format": "null"},
+
+		"/provision/top_objects": {
+			"description": "return dict of geojson that contain top 10 the most unprovided houses and top 10 the most loaded services in a territorial unit",
+			"method": "POST",
+			"data": {"description": "params 'service_types', 'area_type', 'area_value', 'provision_type' necessarily have to be in request. Params 'is_weighted', 'service_coef' are optional.",
+					"data":  {"service_types": "list of string (['cafes', 'schools'])",
+							  "area_type":  "string (district/mo)",
+							  "area_valur": "integer (territorial unit id)",
+							  "provision_type": "string (calculated or normative)",
+						      "is_weighted": "boolean, default - False (False - return services provision evaluations separately (bars_provision, ... etc.),  True - return in addition weighted service evaluation (provision_weighted)). If service_coef is not specified, provision_weighted will be calculated as an average value of services provision",
+							  "service_coef": "None or dict, default - None (service type as key and coefficient as value, sum of coefficient must be equal 1)"}},
+			"Url_format": "null"},
+
 		"examples": {
 			"get_provision":{
 				"python_request_sample": "r = requests.post('http://127.0.0.1:5000/provision/get_provision', data=json.dumps(user_request))",
@@ -457,7 +480,29 @@
            						"functional_object_id":  112225,
 								"service_type":  ["bakeries", "banks"],
 				  			    "provision_type": "normative"}
-		}}}},
+		},
+		"aggregate":  {
+			"python_request_sample": "r = requests.post('http://127.0.0.1:5000/provision/aggregate', data=json.dumps(user_request))",
+			"user_request_1": {"service_types": ["schools"],
+							 "area_type": "mo",
+							 "provision_type": "normative"},
+			"user_request_2": {"service_types": ["schools", "kindergartens", "clinics", "maternity_hospitals", "playgrounds"],
+							 "area_type": "district",
+							 "provision_type": "normative",
+							 "is_weighted": "True"}
+		},
+		"top_objects":  {"python_request_sample": "r = requests.post('http://127.0.0.1:5000/provision/top_objects', data=json.dumps(user_request))",
+						"user_request_1": {"service_types": ["schools"],
+											 "area_type": "district",
+											 "area_value": 61,
+											 "provision_type": "normative"},
+						"user_request_2": {"service_types": ["schools", "kindergartens", "clinics",
+															"maternity_hospitals", "playgrounds"],
+											 "area_type": "mo",
+											 "area_value": 88,
+											 "provision_type": "normative",
+											 "is_weighted": "True"}}
+		}}},
 "Wellbeing": {
 	"methods": {
 		"/wellbeing/get_wellbeing": {
@@ -484,6 +529,17 @@
 						"living_situation_id": "integer, default - None (id from DB)",
 						"user_service_types":  "dict, default - None (service types as keys and coefficients as values)"}}},
 
+		"/wellbeing/aggregate": {
+			"description": "return geojson that contains aggregated information about houses regarding services provision and wellbeing",
+			"method": "POST",
+			"Url_format": "null",
+			"data": {"description": "'area_type', 'provision_type' and either 'living_situation_id' or 'user_service_types' necessarily have to be in request.",
+					"data": {
+						"area_type": "string (district/mo)",
+						"provision_type": "string (calculated or normative)",
+						"living_situation_id": "integer, default - None (id from DB)",
+						"user_service_types":  "dict, default - None (service types as keys and coefficients as values)"}}},
+
 		"examples": {
 			"get_wellbeing": {
 				"python_request_sample": "r = requests.post('http://127.0.0.1:5000/wellbeing/get_wellbeing', data=json.dumps(user_request))",
@@ -499,7 +555,7 @@
 				"user_request_1": {"object_type": "house",
 									"functional_object_id":  133683,
 									"provision_type": "normative",
-									"living_situation_id": 42}},
+									"living_situation_id": 42},
 				"user_request_2": {"object_type": "house",
 									"functional_object_id":  112225,
 									"provision_type": "calculated",
@@ -507,7 +563,12 @@
 				"user_request_3": {"object_type": "service",
 									"functional_object_id":  178534,
 									"provision_type": "calculated",
-									"living_situation_id": 42}}}}
+									"living_situation_id": 42}},
+			"aggregate": {
+				"python_request_sample": "r = requests.post('http://127.0.0.1:5000/wellbeing/aggregate', data=json.dumps(user_request))",
+				"user_request_1": {"living_situation_id": 79,
+                					"area_type": "mo",
+                					"provision_type": "normative"}}}}}
 }
 
 

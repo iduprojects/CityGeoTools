@@ -44,6 +44,7 @@ class InterfaceCityInformationModel:
         self.set_xy_attributes(self.public_transport_graph)
         self.public_transport_graph = pickle.dumps(self.public_transport_graph)
         print(self.city_name, datetime.datetime.now(),'public_transport_graph')
+
         # Buildings
         buildings_columns = ["building_id", "building_area", "living_area", "population_balanced as population",
                              "storeys_count", "administrative_unit_id", "municipality_id", "block_id", "geometry"]
@@ -56,10 +57,12 @@ class InterfaceCityInformationModel:
         self.Spacematrix_Buildings = self.get_file_from_mongo("infrastructure", "spacematrix_buildings", "geojson")
         self.Spacematrix_Buildings = pickle.dumps(self.Spacematrix_Buildings)
         print(self.city_name, datetime.datetime.now(),'Spacematrix_Buildings')
+
         # Real_estate
         self.Commercial_rent_ads = self.get_file_from_mongo("infrastructure", "commercial_rent_offers", "geojson")
         self.Commercial_rent_ads = pickle.dumps(self.Commercial_rent_ads)
         print(self.city_name, datetime.datetime.now(),'Commercial_rent_ads')
+
         # Services
         self.Service_types = self.get_file_from_mongo("infrastructure", "service_types", "json")
         print(self.city_name, datetime.datetime.now(),'Service_types')
@@ -73,6 +76,7 @@ class InterfaceCityInformationModel:
         print(self.city_name, datetime.datetime.now(),'Services')
         self.Service_types = pickle.dumps(self.Service_types)
         self.Services = pickle.dumps(self.Services)
+
         # Public transport stops
         stops_columns = ["functional_object_id", "center"]
         equal_slice = {"column": "city_service_type", "value": "Остановка общественного транспорта"}
@@ -80,6 +84,9 @@ class InterfaceCityInformationModel:
         self.Public_Transport_Stops = self.get_services(stops_columns, equal_slice, place_slice)
         print(self.city_name, datetime.datetime.now(),'Public_Transport_Stops')
         self.Public_Transport_Stops = pickle.dumps(self.Public_Transport_Stops)
+
+        # Social groups
+        self.Social_groups = [sg["name"] for sg in requests.get(self.db_api + "/api/list/social_groups").json()]
 
         # Blocks
         self.Spacematrix_Blocks = self.get_file_from_mongo("infrastructure", "Spacematrix_Blocks", "geojson")
@@ -94,7 +101,6 @@ class InterfaceCityInformationModel:
         self.Spacematrix_Blocks = pickle.dumps(self.Spacematrix_Blocks)
         self.Block_Diversity = pickle.dumps(self.Block_Diversity)
         self.Base_Layer_Blocks = pickle.dumps(self.Base_Layer_Blocks)
-
 
         # Municipalities
         print(self.city_name, datetime.datetime.now(),'Base_Layer_Municipalities')
@@ -130,22 +136,25 @@ class InterfaceCityInformationModel:
         self.Hose_Location_service_ratio = pickle.dumps(self.Hose_Location_service_ratio)
     
         # Provision
-        
         if self.city_name == "Saint_Petersburg":
-            print(self.city_name, datetime.datetime.now(),'houses_provision')
+            print(self.city_name, datetime.datetime.now(), 'houses_provision')
             houses_provision = pd.read_sql_table("new_houses_provision_tmp", con=self.engine, schema="provision")
-            
             houses_provision = self.transform_provision_file(houses_provision)
-            
             self.houses_provision = houses_provision.rename(
                 columns={"administrative_unit_id": "district_id", "municipality_id": "mo_id"})
+
             print(self.city_name, datetime.datetime.now(),'services_provision')
-            services_provision = pd.read_sql_table("new_services_load_tmp", con=self.engine, schema="provision")
-            self.services_provision = self.transform_provision_file(services_provision)
+            services_provision = pd.read_sql("""
+                    SELECT p.*, s.administrative_unit_id, s.municipality_id, s.block_id
+                    FROM provision.new_services_load_tmp p
+                    LEFT JOIN all_services s ON p.functional_object_id=s.functional_object_id""", con=self.engine)
+            services_provision = self.transform_provision_file(services_provision)
+            self.services_provision = services_provision.rename(
+                columns={"administrative_unit_id": "district_id", "municipality_id": "mo_id"})
             chunk_size = 1000
             self.houses_provision = [pickle.dumps(self.houses_provision.iloc[i:i+chunk_size]) for i in range(0, len(self.houses_provision), chunk_size)]
             self.services_provision = [pickle.dumps(self.services_provision.iloc[i:i+chunk_size]) for i in range(0, len(self.services_provision), chunk_size)]
-            del houses_provision , services_provision
+            del houses_provision, services_provision
         else:
             self.houses_provision = pickle.dumps(None)
             self.services_provision = None
@@ -275,11 +284,15 @@ class InterfaceCityInformationModel:
         return table
 
     @staticmethod
-    def get_eval_values(column):
+    def get_eval_values(value):
         try:
-            return eval(column)
+            parsed_value = eval(value)
+            if type(parsed_value) in [str, int, float, dict, list]:
+                return parsed_value
+            else:
+                return value
         except:
-            return column
+            return value
 
     # Temporary function
     @staticmethod

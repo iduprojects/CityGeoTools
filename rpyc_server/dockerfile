@@ -5,12 +5,10 @@ WORKDIR /rpyc_server
 COPY . /rpyc_server
 
 RUN apt-get update && apt-get -qq -y install curl
+RUN apt-get update && apt-get -qq -y install netcat
 RUN apt-get update && apt-get -y install libspatialindex-dev
 RUN python -m pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
-
-ENV MONGO=10.32.1.65:5100
-ENV POSTGRES=postgres:postgres@10.32.1.101/city_db_final
 
 EXPOSE 18861
 
