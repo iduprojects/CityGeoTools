@@ -51,21 +51,11 @@ class InterfaceCityInformationModel:
         self.Buildings = self.get_buildings(buildings_columns).to_crs(self.city_crs)
         self.Buildings = pickle.dumps(self.Buildings)
         print(self.city_name, datetime.datetime.now(),'Buildings')
-        self.Living_Buildings_Provision = self.get_file_from_mongo("infrastructure", "houses_provision", "geojson")
-        self.Living_Buildings_Provision = pickle.dumps(self.Living_Buildings_Provision)
-        print(self.city_name, datetime.datetime.now(),'Living_Buildings_Provision')
         self.Spacematrix_Buildings = self.get_file_from_mongo("infrastructure", "spacematrix_buildings", "geojson")
         self.Spacematrix_Buildings = pickle.dumps(self.Spacematrix_Buildings)
         print(self.city_name, datetime.datetime.now(),'Spacematrix_Buildings')
 
-        # Real_estate
-        self.Commercial_rent_ads = self.get_file_from_mongo("infrastructure", "commercial_rent_offers", "geojson")
-        self.Commercial_rent_ads = pickle.dumps(self.Commercial_rent_ads)
-        print(self.city_name, datetime.datetime.now(),'Commercial_rent_ads')
-
         # Services
-        self.Service_types = self.get_file_from_mongo("infrastructure", "service_types", "json")
-        print(self.city_name, datetime.datetime.now(),'Service_types')
         if self.city_name == "Saint_Petersburg":
             self.Services = self.get_file_from_mongo("infrastructure", "services", "geojson")
         else:
@@ -74,7 +64,6 @@ class InterfaceCityInformationModel:
                                "block_id", "administrative_unit_id", "municipality_id"]
             self.Services = self.get_services(service_columns, add_normative=True)
         print(self.city_name, datetime.datetime.now(),'Services')
-        self.Service_types = pickle.dumps(self.Service_types)
         self.Services = pickle.dumps(self.Services)
 
         # Public transport stops
@@ -84,9 +73,6 @@ class InterfaceCityInformationModel:
         self.Public_Transport_Stops = self.get_services(stops_columns, equal_slice, place_slice)
         print(self.city_name, datetime.datetime.now(),'Public_Transport_Stops')
         self.Public_Transport_Stops = pickle.dumps(self.Public_Transport_Stops)
-
-        # Social groups
-        self.Social_groups = [sg["name"] for sg in requests.get(self.db_api + "/api/list/social_groups").json()]
 
         # Blocks
         self.Spacematrix_Blocks = self.get_file_from_mongo("infrastructure", "Spacematrix_Blocks", "geojson")
@@ -119,21 +105,6 @@ class InterfaceCityInformationModel:
         
         self.Base_Layer_Districts = pickle.dumps(self.Base_Layer_Districts)
         del district
-
-        # Connectivity
-        self.Connectivity_Metrics_Data_Points = self.get_file_from_mongo(
-            "infrastructure", "connectivity_data_points", "geojson") 
-        print(self.city_name, datetime.datetime.now(),'Connectivity_Metrics_Data_Points')
-        self.Connectivity_Metrics_Data_Points = pickle.dumps(self.Connectivity_Metrics_Data_Points)
-        
-        # Support_files
-        ratio = self.get_file_from_mongo("infrastructure", "ratio", "json")
-        print(self.city_name, datetime.datetime.now(),'Hose_Location_service_ratio')
-        if ratio is not None:
-            self.Hose_Location_service_ratio = pd.DataFrame(eval(ratio)).set_index("block_id")
-        else:
-            self.Hose_Location_service_ratio = None
-        self.Hose_Location_service_ratio = pickle.dumps(self.Hose_Location_service_ratio)
     
         # Provision
         if self.city_name == "Saint_Petersburg":

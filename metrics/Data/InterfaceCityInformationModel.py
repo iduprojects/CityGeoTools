@@ -40,12 +40,10 @@ class InterfaceCityInformationModel:
         self.rpyc_connect._config['sync_request_timeout'] = None
 
         self.attr_names = ['walk_graph', 'drive_graph','public_transport_graph',
-                           'Buildings','Living_Buildings_Provision','Spacematrix_Buildings',
-                           'Commercial_rent_ads','Service_types','Services',
+                           'Buildings','Spacematrix_Buildings', 'Services',
                            'Public_Transport_Stops','Spacematrix_Blocks','Block_Diversity',
-                           'Base_Layer_Blocks','Base_Layer_Municipalities','Base_Layer_Districts',
-                           'Connectivity_Metrics_Data_Points','Hose_Location_service_ratio']
-        self.provisions = ['houses_provision','services_provision', "Social_groups"]
+                           'Base_Layer_Blocks','Base_Layer_Municipalities','Base_Layer_Districts']
+        self.provisions = ['houses_provision','services_provision']
         
         for attr_name in self.attr_names:
             print(attr_name)
@@ -68,12 +66,6 @@ class InterfaceCityInformationModel:
             except:
                 print(self.city_name, attr_name, "None")
                 setattr(self, attr_name, None)
-
-    def get_instagram_data(self, year, season, day_time):
-        filename = f'grid_even_num_{year}_top_10_{season}_{day_time}'
-        response = requests.get(self.mongo_address + "/uploads/instagram/" + filename)
-        file = response.json() if response.status_code == 200 else None
-        return file
 
     def get_service_normative(self, code):
         normative = pd.read_sql(f"""

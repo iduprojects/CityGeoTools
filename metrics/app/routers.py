@@ -23,17 +23,12 @@ class Tags(str, enums.AutoName):
     def _generate_next_value_(name, start, count, last_values):
         return name
 
-    connectivity_calculations = auto()
     trafics_calculation = auto()
     mobility_analysis = auto()
     visibility_analysis = auto()
     weighted_voronoi = auto()
-    instagram = auto()
-    house_location = auto()
-    house_selection = auto()
     blocks_clusterization = auto()
     services_clusterization = auto()
-    services_location = auto()
     spacematrix = auto()
     diversity = auto()
     provision = auto()
@@ -44,16 +39,8 @@ class Tags(str, enums.AutoName):
 async def read_root():
     return {"Hello": "World"}
 
-
-@router.post("/connectivity_calculations/connectivity_viewer", response_model=schemas.ConnectivityViewerOut,
-             tags=[Tags.connectivity_calculations])
-def connectivity_viewer(selected_area_geojson: schemas.ConnectivityViewerIn):
-    result = CMM.Connectivity_Viewer(selected_area_geojson.dict())
-    return result
-
-
-@router.post('/pedastrian_walk_traffics/pedastrian_walk_traffics_calculation', response_model=schemas.PedastrianWalkTrafficsCalculationOut,
-             tags=[Tags.trafics_calculation])
+@router.post('/pedastrian_walk_traffics/pedastrian_walk_traffics_calculation', 
+            response_model=schemas.PedastrianWalkTrafficsCalculationOut, tags=[Tags.trafics_calculation])
 def pedastrian_walk_traffics_calculation(request_area_geojson: schemas.PedastrianWalkTrafficsCalculationIn):
     result = CMM.Trafic_Area_Calculator(BCAM, request_area_geojson.dict())
     if not result:
@@ -61,7 +48,6 @@ def pedastrian_walk_traffics_calculation(request_area_geojson: schemas.Pedastria
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No living houses in the specified area"
         )
-
     return result
 
 
@@ -128,57 +114,6 @@ async def Weighted_voronoi_calculation(user_request: schemas.WeightedVoronoiCalc
     """
     return CMM.Weighted_Voronoi(user_request.dict())
 
-
-@router.get("/instagram_concentration/get_squares", response_model=FeatureCollection,
-            tags=[Tags.instagram])
-async def instagram_get_squares(query_params: schemas.InstagramGetSquaresQueryParams = Depends()):
-    result = CMM.get_instagram_data(query_params.year, query_params.season, query_params.day_time)
-    return result
-
-
-@router.post("/house_location/house_location", response_model=schemas.HouseLocationHouseLocationOut,
-             tags=[Tags.house_location])
-async def House_location_calculations(user_request: schemas.HouseLocationHouseLocationIn):
-    """
-    In user request:
-    :param: user json (with keys: area, floors, population, service_types) -> json
-    :return: polygons of scored blocks/municipalities -> geojson
-    """
-    result = CMM.House_Location(user_request.dict())
-    return result
-
-
-@router.post("/house_location/block_provision", response_model=schemas.HouseLocationBlockProvisionOut,
-             tags=[Tags.house_location])
-async def block_provision_calculations(user_request: schemas.HouseLocationBlockProvisionIn):
-    result = CMM.Block_Provision(user_request.dict())
-    if not result:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="There are no services in the blocks")
-
-    return result
-
-
-@router.get("/house_selection/social_groups_list", response_model=List[str],
-            tags=[Tags.house_selection])
-async def get_social_groups_list():
-    """
-    :return: social groups names -> list
-    """
-    city_crs = cities_model["Saint_Petersburg"]
-    return city_crs.Social_groups
-
-
-@router.post("/house_selection/House_selection", response_model=schemas.HouseSelectionHouseSelectionOut,
-             tags=[Tags.house_selection])
-async def House_selection_calculations(user_request: schemas.HouseSelectionHouseSelectionIn):
-    """
-    In user request:
-    :param: user json (with keys: user_selected_significant_services, user_selected_unsignificant_services,
-                    user_social_group_selection, user_price_preferences) -> json
-    :return: polygons of scored blocks/municipalities -> geojson
-    """
-    result = CMM.House_selection(user_request.dict())
-    return result
 
 @router.post("/blocks_clusterization/get_blocks", response_model=FeatureCollection,
              tags=[Tags.blocks_clusterization])
@@ -257,12 +192,6 @@ async def get_services_clusterization(user_request: schemas.ServicesClusterizati
 
     return FeatureCollection.parse_raw(result)  # todo return json dict not str
 
-
-@router.post("/service_location/service_location", response_model=schemas.ServiceLocationServiceLocationOut,
-             tags=[Tags.services_location])
-async def service_location(user_request: schemas.ServiceLocationServiceLocationIn):
-    result = CMM.Service_location(user_request.dict())
-    return result
 
 # todo Spacematrix
 
