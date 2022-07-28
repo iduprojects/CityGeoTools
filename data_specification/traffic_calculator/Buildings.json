@@ -52,10 +52,6 @@
               "description": "The unique identifier for a building",
               "type": "integer"
             },
-            "is_living": {
-              "description": "The flag if a building is living",
-              "type": "boolean"
-            },
             "population": {
               "description": "The number of people living in a building",
               "type": "integer",
