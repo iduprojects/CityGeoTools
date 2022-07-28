@@ -46,7 +46,7 @@ class InterfaceCityInformationModel:
         print(self.city_name, datetime.datetime.now(),'public_transport_graph')
 
         # Buildings
-        buildings_columns = ["building_id", "building_area", "living_area", "population_balanced as population",
+        buildings_columns = ["building_id as id", "building_area", "living_area", "population_balanced as population",
                              "storeys_count", "administrative_unit_id", "municipality_id", "block_id", "geometry"]
         self.Buildings = self.get_buildings(buildings_columns).to_crs(self.city_crs)
         self.Buildings = pickle.dumps(self.Buildings)
