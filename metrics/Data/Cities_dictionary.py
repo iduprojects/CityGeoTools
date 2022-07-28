@@ -1,5 +1,5 @@
 import os
-from Data.InterfaceCityInformationModel import InterfaceCityInformationModel
+from Data.CityInformationModel import CityInformationModel
 
 path = os.getcwd().split("/Data")[0]
 
@@ -15,11 +15,7 @@ cities_crs = {"Saint_Petersburg": 32636,
               "Krasnodar": 32637,
               "Sevastopol": 32636}
 
-cities_model = {
-    "Krasnodar": InterfaceCityInformationModel("Krasnodar", cities_crs, cities_db_id),
-    "Sevastopol": InterfaceCityInformationModel("Sevastopol", cities_crs, cities_db_id),
-    "Saint_Petersburg": InterfaceCityInformationModel("Saint_Petersburg", cities_crs, cities_db_id)
-}
+cities_model = {name: CityInformationModel(name, cities_crs["name"], cities_db_id["name"]) for name in cities_name}
 
 cities_metrics = {"Saint_Petersburg": ["connectivity_calculations", "pedastrian_walk_traffics",
                                        "mobility_analysis", "Visibility_analysis", "voronoi",

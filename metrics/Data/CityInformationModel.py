@@ -1,26 +1,18 @@
-from copyreg import pickle
-import geopandas as gpd
-import networkx as nx
-import requests
+import json
+from attr import attr
 import pandas as pd
 import os
-import ast
-import numpy as np
-
-from typing import Union
-from shapely.geometry import shape
-from shapely import wkt
-from sqlalchemy import create_engine
-from geopandas.geodataframe import GeoDataFrame
-from pandas.core.frame import DataFrame
-from networkx.classes.multidigraph import MultiDiGraph
-
 import pickle
 import rpyc
+import jsonschema
+
+from sqlalchemy import all_, create_engine
+from copyreg import pickle
 
 # TODO: SQL queries as a separate class
 # TODO provisions lengths from rpyc method
-class InterfaceCityInformationModel:
+
+class CityInformationModel:
     
     def __init__(self, city_name, cities_crs, cities_db_id,):
 
@@ -40,17 +32,40 @@ class InterfaceCityInformationModel:
         self.rpyc_connect._config['sync_request_timeout'] = None
 
         self.attr_names = ['walk_graph', 'drive_graph','public_transport_graph',
-                           'Buildings','Spacematrix_Buildings', 'Services',
-                           'Public_Transport_Stops','Spacematrix_Blocks','Block_Diversity',
-                           'Base_Layer_Blocks','Base_Layer_Municipalities','Base_Layer_Districts']
+                            'Buildings','Spacematrix_Buildings', 'Services',
+                            'Public_Transport_Stops','Spacematrix_Blocks',
+                            'Block_Diversity', 'Base_Layer_Blocks',
+                            'Base_Layer_Municipalities','Base_Layer_Districts']
         self.provisions = ['houses_provision','services_provision']
+        self.set_city_layers()
+        self.available_mathods = self.MethodFlags()
+    
+    def get_all_attributes(self):
+        all_attr = self.__dict__
+        del all_attr["attr_names"], all_attr["provisions"]
+        return all_attr
+
+    def set_city_layers(self):
+
+        if self.mode == "general_mode":
+            self.get_city_layers_from_db()
+        else:
+            self.set_none_layers()
+        
+    def get_city_layers_from_db(self):
+
+        self.engine = create_engine("postgresql://" + os.environ["POSTGRES"])
+        rpyc_connect = rpyc.connect(
+            os.environ["RPYC_SERVER"], 18861,
+            config={'allow_public_attrs': True, 
+                    "allow_pickle": True}
+                    )
+        rpyc_connect._config['sync_request_timeout'] = None
         
         for attr_name in self.attr_names:
-            print(attr_name)
-            setattr(self, 
-                    attr_name, 
-                    pickle.loads(self.rpyc_connect.root.get_city_model_attr(city_name, 
-                                                                            attr_name)))
+            print(self.city_name, attr_name)
+            setattr(self, attr_name, pickle.loads(
+                self.rpyc_connect.root.get_city_model_attr(self.city_name, attr_name)))
         
         for attr_name in self.provisions:
             try:
@@ -66,6 +81,54 @@ class InterfaceCityInformationModel:
             except:
                 print(self.city_name, attr_name, "None")
                 setattr(self, attr_name, None)
+
+    def set_none_layers(self):
+        for attr_name in self.attr_names + self.provisions:
+            setattr(self, attr_name, None)
+
+    def update_layer(self, attr_name, layer):
+        setattr(self, attr_name, layer)
+        self.available_mathods.validate_json_layers(self)
+
+    class MethodFlags:
+        
+        def __init__(self):
+            
+            self.specification_folder = "data_specification"
+
+            self.traffic_calculator = None
+            self.visibility_analysis = None
+            self.weighted_voronoi = None
+            self.spacematrix = None
+
+            self.diversity = None
+            self.provision = None
+            self.wellbeing = None
+
+            self.walk_drive_isochrone = None
+            self.public_transport_isochrone = None
+        
+        def validate_json_layers(self, outer):
+            print("Validation of loaded layers...")
+            for dir in os.listdir(self.specification_folder):
+                check_layer_list = []
+
+                for file in os.listdir(os.path.join(self.specification_folder, dir)):
+                    file_name = file.split(".")[0]
+                    layer = getattr(outer, file_name)
+                    if layer:
+                        with open(os.path.join(self.specification_folder, dir, file)) as schema:
+                            schema = json.load(schema)
+                        try:
+                            jsonschema.validate(instance=layer, schema=schema)
+                            check_layer_list.append(True)
+                        except:
+                            check_layer_list.append(False)
+
+                setattr(self, dir, all(check_layer_list))
+        
+        def get_all_attributes(self):
+            return self.__dict__
 
     def get_service_normative(self, code):
         normative = pd.read_sql(f"""
