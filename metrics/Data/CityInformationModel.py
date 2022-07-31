@@ -1,20 +1,17 @@
-import json
-from attr import attr
-from fastapi import File
-from matplotlib.style import available
 import pandas as pd
 import os
 import pickle
 import rpyc
-import jsonschema
 import geopandas as gpd
 
 from sqlalchemy import create_engine
-from jsonschema.exceptions import ValidationError
 from copyreg import pickle
+from .DataValidation import DataValidation
 
 # TODO: SQL queries as a separate class
 # TODO provisions lengths from rpyc method
+# TODO: there must be one function with common conditions for one graph including walk, personal drive and public
+# transport routes.
 
 class CityInformationModel:
     
@@ -32,7 +29,7 @@ class CityInformationModel:
                             'Base_Layer_Municipalities','Base_Layer_Districts']
         self.provisions = ['houses_provision','services_provision']
         self.set_city_layers()
-        self.available_mathods = self.MethodFlags()
+        self.methods = DataValidation()
     
     def get_all_attributes(self):
         all_attr = self.__dict__
@@ -83,64 +80,20 @@ class CityInformationModel:
             setattr(self, attr_name, None)
 
     def update_layer(self, attr_name, layer):
-        self.available_mathods.validate_json_layers(attr_name, layer)
-        py_obj = self.get_pandas_object(attr_name, layer)
-        setattr(self, attr_name, py_obj)
+
+        self.methods.check_methods(attr_name, layer)
+        if "graph" not in attr_name:
+            layer = self.get_pandas_object(attr_name, layer)
+        setattr(self, attr_name, layer)
         print(f"{attr_name} layer loaded successfully!")
 
     def get_pandas_object(self, attr_name, layer):
 
         if "type" in layer.keys() and layer["type"] == 'FeatureCollection':
-            print(f"Converting {attr_name} layer to GeoDataFrame...")
-            return gpd.GeoDataFrame.from_features(layer)
+            print(f"Converting {attr_name} layer to GeoDataFrame and setting defind crs...")
+            return gpd.GeoDataFrame.from_features(layer).set_crs(4326).to_crs(32636)
 
-    class MethodFlags:
-        
-        def __init__(self):
-            
-            self.specification_folder = "data_specification"
-
-            self.traffic_calculator = {"Buildings": None, "Public_Transport_Stops": None}
-            self.visibility_analysis = {}
-            self.weighted_voronoi = {}
-            self.spacematrix = {}
-
-            self.diversity = {}
-            self.provision = {}
-            self.wellbeing = {}
-
-            self.walk_drive_isochrone = {}
-            self.public_transport_isochrone = {}
-        
-        def validate_json_layers(self, file_name, layer):
-
-            print(f"Validation of {file_name} layer...")
-            for dir in os.listdir(self.specification_folder):
-                file = file_name + ".json"
-                
-                if file in os.listdir(os.path.join(self.specification_folder, dir)):
-                    with open(os.path.join(self.specification_folder, dir, file)) as schema:
-                        schema = json.load(schema)
-                    try:
-                        jsonschema.validate(instance=layer, schema=schema)
-                        method = getattr(self, dir)
-                        method[file_name] = True
-                    except ValidationError:
-                        method = getattr(self, dir)
-                        method[file_name] = False
-        
-        def get_list_of_methods(self):
-            attrs = self.__dict__.copy()
-            del attrs["specification_folder"]
-            return list(attrs.keys())
-
-        def get_list_of_available_methods(self):
-            attrs = self.__dict__.copy()
-            del attrs["specification_folder"]
-            return [method for method, files in attrs.items() if all(files.values()) and len(files) > 0]
-        
-        def if_method_available(self, method):
-            return all(getattr(self, method).values())
+# ####################################################################################################
 
     def get_service_normative(self, code):
         normative = pd.read_sql(f"""
