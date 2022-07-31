@@ -8,55 +8,66 @@ import shapely.wkt
 import ast
 
 from shapely.geometry import Polygon
+from jsonschema.exceptions import ValidationError
+from metrics.Calculations import utils
 
 class BaseMethod():
 
-    def __init__(self, city_model, city_crs):
+    def __init__(self, city_model):
 
         self.city_model = city_model
-        self.city_crs = city_crs
+        self.city_crs = city_model.city_crs
+        self.mode = city_model.mode
 
-    def validate_data(self, specification_path, *args):
-        pass
+    def validation(self, method):
+        if self.mode == "user_mode":
+            if not self.city_model.methods.if_method_available(method):
+                needed_layers = getattr(self.city_model.available_mathods, method)
+                bad_layers = [name for name, value in needed_layers.items() if value == False]
+                raise ValidationError(f'Layers {",".join(bad_layers)} do not match specification.')
 
 # ########################################  Trafiics calculation  ####################################################
 class Trafic_Calculator(BaseMethod):
 
-    def __init__(self):
+    def __init__(self, city_model):
 
-        self.stops = super().city_model.Public_Transport_Stops.copy()
-        self.buildings = super().city_model.Buildings.copy()
-        self.data_specification_path = "../data_specification/trafic_calculator"
-        super.validate_data(self.data_specification_path, self.stops, self.buildings)
+        BaseMethod.__init__(self, city_model)
+        super().validation("traffic_calculator")
+        self.stops = self.city_model.Public_Transport_Stops.copy()
+        self.buildings = self.city_model.Buildings.copy()
+        self.walk_graph = self.city_model.walk_graph.copy()
 
     def get_trafic_calculation(self, request_area_geojson):
 
         request_area_geojson = gpd.GeoDataFrame.from_features(request_area_geojson['features'])
-        request_area_geojson = request_area_geojson.set_crs(4326).to_crs(super().city_crs)
+        request_area_geojson = request_area_geojson.set_crs(4326).to_crs(self.city_crs)
         living_buildings = self.buildings[self.buildings['population'] > 0]
+        living_buildings = living_buildings[['id', 'population', 'geometry']]
         s = living_buildings.within(request_area_geojson['geometry'][0])
         selected_buildings = living_buildings.loc[s[s].index]
 
         if len(selected_buildings) == 0:
             return None
-
-        selected_buildings['closest_stop_index'] = selected_buildings.apply(
-            lambda x: self.stops['geometry'].distance(x['geometry']).idxmin(), axis=1)
-        selected_buildings['geometry'] = selected_buildings.apply(
-            lambda x: shapely.geometry.shape(
-                BCAM.Route_Between_Two_Points(
-                    "Saint_Petersburg", "walk", x['geometry'].centroid.coords[0][0], x['geometry'].centroid.coords[0][1],
-                    self.stops.iloc[x['closest_stop_index']].geometry.coords[0][0],
-                    self.stops.iloc[x['closest_stop_index']].geometry.coords[0][1],
-                    reproject=False)['features'][0]['geometry']), axis=1)
-        selected_buildings = selected_buildings[['population', 'id', 'geometry']].reset_index(drop=True)
+        
+        stops = self.stops.set_index("id")
+        selected_buildings['nearest_stop_id'] = selected_buildings.apply(
+            lambda x: stops['geometry'].distance(x['geometry']).idxmin(), axis=1)
+        nearest_stops = stops.loc[list(selected_buildings['nearest_stop_id'])]
+        path_info = selected_buildings.apply(
+            lambda x: utils.routes_between_two_points(graph=self.walk_graph, weight="length",
+            p1 = x['geometry'].centroid.coords[0], p2 = stops.loc[x['nearest_stop_id']].geometry.coords[0]), 
+            result_type="expand", axis=1)
+        house_stop_routes = selected_buildings.copy().drop(["geometry"], axis=1).join(path_info)
 
         # 30% aprox value of Public transport users
-        selected_buildings['population'] = selected_buildings['population'].apply(lambda x: int(x*0.3))
-        selected_buildings['route_len'] = selected_buildings.length
-        selected_buildings.rename(columns={'population': 'route_traffic'}, inplace=True)
+        house_stop_routes['population'] = (house_stop_routes['population'] * 0.3).round().astype("int")
+        house_stop_routes = house_stop_routes.rename(
+            columns={'population': 'route_traffic', 'id': 'building_id', "route_geometry": "geometry"})
+        house_stop_routes = house_stop_routes.set_crs(selected_buildings.crs)
 
-        return json.loads(selected_buildings.to_crs(4326).to_json())
+        return {"buildings": json.loads(selected_buildings.reset_index(drop=True).to_crs(4326).to_json()), 
+                "stops": json.loads(nearest_stops.reset_index(drop=True).to_crs(4326).to_json()), 
+                "routes": json.loads(house_stop_routes.reset_index(drop=True).to_crs(4326).to_json())}
 
 
 class City_Metrics_Methods():
@@ -68,7 +79,7 @@ class City_Metrics_Methods():
         
 
     # ########################## Trafiics calculation #################################
-    def Trafic_Area_Calculator(self, BCAM, request_area_geojson):
+    def TrafficCalculator(self, BCAM, request_area_geojson):
 
         city_inf_model = self.cities_inf_model["Saint_Petersburg"]
         city_crs = self.cities_crs["Saint_Petersburg"]
