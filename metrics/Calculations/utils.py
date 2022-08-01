@@ -6,11 +6,11 @@ import networkx as nx
 import osmnx as ox
 import shapely
 
-def request_points_project(self, request_points, set_crs, to_crs):
+def request_points_project(request_points, set_crs, to_crs):
         transformer = pyproj.Transformer.from_crs(set_crs, to_crs)
         return [transformer.transform(point[0], point[1]) for point in request_points]
 
-def geojson_projection_management(self, geojson, set_crs, to_crs):
+def geojson_projection_management(geojson, set_crs, to_crs):
     gdf = gpd.GeoDataFrame.from_features(geojson['features'])
     gdf = gdf.set_crs(set_crs).to_crs(to_crs)
     return json.loads(gdf.to_json())

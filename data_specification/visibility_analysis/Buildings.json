@@ -51,11 +51,6 @@
             "id": {
               "description": "The unique identifier for a building",
               "type": "integer"
-            },
-            "population": {
-              "description": "The number of people living in a building",
-              "type": "integer",
-              "minimum": 0
             }
           }
         },

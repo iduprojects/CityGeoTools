@@ -9,6 +9,7 @@ from geojson_pydantic import FeatureCollection
 
 from app import enums, schemas
 from app.core.config import settings
+from Calculations import utils
 from Calculations.City_Metrics_Methods import *
 from Calculations.Basics.Basics_City_Analysis_Methods import Basics_City_Analysis_Methods
 from Data.cities_dictionary import cities_model, cities_crs
@@ -100,7 +101,8 @@ async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIso
             tags=[Tags.visibility_analysis])
 async def Visibility_analisys(query_params: schemas.VisibilityAnalisysQueryParams = Depends()):
     request_points = [[query_params.x_from, query_params.y_from]]
-    request_point = BCAM.Request_Points_Project(query_params.city, request_points)[0]
+    to_crs = cities_model[query_params.city].city_crs
+    request_point = utils.request_points_project(request_points, 4326, to_crs)[0]
     return CMM.Visibility_Analysis(query_params.city, request_point, query_params.view_distance)
 
 
