@@ -9,7 +9,7 @@ from networkx.classes.digraph import DiGraph
 from networkx.classes.digraph import DiGraph
 from networkx.classes.multidigraph import MultiDiGraph
 from networkx.classes.multigraph import MultiGraph
-from data_specification.data_dictionary import data_dictionary
+from .data_dictionary import data_dictionary
 
 
 class DataValidation:
@@ -55,6 +55,8 @@ class DataValidation:
         validity["has_xy_attr"] = all([True if "x" in n[-1] and "y" in n[-1] else False 
                                             for n in graph.nodes(data=True)])
         setattr(self, layer_name, all(validity.values()))
+        bad_features = ", ".join([k for k, v in validity.items() if not v])
+        self.message[layer_name] = "Layer matches specification" if all(validity.values()) else f"Error in conditions {bad_features}"
         
     def get_list_of_methods(self):
         return list(self.__dict__.keys())
@@ -62,6 +64,10 @@ class DataValidation:
     def if_method_available(self, method):
         method_data = getattr(self, method).__dict__.items()
         return all([v for k, v in method_data if k not in ["specification_folder", "messag"]])
+
+    def get_bad_layers(self, method):
+        method_data = getattr(self, method).__dict__.items()
+        return [k for k, v in method_data if k not in ["specification_folder", "message"] and not v]
 
     def get_list_of_available_methods(self):
         return [method for method in list(self.__dict__.keys()) if self.if_method_available(method)]

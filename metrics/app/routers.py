@@ -9,9 +9,9 @@ from geojson_pydantic import FeatureCollection
 
 from app import enums, schemas
 from app.core.config import settings
-from Calculations.City_Metrics_Methods import City_Metrics_Methods
+from Calculations.City_Metrics_Methods import *
 from Calculations.Basics.Basics_City_Analysis_Methods import Basics_City_Analysis_Methods
-from Data.Cities_dictionary import cities_model, cities_crs
+from Data.cities_dictionary import cities_model, cities_crs
 
 router = APIRouter()
 
@@ -41,8 +41,9 @@ async def read_root():
 
 @router.post('/pedastrian_walk_traffics/pedastrian_walk_traffics_calculation', 
             response_model=schemas.PedastrianWalkTrafficsCalculationOut, tags=[Tags.trafics_calculation])
-def pedastrian_walk_traffics_calculation(request_area_geojson: schemas.PedastrianWalkTrafficsCalculationIn):
-    result = CMM.Trafic_Area_Calculator(BCAM, request_area_geojson.dict())
+def pedastrian_walk_traffics_calculation(query_params: schemas.PedastrianWalkTrafficsCalculationIn):
+    city_model = cities_model[query_params.city]
+    result = TraficCalculator(city_model).get_trafic_calculation(query_params.geojson.dict())
     if not result:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

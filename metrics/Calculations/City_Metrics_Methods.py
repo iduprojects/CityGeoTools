@@ -9,7 +9,7 @@ import ast
 
 from shapely.geometry import Polygon
 from jsonschema.exceptions import ValidationError
-from metrics.Calculations import utils
+from .utils import routes_between_two_points
 
 class BaseMethod():
 
@@ -22,12 +22,11 @@ class BaseMethod():
     def validation(self, method):
         if self.mode == "user_mode":
             if not self.city_model.methods.if_method_available(method):
-                needed_layers = getattr(self.city_model.available_mathods, method)
-                bad_layers = [name for name, value in needed_layers.items() if value == False]
-                raise ValidationError(f'Layers {",".join(bad_layers)} do not match specification.')
+                bad_layers = self.city_model.methods.get_bad_layers(method)
+                raise ValidationError(f'Layers {", ".join(bad_layers)} do not match specification.')
 
 # ########################################  Trafiics calculation  ####################################################
-class Trafic_Calculator(BaseMethod):
+class TraficCalculator(BaseMethod):
 
     def __init__(self, city_model):
 
@@ -54,7 +53,7 @@ class Trafic_Calculator(BaseMethod):
             lambda x: stops['geometry'].distance(x['geometry']).idxmin(), axis=1)
         nearest_stops = stops.loc[list(selected_buildings['nearest_stop_id'])]
         path_info = selected_buildings.apply(
-            lambda x: utils.routes_between_two_points(graph=self.walk_graph, weight="length",
+            lambda x: routes_between_two_points(graph=self.walk_graph, weight="length",
             p1 = x['geometry'].centroid.coords[0], p2 = stops.loc[x['nearest_stop_id']].geometry.coords[0]), 
             result_type="expand", axis=1)
         house_stop_routes = selected_buildings.copy().drop(["geometry"], axis=1).join(path_info)
@@ -76,43 +75,6 @@ class City_Metrics_Methods():
 
         self.cities_inf_model = cities_model
         self.cities_crs = cities_crs
-        
-
-    # ########################## Trafiics calculation #################################
-    def TrafficCalculator(self, BCAM, request_area_geojson):
-
-        city_inf_model = self.cities_inf_model["Saint_Petersburg"]
-        city_crs = self.cities_crs["Saint_Petersburg"]
-
-        stops = city_inf_model.Public_Transport_Stops.copy()
-        buildings = city_inf_model.Buildings.copy()
-
-        request_area_geojson = gpd.GeoDataFrame.from_features(request_area_geojson['features'])
-        request_area_geojson = request_area_geojson.set_crs(4326).to_crs(city_crs)
-        living_buildings = buildings[buildings['population'] > 0]
-        s = living_buildings.within(request_area_geojson['geometry'][0])
-        selected_buildings = living_buildings.loc[s[s].index]
-
-        if len(selected_buildings) == 0:
-            return None
-
-        selected_buildings['closest_stop_index'] = selected_buildings.apply(
-            lambda x: stops['geometry'].distance(x['geometry']).idxmin(), axis=1)
-        selected_buildings['geometry'] = selected_buildings.apply(
-            lambda x: shapely.geometry.shape(
-                BCAM.Route_Between_Two_Points(
-                    "Saint_Petersburg", "walk", x['geometry'].centroid.coords[0][0], x['geometry'].centroid.coords[0][1],
-                    stops.iloc[x['closest_stop_index']].geometry.coords[0][0],
-                    stops.iloc[x['closest_stop_index']].geometry.coords[0][1],
-                    reproject=False)['features'][0]['geometry']), axis=1)
-        selected_buildings = selected_buildings[['id', 'population', 'geometry']].reset_index(drop=True)
-
-        # 30% aprox value of Public transport users
-        selected_buildings['population'] = selected_buildings['population'].apply(lambda x: int(x*0.3))
-        selected_buildings['route_len'] = selected_buildings.length
-        selected_buildings.rename(columns={'population': 'route_traffic'}, inplace=True)
-
-        return json.loads(selected_buildings.to_crs(4326).to_json())
 
     # ##########################  Visibility analysis  #####################################
     def Visibility_Analysis(self, city, point, view_distance):

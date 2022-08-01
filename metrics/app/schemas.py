@@ -68,11 +68,16 @@ class ConnectivityViewerOut(BaseModel):
     selected_blocks: FeatureCollection
     selected_points: FeatureCollection
 
-
-class PedastrianWalkTrafficsCalculationIn(FeatureCollection):
+class PedastrianWalkTrafficsCalculationIn(BaseModel):
+    class FeatureCollectionWithCRS(FeatureCollection):
+        crs: dict
+    city: enums.CitiesEnum
+    geojson: FeatureCollectionWithCRS
     class Config:
         schema_extra = {
             "example": {
+                "city": "Saint_Petersburg",
+                "geojson": {
                 "type": "FeatureCollection",
                 "name": "test_area",
                 "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}},
@@ -85,11 +90,34 @@ class PedastrianWalkTrafficsCalculationIn(FeatureCollection):
                                                    [30.268843029771755, 59.95102044973996],
                                                    [30.266428916437448, 59.94884104186871],
                                                    [30.258013049119235, 59.94833810159073],
-                                                   [30.253654233376736, 59.952160447703385]]]}}]}
+                                                   [30.253654233376736, 59.952160447703385]]]}}]}}
         }
 
+class PedastrianWalkTrafficsCalculationOut(BaseModel):
+    buildings: FeatureCollection
+    stops: FeatureCollection
+    routes: FeatureCollection
+# class PedastrianWalkTrafficsCalculationIn(FeatureCollection):
+#     class Config:
+#         schema_extra = {
+#             "example": {
+#                 "type": "FeatureCollection",
+#                 "name": "test_area",
+#                 "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}},
+#                 "features": [
+#                     {"type": "Feature", "properties": {},
+#                      "geometry": {"type": "Polygon",
+#                                   "coordinates": [[[30.253654233376736, 59.952160447703385],
+#                                                    [30.255163054210676, 59.95547985353806],
+#                                                    [30.26592597615947, 59.954205738167175],
+#                                                    [30.268843029771755, 59.95102044973996],
+#                                                    [30.266428916437448, 59.94884104186871],
+#                                                    [30.258013049119235, 59.94833810159073],
+#                                                    [30.253654233376736, 59.952160447703385]]]}}]}
+#         }
 
-PedastrianWalkTrafficsCalculationOut = FeatureCollection[LineString, Props]
+
+# PedastrianWalkTrafficsCalculationOut = FeatureCollection[LineString, Props]
 
 
 class MobilityAnalysisRoutesQueryParams:

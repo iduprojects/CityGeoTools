@@ -67,7 +67,7 @@ class InterfaceCityInformationModel:
         self.Services = pickle.dumps(self.Services)
 
         # Public transport stops
-        stops_columns = ["functional_object_id", "center"]
+        stops_columns = ["functional_object_id as id", "center"]
         equal_slice = {"column": "city_service_type", "value": "Остановка общественного транспорта"}
         place_slice = {"place": "city", "place_id": self.city_id}
         self.Public_Transport_Stops = self.get_services(stops_columns, equal_slice, place_slice)

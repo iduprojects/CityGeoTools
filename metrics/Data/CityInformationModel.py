@@ -5,7 +5,6 @@ import rpyc
 import geopandas as gpd
 
 from sqlalchemy import create_engine
-from copyreg import pickle
 from .DataValidation import DataValidation
 
 # TODO: SQL queries as a separate class
@@ -29,7 +28,7 @@ class CityInformationModel:
                             'Base_Layer_Municipalities','Base_Layer_Districts']
         self.provisions = ['houses_provision','services_provision']
         self.set_city_layers()
-        self.methods = DataValidation()
+        self.methods = DataValidation() if self.mode == "user_mode" else None
     
     def get_all_attributes(self):
         all_attr = self.__dict__
@@ -56,7 +55,7 @@ class CityInformationModel:
         for attr_name in self.attr_names:
             print(self.city_name, attr_name)
             setattr(self, attr_name, pickle.loads(
-                self.rpyc_connect.root.get_city_model_attr(self.city_name, attr_name)))
+                rpyc_connect.root.get_city_model_attr(self.city_name, attr_name)))
         
         for attr_name in self.provisions:
             try:
