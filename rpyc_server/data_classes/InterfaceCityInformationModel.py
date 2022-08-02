@@ -236,7 +236,7 @@ class InterfaceCityInformationModel:
     def get_buildings(self, columns: list, place_slice: dict = None) -> Union[DataFrame, GeoDataFrame]:
 
         columns = ["t." + c for c in columns]
-        sql_query = self.generate_general_sql_query("all_houses", columns, place_slice=place_slice)
+        sql_query = self.generate_general_sql_query("all_buildings", columns, place_slice=place_slice)
         df = pd.read_sql(sql_query, con=self.engine)
         df = self.rename_columns(df)
         if "geometry" in df.columns:
