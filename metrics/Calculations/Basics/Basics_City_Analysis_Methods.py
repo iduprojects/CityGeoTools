@@ -99,7 +99,7 @@ class Basics_City_Analysis_Methods():
 
         graph = getattr(city_inf_model, travel_type + "_graph")
         if travel_type == 'drive':
-            travel_speed = 35 * 1000 / 60
+            travel_speed = 17 * 1000 / 60
             type_ru = "Личный транспорт"
         elif travel_type == 'walk':
             travel_speed = 5 * 1000 / 60
