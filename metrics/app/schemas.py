@@ -129,13 +129,14 @@ class MobilityAnalysisIsochronesQueryParams:
                  weight_value: conint(ge=1) = Query(..., example=10),
                  x_from: float = Query(..., example=59.94288),
                  y_from: float = Query(..., example=30.31413),
-                 ):
+                 routes: bool = False):
         self.city = city
         self.travel_type = travel_type
         self.weight_type = weight_type
         self.weight_value = weight_value
         self.x_from = _check_latitude_epsg_4326(x_from)
         self.y_from = _check_longitude_epsg_4326(y_from)
+        self.routes = routes
 
     class Config:
         schema_extra = {
@@ -147,6 +148,7 @@ class MobilityAnalysisIsochronesQueryParams:
                     'weight_value': 10,
                     'x_from': 59.8059,
                     'y_from': 30.4267,
+                    'routes': True
                 }
             ]
         }
@@ -156,12 +158,11 @@ class MobilityAnalysisIsochronesProperties(BaseModel):
     travel_type: enums.MobilityAnalysisIsochronesTravelTypeLabelEnum
     weight_type: enums.MobilityAnalysisIsochronesWeightTypeEnum
 
-
 MobilityAnalysisIsochronesGeometry = Geometry
-MobilityAnalysisIsochronesOut = FeatureCollection[
-    MobilityAnalysisIsochronesGeometry,
-    MobilityAnalysisIsochronesProperties
-]
+class MobilityAnalysisIsochronesOut(BaseModel):
+    isochrone: FeatureCollection[MobilityAnalysisIsochronesGeometry, MobilityAnalysisIsochronesProperties]
+    routes: Union[None, FeatureCollection]
+    stops: Union[None, FeatureCollection]
 
 
 class VisibilityAnalisysQueryParams:

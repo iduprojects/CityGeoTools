@@ -116,7 +116,7 @@ class Basics_City_Analysis_Methods():
         gdf = gpd.GeoDataFrame({"travel_type": [type_ru], "weight_type": [weight_type]},
                                geometry=[isochrones]).set_crs(4326)
 
-        return eval(gdf.to_json())
+        return {"isochrone": json.loads(gdf.to_json()), "routes": None, "stops": None}
 
     # ############################## Transport isochrone ##############################
     def transport_isochrone(self, city, travel_type, x_from, y_from, weight_value, weight_type="weight", routes=False):
@@ -153,8 +153,9 @@ class Basics_City_Analysis_Methods():
 
         isochrone = gpd.GeoDataFrame({"travel_type": ["Общественный транспорт"], "weight_type": [weight_type]},
                                      geometry=[sub_sub_nodes['geometry'].unary_union]).set_crs(city_crs).to_crs(4326)
+        isochrone = json.loads(isochrone.to_json())
 
-        if routes == "True":
+        if routes:
             sub_graph = multi_modal_graph.subgraph(sub_sub_nodes.index)
             sub_graph = nx.convert_node_labels_to_integers(sub_graph)
             stops, routes = momepy.nx_to_gdf(sub_graph, points=True, lines=True, spatial_weights=False)
@@ -163,11 +164,15 @@ class Basics_City_Analysis_Methods():
             routes["geometry"] = routes["geometry"].apply(lambda x: wkt.loads(x))
             stops = stops[["bus", "trolleybus", "tram", "subway", "geometry"]].dropna()
             stops = stops.replace({True: "True", False: "False"})
-            return {"isochrone": eval(isochrone.to_json()),
-                    "routes": eval(routes.set_crs(city_crs).to_crs(4326).to_json()),
-                    "stops": eval(stops.set_crs(city_crs).to_crs(4326).to_json())}
 
-        return eval(isochrone.to_json())
+            routes = json.loads(routes.set_crs(city_crs).to_crs(4326).to_json())
+            stops = json.loads(stops.set_crs(city_crs).to_crs(4326).to_json())
+        
+        else: 
+            routes = None
+            stops = None
+
+        return {"isochrone": isochrone, "routes": routes, "stops": stops}
 
     # #####################  Get services #####################
     def Get_Services(self, city, user_request):

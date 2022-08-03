@@ -97,7 +97,7 @@ async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIso
         result = BCAM.transport_isochrone(
             city=query_params.city, travel_type=query_params.travel_type,
             weight_type=query_params.weight_type, weight_value=query_params.weight_value,
-            x_from=query_params.x_from, y_from=query_params.y_from,
+            x_from=query_params.x_from, y_from=query_params.y_from, routes=query_params.routes
         )
     else:
         result = BCAM.walk_drive_isochrone(
