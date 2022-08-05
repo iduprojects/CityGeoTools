@@ -18,6 +18,8 @@ class DataValidation:
 
         self.traffic_calculator = TrafficCalculatorData()
         self.visibility_analysis = VisibilityAnalysisData()
+        self.weighted_voronoi = WeightedVoronoiData()
+        self.blocks_clusterization = BlocksClusterizationData()
 
     def check_methods(self, layer_name, layer):
 
@@ -74,9 +76,7 @@ class DataValidation:
 
 
 class TrafficCalculatorData(DataValidation):
-
     def __init__(self):
-
         self.specification_folder = "data_specification/traffic_calculator"
         self.Buildings = None
         self.Public_Transport_Stops = None
@@ -85,9 +85,22 @@ class TrafficCalculatorData(DataValidation):
 
 
 class VisibilityAnalysisData(DataValidation):
-
     def __init__(self):
-
         self.specification_folder = "data_specification/visibility_analysis"
         self.Buildings = None  
         self.message = {}
+
+class WeightedVoronoiData(DataValidation):
+    def __init__(self):
+        self.specification_folder = None
+        self.message = "No data are nedded"
+
+class BlocksClusterizationData(DataValidation):
+    def __init__(self):
+        self.specification_folder = "data_specification/blocks_clusterization"
+        self.Services = None
+        self.Blocks = None
+        self.message = {}
+
+
+    

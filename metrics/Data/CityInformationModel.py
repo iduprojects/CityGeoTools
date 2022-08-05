@@ -24,8 +24,7 @@ class CityInformationModel:
         self.attr_names = ['walk_graph', 'drive_graph','public_transport_graph',
                             'Buildings','Spacematrix_Buildings', 'Services',
                             'Public_Transport_Stops','Spacematrix_Blocks',
-                            'Block_Diversity', 'Base_Layer_Blocks',
-                            'Base_Layer_Municipalities','Base_Layer_Districts']
+                            'Block_Diversity', 'Blocks', 'Municipalities','Districts']
         self.provisions = ['houses_provision','services_provision']
         self.set_city_layers()
         self.methods = DataValidation() if self.mode == "user_mode" else None

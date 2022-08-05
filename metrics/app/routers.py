@@ -44,31 +44,13 @@ async def read_root():
             response_model=schemas.PedastrianWalkTrafficsCalculationOut, tags=[Tags.trafics_calculation])
 def pedastrian_walk_traffics_calculation(query_params: schemas.PedastrianWalkTrafficsCalculationIn):
     city_model = cities_model[query_params.city]
-    result = TraficCalculator(city_model).get_trafic_calculation(query_params.geojson.dict())
+    result = TrafficCalculator(city_model).get_trafic_calculation(query_params.geojson.dict())
     if not result:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No living houses in the specified area"
         )
     return result
-
-
-@router.get("/mobility_analysis/routes", response_model=schemas.MobilityAnalysisRoutesOut,
-            tags=[Tags.mobility_analysis])
-async def mobility_analysis_routes(query_params: schemas.MobilityAnalysisRoutesQueryParams = Depends()):
-    result = BCAM.Route_Between_Two_Points(
-        city=query_params.city, travel_type=query_params.travel_type,
-        x_from=query_params.x_from, y_from=query_params.y_from,
-        x_to=query_params.x_to, y_to=query_params.y_to,
-        reproject=query_params.reproject
-    )
-    if result is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Path between given points absents",
-        )
-    return result
-
 
 @router.get("/mobility_analysis/isochrones", response_model=schemas.MobilityAnalysisIsochronesOut,
             tags=[Tags.mobility_analysis])
@@ -100,49 +82,25 @@ async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIso
 @router.get("/Visibility_analysis/Visibility_analysis", response_model=FeatureCollection,
             tags=[Tags.visibility_analysis])
 async def Visibility_analisys(query_params: schemas.VisibilityAnalisysQueryParams = Depends()):
+    city_model = cities_model[query_params.city]
     request_points = [[query_params.x_from, query_params.y_from]]
     to_crs = cities_model[query_params.city].city_crs
     request_point = utils.request_points_project(request_points, 4326, to_crs)[0]
-    return CMM.Visibility_Analysis(query_params.city, request_point, query_params.view_distance)
+    return VisibilityAnalysis(city_model).get_visibility_result(request_point, query_params.view_distance)
 
 
 @router.post("/voronoi/Weighted_voronoi_calculation", response_model=schemas.WeightedVoronoiCalculationOut,
              tags=[Tags.weighted_voronoi])
-async def Weighted_voronoi_calculation(user_request: schemas.WeightedVoronoiCalculationIn):
-    """
-    In user request:
-    :param: city -> srt
-    :param: geojson (containing points with weight) -> geojson
-    :return: voronoi polygons around points and polygons of deficit_zones ->geojson
-    """
-    return CMM.Weighted_Voronoi(user_request.dict())
+async def Weighted_voronoi_calculation(query_params: schemas.WeightedVoronoiCalculationIn):
+    city_model = cities_model[query_params.city]
+    return WeightedVoronoi(city_model).get_weighted_voronoi_result(query_params.geojson.dict())
 
 
 @router.post("/blocks_clusterization/get_blocks", response_model=FeatureCollection,
              tags=[Tags.blocks_clusterization])
-async def get_blocks_calculations(user_request: schemas.BlocksClusterizationGetBlocks):
-    """
-    In user request:
-    :param: city -> srt
-    :param: user json (with keys: clusters_number, service_types) -> json
-    :return: block polygons with cluster labels and cluster parameters -> geojson
-    """
-    result = BCAM.Blocks_Clusterization(user_request.city, user_request.param.dict(), method="get_blocks")
-    return FeatureCollection.parse_raw(result)  # todo return json dict not str
-
-
-@router.post("/blocks_clusterization/get_services", response_model=FeatureCollection,
-             tags=[Tags.blocks_clusterization])
-async def get_services_calculations(user_request: schemas.BlocksClusterizationGetServices):
-    """
-    In user request:
-    :param: city -> srt
-    :param: user json (with keys: service_types, area) -> json
-    :return: service points in specified blocks -> geojson
-    """
-    result = BCAM.Get_Services(user_request.city, user_request.param.dict())
-    return FeatureCollection.parse_raw(result)  # todo return json dict not str
-
+async def get_blocks_calculations(query_params: schemas.BlocksClusterizationGetBlocks):
+    city_model = cities_model[query_params.city]
+    return BlocksClusterization(city_model).get_blocks(query_params.service_types, query_params.clusters_number)
 
 @router.post("/blocks_clusterization/get_dendrogram",
              responses={
@@ -152,28 +110,10 @@ async def get_services_calculations(user_request: schemas.BlocksClusterizationGe
           },
              response_class=StreamingResponse,
              tags=[Tags.blocks_clusterization])
-async def get_dendrogram(user_request: schemas.BlocksClusterizationGetBlocks):
-    """
-    In user request:
-    :param: city -> srt
-    :param: user json (with keys: clusters_number, service_types) -> json
-    :return: dendrogram image -> byte str
-    """
-    result = BCAM.Blocks_Clusterization(user_request.city, user_request.param.dict(), method="get_dendrogram")
+async def get_dendrogram(query_params: schemas.BlocksClusterizationGetBlocks):
+    city_model = cities_model[query_params.city]
+    result = BlocksClusterization(city_model).get_blocks(query_params.service_types, query_params.clusters_number)
     return StreamingResponse(content=result, media_type="image/png")
-
-
-@router.post("/services_clusterization/get_services", response_model=FeatureCollection,
-             tags=[Tags.services_clusterization])
-async def get_services(user_request: schemas.ServicesClusterizationGetServices):
-    """
-    In user request:
-    :param: city -> srt
-    :param: user json (with keys: service_types, area) -> json
-    :return: service points in specified blocks -> geojson
-    """
-    result = BCAM.Get_Services(user_request.city, user_request.param.dict())
-    return FeatureCollection.parse_raw(result)  # todo return json dict not str
 
 
 @router.post("/services_clusterization/get_clusters_polygons", response_model=FeatureCollection,

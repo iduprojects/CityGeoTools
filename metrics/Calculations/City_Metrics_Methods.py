@@ -6,10 +6,13 @@ import json
 import numpy as np
 import shapely.wkt
 import ast
+import io
 
 from shapely.geometry import Polygon
 from jsonschema.exceptions import ValidationError
 from .utils import routes_between_two_points
+from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
+from matplotlib import pyplot as plt
 
 class BaseMethod():
 
@@ -25,8 +28,10 @@ class BaseMethod():
                 bad_layers = self.city_model.methods.get_bad_layers(method)
                 raise ValidationError(f'Layers {", ".join(bad_layers)} do not match specification.')
 
+    # TODO: add method for slicing object's dataframe with specifed parameter
+
 # ########################################  Trafiics calculation  ####################################################
-class TraficCalculator(BaseMethod):
+class TrafficCalculator(BaseMethod):
 
     def __init__(self, city_model):
 
@@ -38,8 +43,9 @@ class TraficCalculator(BaseMethod):
 
     def get_trafic_calculation(self, request_area_geojson):
 
+        geojson_crs = request_area_geojson["crs"]["properties"]["name"]
         request_area_geojson = gpd.GeoDataFrame.from_features(request_area_geojson['features'])
-        request_area_geojson = request_area_geojson.set_crs(4326).to_crs(self.city_crs)
+        request_area_geojson = request_area_geojson.set_crs(geojson_crs).to_crs(self.city_crs)
         living_buildings = self.buildings[self.buildings['population'] > 0]
         living_buildings = living_buildings[['id', 'population', 'geometry']]
         s = living_buildings.within(request_area_geojson['geometry'][0])
@@ -104,6 +110,170 @@ class VisibilityAnalysis(BaseMethod):
         view_zone = gpd.GeoDataFrame(geometry=[circuit]).set_crs(self.city_crs).to_crs(4326)
         return json.loads(view_zone.to_json())
 
+# ########################################  Weighted Voronoi  ####################################################
+class WeightedVoronoi(BaseMethod):
+
+    def __init__(self, city_model):
+        BaseMethod.__init__(self, city_model)
+
+    @staticmethod
+    def self_weight_list_calculation(start_value, iter_count): 
+        log_r = [start_value]
+        self_weigth =[]
+        max_value = log_r[0] * iter_count
+        for i in range(iter_count):
+            next_value = log_r[-1] + math.log(max_value / log_r[-1], 1.5)
+            log_r.append(next_value)
+            self_weigth.append(log_r[-1] - log_r[i])
+        return self_weigth, log_r
+
+    @staticmethod
+    def vertex_checker(x_coords, y_coords, growth_rules, encounter_indexes, input_geojson):
+        for i in range(len(growth_rules)):
+            if growth_rules[i] == False:
+                pass
+            else:
+                for index in encounter_indexes:
+                    if shapely.geometry.Point(x_coords[i],y_coords[i]).within(input_geojson['geometry'][index]):
+                        growth_rules[i] = False
+                        break
+        return growth_rules
+
+    @staticmethod
+    def growth_funtion_x(x_coords, growth_rules, iteration_weight):
+        growth_x = [x_coords[i-1] + iteration_weight  *math.sin(2 * math.pi * i / 65) 
+        if growth_rules[i-1] == True else x_coords[i-1] for i in range(1, len(x_coords) + 1)]
+        return growth_x 
+    
+    @staticmethod
+    def growth_funtion_y(y_coords, growth_rules, iteration_weight):    
+        growth_y = [y_coords[i-1] + iteration_weight * math.cos(2 * math.pi * i / 65) 
+        if growth_rules[i-1] == True else y_coords[i-1] for i in range(1, len(y_coords) + 1)]
+        return growth_y
+
+    def get_weighted_voronoi_result(self, geojson):
+
+        iter_count = 300
+        print(geojson)
+        geojson_crs = geojson["crs"]["properties"]["name"]
+        input_geojson = gpd.GeoDataFrame.from_features(geojson['features']).set_crs(geojson_crs)
+        input_geojson['init_centroid'] = input_geojson.apply(lambda x: list(x['geometry'].coords)[0], axis = 1)
+        input_geojson['geometry'] = input_geojson.apply(lambda x: shapely.geometry.Polygon([
+            [list(x['geometry'].coords)[0][0] + x['weight'] * math.sin(2 * math.pi * i / 65),
+            list(x['geometry'].coords)[0][1] + x['weight'] * math.cos(2 * math.pi * i / 65)] 
+            for i in range(1, 65)]), axis =1)
+        input_geojson['x'] = input_geojson.apply(
+            lambda x: list(list(zip(*list(x['geometry'].exterior.coords)))[0]), axis = 1)
+        input_geojson['y'] = input_geojson.apply(
+            lambda x: list(list(zip(*list(x['geometry'].exterior.coords)))[1]), axis = 1)
+        input_geojson['self_weight'] = input_geojson.apply(
+            lambda x: self.self_weight_list_calculation(x['weight'], iter_count)[0], axis = 1)
+        input_geojson['self_radius'] = input_geojson.apply(
+            lambda x: self.self_weight_list_calculation(x['weight'], iter_count)[1], axis = 1)
+        input_geojson['vertex_growth_allow_rule'] = input_geojson.apply(
+            lambda x: [True for x in range(len(x['x']))], axis = 1)
+        temp = pd.DataFrame({'x':input_geojson.apply(
+            lambda x: self.growth_funtion_x(x['x'], x['vertex_growth_allow_rule'],x['self_radius'][-1]), axis = 1),
+                    'y':input_geojson.apply(
+                        lambda x: self.growth_funtion_y(x['y'], x['vertex_growth_allow_rule'], x['self_radius'][-1]), 
+                        axis = 1)}).apply(
+                            lambda x: shapely.geometry.Polygon(tuple(zip(x['x'], x['y']))), axis = 1)
+        input_geojson['encounter_rule_index'] = [
+            [y for y in range(len(temp)) if y != x if temp[x].intersects(temp[y])] for x in range(len(temp))]
+        for i in range(iter_count):
+            input_geojson['x'] = input_geojson.apply(
+                lambda x: self.growth_funtion_x(x['x'], x['vertex_growth_allow_rule'],x['self_weight'][i]), axis = 1)
+            input_geojson['y'] = input_geojson.apply(
+                lambda x: self.growth_funtion_y(x['y'],x['vertex_growth_allow_rule'],x['self_weight'][i]), axis = 1)
+            input_geojson['geometry'] = input_geojson.apply(
+                lambda x: shapely.geometry.Polygon(tuple(zip(x['x'], x['y']))), axis = 1)   
+            input_geojson['vertex_growth_allow_rule'] = input_geojson.apply(
+                lambda x: self.vertex_checker(
+                    x['x'], x['y'], x['vertex_growth_allow_rule'], x['encounter_rule_index'], input_geojson), 
+                    axis = 1)
+        
+        start_points = gpd.GeoDataFrame.from_features(geojson['features'])
+        x = [list(p.coords)[0][0] for p in start_points['geometry']]
+        y = [list(p.coords)[0][1] for p in start_points['geometry']]
+        centroid = shapely.geometry.Point(
+            (sum(x) / len(start_points['geometry']), sum(y) / len(start_points['geometry'])))
+        buffer_untouch = centroid.buffer(start_points.distance(shapely.geometry.Point(centroid)).max()*1.4)
+        buffer_untouch = gpd.GeoDataFrame(data = {'id':[1]} ,geometry = [buffer_untouch]).set_crs(3857)
+        
+        result = gpd.overlay(buffer_untouch, input_geojson, how='difference')
+        input_geojson = input_geojson.to_crs(4326)
+        result = result.to_crs(4326)
+        return {'voronoi_polygons': json.loads(input_geojson[['weight','geometry']].to_json()),
+                'deficit_zones': json.loads(result.to_json())}
+
+# ########################################  Blocks clusterization  ###################################################
+class BlocksClusterization(BaseMethod):
+    def __init__(self, city_model):
+        BaseMethod.__init__(self, city_model)
+        super().validation("blocks_clusterization")
+        self.services = self.city_model.Services.copy()
+        self.blocks = self.city_model.Blocks.copy()
+    
+    def clusterize(self, service_types):
+
+        service_in_blocks = self.services.groupby(["block_id", "service_code"])["id"].count().unstack(fill_value=0)
+        without_services = self.blocks["id"][~self.blocks["id"].isin(service_in_blocks.index)].values
+        without_services = pd.DataFrame(columns=service_in_blocks.columns, index=without_services).fillna(0)
+        service_in_blocks = pd.concat([without_services, service_in_blocks])
+
+        service_in_blocks = service_in_blocks[service_types]
+        clusterization = linkage(service_in_blocks, method="ward")
+
+        return clusterization, service_in_blocks
+
+    @staticmethod
+    def get_clusters_number(clusterization):
+
+        distance = clusterization[-100:, 2]
+        clusters = np.arange(1, len(distance) + 1)
+        acceleration = np.diff(distance, 2)[::-1]
+        series_acceleration = pd.Series(acceleration, index=clusters[:-2] + 1)
+
+        # There are always more than two clusters
+        series_acceleration = series_acceleration.iloc[1:]
+        clusters_number = series_acceleration.idxmax()
+
+        return clusters_number
+
+    def get_blocks(self, service_types, clusters_number=None):
+
+        clusterization, service_in_blocks = self.clusterize(service_types)
+        
+        # If user doesn't specified the number of clusters, use default value.
+        # The default value is determined with the rate of change in the distance between clusters
+        if not clusters_number:
+            clusters_number = self.get_clusters_number(clusterization)
+
+        service_in_blocks["cluster_labels"] = fcluster(clusterization, t=int(clusters_number), criterion="maxclust")
+        blocks = self.blocks.join(service_in_blocks, on="id")
+        mean_services_number = service_in_blocks.groupby("cluster_labels")[service_types].mean().round()
+        mean_services_number = service_in_blocks[["cluster_labels"]].join(mean_services_number, on="cluster_labels")
+        deviations_services_number = service_in_blocks[service_types] - mean_services_number[service_types]
+        blocks = blocks.join(deviations_services_number, on="id", rsuffix="_deviation")
+
+        return json.loads(blocks.to_crs(4326).to_json())
+
+    def get_dendrogram(self, service_types):
+            
+            clusterization, service_in_blocks = self.clusterize(service_types)
+
+            img = io.BytesIO()
+            plt.figure(figsize=(20, 10))
+            plt.title("Dendrogram")
+            plt.xlabel("Distance")
+            plt.ylabel("Block clusters")
+            dn = dendrogram(clusterization, p=7, truncate_mode="level")
+            plt.savefig(img, format="png")
+            plt.close()
+            img.seek(0)
+
+            return img
+
 
 class City_Metrics_Methods():
 
@@ -111,135 +281,6 @@ class City_Metrics_Methods():
 
         self.cities_inf_model = cities_model
         self.cities_crs = cities_crs
-
-    # ##########################  Visibility analysis  #####################################
-    def Visibility_Analysis(self, city, point, view_distance):
-
-        city_inf_model = self.cities_inf_model[city]
-        city_crs = self.cities_crs[city]
-        buildings = city_inf_model.Buildings.copy()
-
-        point_buffer = shapely.geometry.Point(point).buffer(view_distance)
-        s = buildings.within(point_buffer)
-        buildings_in_buffer = buildings.loc[s[s].index].reset_index(drop=True)
-        buffer_exterior_ = list(point_buffer.exterior.coords)
-        line_geometry = [shapely.geometry.LineString([point, ext]) for ext in buffer_exterior_]
-        buffer_lines_gdf = gpd.GeoDataFrame(geometry=line_geometry)
-        united_buildings = buildings_in_buffer.unary_union
-
-        if united_buildings:
-            splited_lines = buffer_lines_gdf.apply(lambda x: x['geometry'].difference(united_buildings), axis=1)
-        else:
-            splited_lines = buffer_lines_gdf["geometry"]
-
-        splited_lines_gdf = gpd.GeoDataFrame(geometry=splited_lines).explode()
-        splited_lines_list = []
-
-        for _0, _1 in splited_lines_gdf.groupby(level=0):
-            splited_lines_list.append(_1.iloc[0]['geometry'].coords[-1])
-        circuit = shapely.geometry.Polygon(splited_lines_list)
-        if united_buildings:
-            circuit = circuit.difference(united_buildings)
-
-        view_zone = gpd.GeoDataFrame(geometry=[circuit]).set_crs(city_crs).to_crs(4326)
-
-        return eval(view_zone.to_json())
-
-    # ##########################  Weighted voronoi  #####################################
-    def Weighted_Voronoi(self, request):
-        def self_weight_list_calculation(start_value, iter_count):
-            log_r = [start_value]
-            self_weigth = []
-            max_value = log_r[0] * iter_count
-            for _ in range(iter_count):
-                next_value = log_r[-1] + math.log(max_value/log_r[-1], 1.5)
-                log_r.append(next_value)
-                self_weigth.append(log_r[-1]-log_r[_])
-            return self_weigth, log_r
-
-        def vertex_checker(x_coords, y_coords, growth_rules, encounter_indexes, input_geojson):
-            for i in range(len(growth_rules)):
-                if not growth_rules[i]:
-                    pass
-                else:
-                    for index in encounter_indexes:
-                        if shapely.geometry.Point(x_coords[i],y_coords[i]).within(input_geojson['geometry'][index]):
-                            growth_rules[i] = False
-                            break
-            return growth_rules
-
-        def growth_funtion_x(x_coords, growth_rules, iteration_weight):
-            growth_x = [x_coords[i - 1] + iteration_weight*math.sin(2 * math.pi * i / 65)
-                        if growth_rules[i - 1] else x_coords[i - 1] for i in range(1, len(x_coords)+1)]
-            return growth_x
-
-        def growth_funtion_y(y_coords, growth_rules, iteration_weight):
-            growth_y = [y_coords[i - 1] + iteration_weight*math.cos(2 * math.pi * i / 65)
-                        if growth_rules[i-1] else y_coords[i-1] for i in range(1, len(y_coords)+1)]
-            return growth_y
-
-        city = request["city"]
-        city_crs = self.cities_crs[city]
-        json_from_flask_request = request["geojson"]
-        iter_count = 300
-
-        input_geojson = gpd.GeoDataFrame.from_features(json_from_flask_request)
-        input_geojson = input_geojson.set_crs(json_from_flask_request["crs"]["properties"]["name"]).to_crs(city_crs)
-        input_geojson['init_centroid'] = input_geojson.apply(lambda x: list(x['geometry'].coords)[0], axis=1)
-        input_geojson['geometry'] = input_geojson.apply(
-            lambda x: shapely.geometry.Polygon([
-                [list(x['geometry'].coords)[0][0] + x['weight'] * math.sin(2 * math.pi * i / 65),
-                 list(x['geometry'].coords)[0][1] + x['weight'] * math.cos(2 * math.pi * i / 65)]
-                for i in range(1, 65)]), axis=1
-        )
-        input_geojson['x'] = input_geojson.apply(
-            lambda x: list(list(zip(*list(x['geometry'].exterior.coords)))[0]), axis=1)
-        input_geojson['y'] = input_geojson.apply(
-            lambda x: list(list(zip(*list(x['geometry'].exterior.coords)))[1]), axis=1)
-
-        input_geojson['self_weight'] = input_geojson.apply(
-            lambda x: self_weight_list_calculation(x['weight'], iter_count)[0], axis=1)
-        input_geojson['self_radius'] = input_geojson.apply(
-            lambda x: self_weight_list_calculation(x['weight'], iter_count)[1], axis=1)
-        input_geojson['vertex_growth_allow_rule'] = input_geojson.apply(
-            lambda x: [True for x in range(len(x['x']))], axis=1)
-
-        temp = pd.DataFrame({'x': input_geojson.apply(
-            lambda x: growth_funtion_x(x['x'], x['vertex_growth_allow_rule'], x['self_radius'][-1]), axis=1),
-                            'y': input_geojson.apply(
-            lambda x: growth_funtion_y(x['y'], x['vertex_growth_allow_rule'], x['self_radius'][-1]), axis=1)}).apply(
-            lambda x: shapely.geometry.Polygon(tuple(zip(x['x'], x['y']))), axis=1)
-
-        input_geojson['encounter_rule_index'] = [[y for y in range(len(temp))
-                                                  if y != x if temp[x].intersects(temp[y])] for x in range(len(temp))]
-        for i in range(iter_count):
-            input_geojson['x'] = input_geojson.apply(
-                lambda x: growth_funtion_x(x['x'], x['vertex_growth_allow_rule'], x['self_weight'][i]), axis=1)
-            input_geojson['y'] = input_geojson.apply(
-                lambda x: growth_funtion_y(x['y'], x['vertex_growth_allow_rule'], x['self_weight'][i]), axis=1)
-            input_geojson['geometry'] = input_geojson.apply(
-                lambda x: shapely.geometry.Polygon(tuple(zip(x['x'], x['y']))), axis=1)
-            input_geojson['vertex_growth_allow_rule'] = input_geojson.apply(
-                lambda x: vertex_checker(x['x'], x['y'], x['vertex_growth_allow_rule'], x['encounter_rule_index'],
-                                         input_geojson), axis=1)
-
-        start_points = gpd.GeoDataFrame.from_features(json_from_flask_request)
-        start_points = start_points.set_crs(json_from_flask_request["crs"]["properties"]["name"]).to_crs(city_crs)
-        x = [list(p.coords)[0][0] for p in start_points['geometry']]
-        y = [list(p.coords)[0][1] for p in start_points['geometry']]
-
-        centroid = shapely.geometry.Point((sum(x) / len(start_points['geometry']),
-                                           sum(y) / len(start_points['geometry'])))
-
-        buffer_untouch = centroid.buffer(start_points.distance(shapely.geometry.Point(centroid)).max() * 1.4)
-        buffer_untouch = gpd.GeoDataFrame(data={'id': [1]}, geometry=[buffer_untouch]).set_crs(city_crs)
-
-        result = gpd.overlay(buffer_untouch, input_geojson, how='difference')
-        input_geojson = input_geojson.to_crs(4326)
-        result = result.to_crs(4326)
-
-        return {'voronoi_polygons': eval(input_geojson[['weight', 'geometry']].to_json()),
-                'deficit_zones': eval(result.to_json())}
 
     # #################################  Spacematrix  ######################################
     def Get_Polygon(self, mo, districts, arg, crs):
