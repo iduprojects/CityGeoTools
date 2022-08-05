@@ -30,48 +30,44 @@ class InterfaceCityInformationModel:
 
         self.mongo_address = "http://" + os.environ["MONGO"]
         self.engine = create_engine("postgresql://" + os.environ["POSTGRES"])
-        self.db_api = "http://" + os.environ["DB_API"]
-        self.db_api_provision = "http://" + os.environ["DB_API_PROVISION"]
         
         # Graphs
         self.walk_graph = self.get_graph_for_city(city_name, "walk_graph", node_type=int)
         self.walk_graph = pickle.dumps(self.walk_graph)
         print(self.city_name, datetime.datetime.now(),'walk_graph')
+
         self.drive_graph = self.get_graph_for_city(city_name, "drive_graph", node_type=int)
         self.drive_graph = pickle.dumps(self.drive_graph)
         print(self.city_name, datetime.datetime.now(),'drive_graph')
+
         self.public_transport_graph = self.get_graph_for_city(city_name, "multimodal_graph", node_type=str)
         self.set_xy_attributes(self.public_transport_graph)
         self.public_transport_graph = pickle.dumps(self.public_transport_graph)
         print(self.city_name, datetime.datetime.now(),'public_transport_graph')
+        
+        # Select with city_id
+        place_slice = {"place": "city", "place_id": self.city_id}
 
         # Buildings
         buildings_columns = ["building_id as id", "building_area", "living_area", "population_balanced as population",
                              "storeys_count", "administrative_unit_id", "municipality_id", "block_id", "geometry"]
-        self.Buildings = self.get_buildings(buildings_columns).to_crs(self.city_crs)
+        self.Buildings = self.get_buildings(buildings_columns, place_slice).to_crs(self.city_crs)
         self.Buildings = pickle.dumps(self.Buildings)
         print(self.city_name, datetime.datetime.now(),'Buildings')
+
         self.Spacematrix_Buildings = self.get_file_from_mongo("infrastructure", "spacematrix_buildings", "geojson")
         self.Spacematrix_Buildings = pickle.dumps(self.Spacematrix_Buildings)
         print(self.city_name, datetime.datetime.now(),'Spacematrix_Buildings')
 
         # Services
-        if self.city_name == "Saint_Petersburg":
-            self.Services = self.get_file_from_mongo("infrastructure", "services", "geojson")
-        else:
-            service_columns = ["building_id", "functional_object_id", "city_service_type", "center",
-                               "city_service_type_id", "city_service_type_code as service_code", "service_name",
-                               "block_id", "administrative_unit_id", "municipality_id"]
-            self.Services = self.get_services(service_columns, add_normative=True)
+        service_columns = ["building_id", "functional_object_id as id", "city_service_type", "center",
+                            "city_service_type_id", "city_service_type_code as service_code", "service_name",
+                            "block_id", "administrative_unit_id", "municipality_id"]
+        self.Services = self.get_services(service_columns, add_normative=True, place_slice=place_slice)
         print(self.city_name, datetime.datetime.now(),'Services')
-        self.Services = pickle.dumps(self.Services)
-
-        # Public transport stops
-        stops_columns = ["functional_object_id as id", "center"]
-        equal_slice = {"column": "city_service_type", "value": "Остановка общественного транспорта"}
-        place_slice = {"place": "city", "place_id": self.city_id}
-        self.Public_Transport_Stops = self.get_services(stops_columns, equal_slice, place_slice)
+        self.Public_Transport_Stops = self.Services[self.Services["service_code"] == "stops"]
         print(self.city_name, datetime.datetime.now(),'Public_Transport_Stops')
+        self.Services = pickle.dumps(self.Services)
         self.Public_Transport_Stops = pickle.dumps(self.Public_Transport_Stops)
 
         # Blocks
@@ -79,32 +75,21 @@ class InterfaceCityInformationModel:
         print(self.city_name, datetime.datetime.now(),'Spacematrix_Blocks')
         self.Block_Diversity = self.get_file_from_mongo("infrastructure", "Blocks_Diversity", "geojson")
         print(self.city_name, datetime.datetime.now(),'Block_Diversity')
-        if city_name == "Saint_Petersburg":
-            self.Base_Layer_Blocks = self.get_file_from_mongo("infrastructure", "Blocks", "geojson")
-        else:
-            self.Base_Layer_Blocks = self.get_territorial_units("blocks", ["id", "geometry"])
-        print(self.city_name, datetime.datetime.now(),'Base_Layer_Blocks')
+        self.Blocks = self.get_territorial_units("blocks", ["id", "geometry"], place_slice=place_slice)
+        print(self.city_name, datetime.datetime.now(),'Blocks')
         self.Spacematrix_Blocks = pickle.dumps(self.Spacematrix_Blocks)
         self.Block_Diversity = pickle.dumps(self.Block_Diversity)
-        self.Base_Layer_Blocks = pickle.dumps(self.Base_Layer_Blocks)
+        self.Blocks = pickle.dumps(self.Blocks)
 
         # Municipalities
-        print(self.city_name, datetime.datetime.now(),'Base_Layer_Municipalities')
-        mo = pd.DataFrame(requests.get(self.db_api + f'/api/city/{self.city_id}/municipalities').json())
-        mo["geometry"] = mo["geometry"].apply(lambda x: shape(x))
-        self.Base_Layer_Municipalities = gpd.GeoDataFrame(mo).set_geometry("geometry").set_crs(4326).to_crs(self.city_crs)
-        
-        self.Base_Layer_Municipalities = pickle.dumps(self.Base_Layer_Municipalities)
-        del mo
+        self.Municipalities = self.get_territorial_units("municipalities", ["id", "geometry"], place_slice=place_slice)
+        self.Municipalities = pickle.dumps(self.Municipalities)
+        print(self.city_name, datetime.datetime.now(),'Municipality')
 
         # Districts
-        print(self.city_name, datetime.datetime.now(),'Base_Layer_Districts')
-        district = pd.DataFrame(requests.get(self.db_api + f'/api/city/{self.city_id}/administrative_units').json())
-        district["geometry"] = district["geometry"].apply(lambda x: shape(x))
-        self.Base_Layer_Districts = gpd.GeoDataFrame(district).set_geometry("geometry").set_crs(4326).to_crs(self.city_crs)
-        
-        self.Base_Layer_Districts = pickle.dumps(self.Base_Layer_Districts)
-        del district
+        self.Districts = self.get_territorial_units("administrative_units", ["id", "geometry"], place_slice=place_slice)
+        self.Districts = pickle.dumps(self.Districts)
+        print(self.city_name, datetime.datetime.now(),'Districts')
     
         # Provision
         if self.city_name == "Saint_Petersburg":
@@ -169,7 +154,7 @@ class InterfaceCityInformationModel:
         if equal_slice is not None:
             where_statment += f"WHERE {equal_slice['column']} = '{equal_slice['value']}' "
         if place_slice is not None:
-            where_statment += "WHERE" if "WHERE" not in where_statment else "and "
+            where_statment += "WHERE " if "WHERE" not in where_statment else "and "
             where_statment += self.get_place_slice(place_slice)
         sql_query += where_statment
 
@@ -191,10 +176,11 @@ class InterfaceCityInformationModel:
 
         return slice_row
 
-    def get_territorial_units(self, territory_type: str, columns: list) -> Union[GeoDataFrame, DataFrame]:
+    def get_territorial_units(self, territory_type: str, columns: list, place_slice: dict = None
+                            ) -> Union[GeoDataFrame, DataFrame]:
 
         columns = ["t." + c for c in columns]
-        sql_query = self.generate_general_sql_query(territory_type, columns)
+        sql_query = self.generate_general_sql_query(territory_type, columns, place_slice=place_slice)
         df = pd.read_sql(sql_query, con=self.engine)
         df = self.rename_columns(df)
         if "geometry" in df.columns:
@@ -207,7 +193,7 @@ class InterfaceCityInformationModel:
     def get_buildings(self, columns: list, place_slice: dict = None) -> Union[DataFrame, GeoDataFrame]:
 
         columns = ["t." + c for c in columns]
-        sql_query = self.generate_general_sql_query("all_houses", columns, place_slice=place_slice)
+        sql_query = self.generate_general_sql_query("all_buildings", columns, place_slice=place_slice)
         df = pd.read_sql(sql_query, con=self.engine)
         df = self.rename_columns(df)
         if "geometry" in df.columns:
@@ -227,7 +213,7 @@ class InterfaceCityInformationModel:
                             's.needed_capacity AS loaded_capacity', 's.reserve_resource', 'n.normative'])
             join_table = f"""
             LEFT JOIN provision.services s ON functional_object_id = s.service_id 
-            LEFT JOIN provision.normatives n ON functional_object_id = n.normative"""
+            LEFT JOIN provision.normatives n ON functional_object_id = n.normative """
 
         sql_query = self.generate_general_sql_query(
             "all_services", columns, join_tables=join_table, equal_slice=equal_slice, place_slice=place_slice)
@@ -240,13 +226,6 @@ class InterfaceCityInformationModel:
             return gdf
         else:
             return df
-
-    @staticmethod
-    def get_shapely_geometry(geom_column, from_type):
-        if from_type == "dict":
-            return geom_column.apply(lambda x: shape(x))
-        elif from_type == "str":
-            return geom_column.apply(lambda x: wkt.loads(x))
 
     def transform_provision_file(self, table):
         table = gpd.GeoDataFrame(table, geometry = table['geometry'].apply(lambda x: shapely.wkt.loads(x)), crs=4326).to_crs(self.city_crs)
