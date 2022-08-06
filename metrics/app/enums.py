@@ -17,6 +17,16 @@ class CitiesEnum(str, Enum):
     SEVASTOPOL = "Sevastopol"
 
 
+class TerritorialEnum(str, Enum):
+    BLOCK = "block"
+    MUNICIPALITY = "municipality"
+    ADMINISTRATIVE_UNIT = "administrative_unit"
+
+
+class ClusterizationConditionsEnum(str, Enum):
+    DISTANCE = "distance"
+    MAXCLUST = "maxclust"
+
 class MobilityAnalysisIsochronesTravelTypeEnum(str, Enum):
     def __new__(cls, value, label):
         obj = str.__new__(cls, value)

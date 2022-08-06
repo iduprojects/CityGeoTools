@@ -9,6 +9,7 @@ from networkx.classes.digraph import DiGraph
 from networkx.classes.digraph import DiGraph
 from networkx.classes.multidigraph import MultiDiGraph
 from networkx.classes.multigraph import MultiGraph
+
 from .data_dictionary import data_dictionary
 
 
@@ -20,6 +21,7 @@ class DataValidation:
         self.visibility_analysis = VisibilityAnalysisData()
         self.weighted_voronoi = WeightedVoronoiData()
         self.blocks_clusterization = BlocksClusterizationData()
+        self.services_clusterization = ServicesClusterizationData()
 
     def check_methods(self, layer_name, layer):
 
@@ -102,5 +104,10 @@ class BlocksClusterizationData(DataValidation):
         self.Blocks = None
         self.message = {}
 
+class ServicesClusterizationData(DataValidation):
+    def __init__(self):
+        self.specification_folder = "data_specification/services_clusterization"
+        self.Services = None
+        self.message = {}
 
     

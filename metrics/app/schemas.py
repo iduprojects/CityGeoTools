@@ -151,7 +151,7 @@ ServicesList = conlist(str, min_items=1, unique_items=True)
 # /blocks_clusterization/get_blocks
 class BlocksClusterizationGetBlocks(BaseModel):
     city: enums.CitiesEnum
-    service_types: list # todo service types as enumerate
+    service_types: ServicesList # todo service types as enumerate
     clusters_number: Optional[int]
 
     class Config:
@@ -169,120 +169,39 @@ class BlocksClusterizationGetBlocks(BaseModel):
                 }
             }
 
-
-class GetServices(BaseModel):
-    class Param(BaseModel):  # todo move to outside class
-        service_types: Optional[ServicesList]
-        area: Optional[dict]  # todo area_type and area_id
-
-    city: enums.CitiesEnum
-    param: Param
-
-
-class BlocksClusterizationGetServices(GetServices):
-    ...  # todo block area_type and area_id Optional[int]
-
-    class Config:
-        schema_extra = {
-            "example": {
-                "city": "Saint_Petersburg",
-                "param": {
-                    "service_types": [
-                        "bars",
-                        "cafes",
-                        "colleges",
-                        "restaurants"
-                    ],
-                    "area": {
-                        "block": 856
-                    }
-                }
-            }
-        }
-
-
-class ServicesClusterizationGetServices(GetServices):
-    ...
-
-    class Config:
-        schema_extra = {
-            "example": {
-                "city": "Saint_Petersburg",
-                "param": {
-                    "clusters_number": "default",
-                    "service_types": [
-                        "garbage_containers",
-                        "bakeries",
-                        "dentists",
-                        "parkings",
-                        "pet_shops"
-                    ]
-                }
-            }
-        }
-
-
 class ServicesClusterizationGetClustersPolygonsIn(BaseModel):
-    class Param(BaseModel):  # todo move to outside class
-        service_types: ServicesList
-        area: Optional[dict]  # todo mo or district area_type and area_id Optional[int]
-        condition: dict = {
-            "default": "default"}  # todo condition: str = Field("distance", regex=r"(distance|maxclust)")
-        n_std: Optional[int]
-
     city: enums.CitiesEnum
-    param: Param
+    service_types: ServicesList
+    area_type: Optional[enums.TerritorialEnum]
+    area_id: Optional[int]
+    condition: enums.ClusterizationConditionsEnum
+    condition_value: Optional[int]
+    n_std: int = 2
+
+    @root_validator
+    def validate_condition_value(cls, values):
+        if values["condition"] == "distance":
+            values["condition_value"] = 4000
+            return values
+        else:
+            values["condition_value"] = 10
+            return values
 
     class Config:
         schema_extra = {
             "example": {
                 "city": "Saint_Petersburg",
-                "param": {
-                    "service_types": [
+                "service_types": [
                         "schools",
                         "kindergartens",
                         "colleges",
                         "universities"
                     ],
-                    "condition": {
-                        "distance": 4000
-                    },
-                    "n_std": 2
+                "condition": "distance",
+                "condition_value": 4000,
+                "n_std": 2
                 }
             }
-        }
-
-
-class ServiceLocationServiceLocationIn(BaseModel):
-    user_service_choice: str
-    user_unit_square_min: int
-    user_unit_square_max: int
-
-    @root_validator
-    def user_unit_square_min_less_or_equal_max(cls, values):
-        min_, max_ = values.get("user_unit_square_min"), values.get("user_unit_square_max")
-        if not min_ <= max_:
-            raise ValueError(
-                "user_unit_square_min must be less or equal user_unit_square_max"
-            )
-
-        return values
-
-    class Config:
-        schema_extra = {
-            "example": {
-                "user_service_choice": "Кафе/столовая",
-                "user_unit_square_min": 10,
-                "user_unit_square_max": 50
-            }
-        }
-
-
-class ServiceLocationServiceLocationOut(BaseModel):
-    municipalities: FeatureCollection
-    blocks: FeatureCollection
-    rent_ads: FeatureCollection
-
 
 class DiversityDiversityQueryParams:
     def __init__(self,
@@ -414,3 +333,5 @@ class WellbeingGetWellbeingInfoIn(WellbeingInBase):
 
 class WellbeingGetWellbeingInfoOut(ProvisionOutBase):
     isochrone: Optional[FeatureCollection]
+
+  

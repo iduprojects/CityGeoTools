@@ -182,7 +182,6 @@ class InterfaceCityInformationModel:
         columns = ["t." + c for c in columns]
         sql_query = self.generate_general_sql_query(territory_type, columns, place_slice=place_slice)
         df = pd.read_sql(sql_query, con=self.engine)
-        df = self.rename_columns(df)
         if "geometry" in df.columns:
             df['geometry'] = df['geometry'].apply(lambda x: shape(ast.literal_eval(x)))
             gdf = gpd.GeoDataFrame(df, geometry=df.geometry).set_crs(4326).to_crs(self.city_crs)
@@ -195,7 +194,6 @@ class InterfaceCityInformationModel:
         columns = ["t." + c for c in columns]
         sql_query = self.generate_general_sql_query("all_buildings", columns, place_slice=place_slice)
         df = pd.read_sql(sql_query, con=self.engine)
-        df = self.rename_columns(df)
         if "geometry" in df.columns:
             df['geometry'] = df['geometry'].apply(lambda x: shape(ast.literal_eval(x)))
             gdf = gpd.GeoDataFrame(df, geometry=df.geometry).set_crs(4326).to_crs(self.city_crs)
@@ -219,7 +217,6 @@ class InterfaceCityInformationModel:
             "all_services", columns, join_tables=join_table, equal_slice=equal_slice, place_slice=place_slice)
         sql_query = sql_query.replace("functional_object_id,", "functional_object_id AS index,")
         df = pd.read_sql(sql_query, con=self.engine)
-        df = self.rename_columns(df)
         if "geometry" in df.columns:
             df['geometry'] = df['geometry'].apply(lambda x: shape(ast.literal_eval(x)))
             gdf = gpd.GeoDataFrame(df, geometry=df.geometry).set_crs(4326).to_crs(self.city_crs)
@@ -243,18 +240,6 @@ class InterfaceCityInformationModel:
                 return value
         except:
             return value
-
-    # Temporary function
-    @staticmethod
-    def rename_columns(df: Union[DataFrame, GeoDataFrame]) -> Union[DataFrame, GeoDataFrame]:
-
-        columns = {"administrative_unit_id": "district_id",
-                   "municipality_id": "mo_id"}
-
-        for col in df.filter(regex="city").columns:
-            columns[col] = col.replace("city_", "")
-
-        return df.rename(columns=columns)
 
     # Temporary function
     def get_file_from_mongo(self, collection_name: str, file_name: str, file_type: str) \

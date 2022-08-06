@@ -7,6 +7,7 @@ import numpy as np
 import shapely.wkt
 import ast
 import io
+import pca
 
 from shapely.geometry import Polygon
 from jsonschema.exceptions import ValidationError
@@ -154,7 +155,6 @@ class WeightedVoronoi(BaseMethod):
     def get_weighted_voronoi_result(self, geojson):
 
         iter_count = 300
-        print(geojson)
         geojson_crs = geojson["crs"]["properties"]["name"]
         input_geojson = gpd.GeoDataFrame.from_features(geojson['features']).set_crs(geojson_crs)
         input_geojson['init_centroid'] = input_geojson.apply(lambda x: list(x['geometry'].coords)[0], axis = 1)
@@ -274,6 +274,88 @@ class BlocksClusterization(BaseMethod):
 
             return img
 
+# ########################################  Services clusterization  #################################################
+class ServicesClusterization(BaseMethod):
+    def __init__(self, city_model):
+        BaseMethod.__init__(self, city_model)
+        super().validation("services_clusterization")
+        self.services = self.city_model.Services.copy()
+    
+    @staticmethod
+    def get_service_cluster(services_select, condition, condition_value):
+        services_coords = pd.DataFrame({"x": services_select.geometry.x, "y": services_select.geometry.y})
+        clusterization = linkage(services_coords.to_numpy(), method="ward")
+        services_select["cluster"] = fcluster(clusterization, t=condition_value, criterion=condition)
+        return services_select
+
+    @staticmethod
+    def find_dense_groups(loc, n_std):
+        if len(loc) > 1:
+            X = pd.DataFrame({"x": loc.x, "y": loc.y})
+            X = X.to_numpy()
+            outlier = pca.spe_dmodx(X, n_std=n_std)[0]["y_bool_spe"]
+            return pd.Series(data=outlier.values, index=loc.index)
+        else:
+            return pd.Series(data=True, index=loc.index)
+
+    @staticmethod
+    def get_service_ratio(loc):
+        all_services = loc["id"].count()
+        services_count = loc.groupby("service_code")["id"].count()
+        return (services_count / all_services).round(2)
+
+    def get_clusters_polygon(self, service_types, area_type = None, area_id = None, 
+                            condition="distance", condition_value=4000, n_std = 2):
+
+        services_select = self.services[self.services["service_code"].isin(service_types)]
+        if area_type and area_id:
+            services_select = services_select[services_select[f"{area_type}_id"] == area_id]
+        if len(services_select) <= 1:
+            return None
+
+        services_select = self.get_service_cluster(services_select, condition, condition_value)
+
+        # Find outliers of clusters and exclude it
+        outlier = services_select.groupby("cluster")["geometry"].apply(lambda x: self.find_dense_groups(x, n_std))
+        cluster_normal = 0
+        if any(~outlier):
+            services_normal = services_select[~outlier]
+
+            if len(services_normal) > 0:
+                cluster_service = services_normal.groupby(["cluster"]).apply(lambda x: self.get_service_ratio(x))
+                if isinstance(cluster_service, pd.Series):
+                    cluster_service = cluster_service.unstack(level=1, fill_value=0)
+
+                # Get MultiPoint from cluster Points and make polygon
+                polygons_normal = services_normal.dissolve("cluster").convex_hull
+                df_clusters_normal = pd.concat([cluster_service, polygons_normal.rename("geometry")], axis=1
+                                                ).reset_index(drop=True)
+                cluster_normal = df_clusters_normal.index.max()
+        else:
+            df_clusters_normal = None
+
+        # Select outliers 
+        if any(outlier):
+            services_outlier = services_select[outlier]
+
+            # Reindex clusters
+            clusters_outlier = cluster_normal + 1
+            new_clusters = [c for c in range(clusters_outlier, clusters_outlier + len(services_outlier))]
+            services_outlier["cluster"] = new_clusters
+            cluster_service = services_outlier.groupby(["cluster"]).apply(lambda x: self.get_service_ratio(x))
+            if isinstance(cluster_service, pd.Series):
+                cluster_service = cluster_service.unstack(level=1, fill_value=0)
+            df_clusters_outlier = cluster_service.join(services_outlier.set_index("cluster")["geometry"])
+        else:
+            df_clusters_outlier = None
+
+        df_clusters = pd.concat([df_clusters_normal, df_clusters_outlier]).fillna(0).set_geometry("geometry")
+        df_clusters["geometry"] = df_clusters["geometry"].buffer(50, join_style=3)
+        df_clusters = df_clusters.reset_index().rename(columns={"index": "cluster_id"})
+
+        df_clusters = df_clusters.set_crs(self.city_crs).to_crs(4326)
+
+        return json.loads(df_clusters.to_json())
 
 class City_Metrics_Methods():
 

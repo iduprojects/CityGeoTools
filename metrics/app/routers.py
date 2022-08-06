@@ -118,14 +118,12 @@ async def get_dendrogram(query_params: schemas.BlocksClusterizationGetBlocks):
 
 @router.post("/services_clusterization/get_clusters_polygons", response_model=FeatureCollection,
              tags=[Tags.services_clusterization])
-async def get_services_clusterization(user_request: schemas.ServicesClusterizationGetClustersPolygonsIn):
-    """
-    In user request:
-    :param: city -> srt
-    :param: user json (with keys: service_types, area, condition, n_std) -> json
-    :return: polygons of point cluster -> geojson
-    """
-    result = BCAM.Services_Clusterization(user_request.city, user_request.param.dict())
+async def get_services_clusterization(query_params: schemas.ServicesClusterizationGetClustersPolygonsIn):
+    city_model = cities_model[query_params.city]
+    result = ServicesClusterization(city_model).get_clusters_polygon(
+        query_params.service_types, query_params.area_type, query_params.area_id, 
+        query_params.condition, query_params.condition_value, query_params.n_std
+        )
 
     if result is None:
         raise HTTPException(
@@ -133,7 +131,7 @@ async def get_services_clusterization(user_request: schemas.ServicesClusterizati
             detail="Not enough objects to cluster"
         )
 
-    return FeatureCollection.parse_raw(result)  # todo return json dict not str
+    return result
 
 
 # todo Spacematrix
