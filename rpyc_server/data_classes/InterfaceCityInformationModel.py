@@ -37,9 +37,11 @@ class InterfaceCityInformationModel:
         self.walk_graph = self.get_graph_for_city(city_name, "walk_graph", node_type=int)
         self.walk_graph = pickle.dumps(self.walk_graph)
         print(self.city_name, datetime.datetime.now(),'walk_graph')
+
         self.drive_graph = self.get_graph_for_city(city_name, "drive_graph", node_type=int)
         self.drive_graph = pickle.dumps(self.drive_graph)
         print(self.city_name, datetime.datetime.now(),'drive_graph')
+
         self.public_transport_graph = self.get_graph_for_city(city_name, "multimodal_graph", node_type=str)
         self.set_xy_attributes(self.public_transport_graph)
         self.public_transport_graph = pickle.dumps(self.public_transport_graph)
@@ -48,7 +50,8 @@ class InterfaceCityInformationModel:
         # Buildings
         buildings_columns = ["building_id", "building_area", "living_area", "population_balanced as population",
                              "storeys_count", "administrative_unit_id", "municipality_id", "block_id", "geometry"]
-        self.Buildings = self.get_buildings(buildings_columns).to_crs(self.city_crs)
+        place_slice = {"place": "city", "place_id": self.city_id}
+        self.Buildings = self.get_buildings(buildings_columns, place_slice=place_slice).to_crs(self.city_crs)
         self.Buildings = pickle.dumps(self.Buildings)
         print(self.city_name, datetime.datetime.now(),'Buildings')
         self.Living_Buildings_Provision = self.get_file_from_mongo("infrastructure", "houses_provision", "geojson")
@@ -72,7 +75,8 @@ class InterfaceCityInformationModel:
             service_columns = ["building_id", "functional_object_id", "city_service_type", "center",
                                "city_service_type_id", "city_service_type_code as service_code", "service_name",
                                "block_id", "administrative_unit_id", "municipality_id"]
-            self.Services = self.get_services(service_columns, add_normative=True)
+            place_slice = {"place": "city", "place_id": self.city_id}
+            self.Services = self.get_services(service_columns, add_normative=True, place_slice=place_slice)
         print(self.city_name, datetime.datetime.now(),'Services')
         self.Service_types = pickle.dumps(self.Service_types)
         self.Services = pickle.dumps(self.Services)
@@ -96,7 +100,8 @@ class InterfaceCityInformationModel:
         if city_name == "Saint_Petersburg":
             self.Base_Layer_Blocks = self.get_file_from_mongo("infrastructure", "Blocks", "geojson")
         else:
-            self.Base_Layer_Blocks = self.get_territorial_units("blocks", ["id", "geometry"])
+            place_slice = {"place": "city", "place_id": self.city_id}
+            self.Base_Layer_Blocks = self.get_territorial_units("blocks", ["id", "geometry"], place_slice=place_slice)
         print(self.city_name, datetime.datetime.now(),'Base_Layer_Blocks')
         self.Spacematrix_Blocks = pickle.dumps(self.Spacematrix_Blocks)
         self.Block_Diversity = pickle.dumps(self.Block_Diversity)
@@ -198,7 +203,7 @@ class InterfaceCityInformationModel:
         if equal_slice is not None:
             where_statment += f"WHERE {equal_slice['column']} = '{equal_slice['value']}' "
         if place_slice is not None:
-            where_statment += "WHERE" if "WHERE" not in where_statment else "and "
+            where_statment += "WHERE " if "WHERE" not in where_statment else "and "
             where_statment += self.get_place_slice(place_slice)
         sql_query += where_statment
 
@@ -220,10 +225,11 @@ class InterfaceCityInformationModel:
 
         return slice_row
 
-    def get_territorial_units(self, territory_type: str, columns: list) -> Union[GeoDataFrame, DataFrame]:
+    def get_territorial_units(self, territory_type: str, columns: list, place_slice: dict = None
+                            ) -> Union[GeoDataFrame, DataFrame]:
 
         columns = ["t." + c for c in columns]
-        sql_query = self.generate_general_sql_query(territory_type, columns)
+        sql_query = self.generate_general_sql_query(territory_type, columns, place_slice = place_slice)
         df = pd.read_sql(sql_query, con=self.engine)
         df = self.rename_columns(df)
         if "geometry" in df.columns:
@@ -256,7 +262,7 @@ class InterfaceCityInformationModel:
                             's.needed_capacity AS loaded_capacity', 's.reserve_resource', 'n.normative'])
             join_table = f"""
             LEFT JOIN provision.services s ON functional_object_id = s.service_id 
-            LEFT JOIN provision.normatives n ON functional_object_id = n.normative"""
+            LEFT JOIN provision.normatives n ON functional_object_id = n.normative """
 
         sql_query = self.generate_general_sql_query(
             "all_services", columns, join_tables=join_table, equal_slice=equal_slice, place_slice=place_slice)
