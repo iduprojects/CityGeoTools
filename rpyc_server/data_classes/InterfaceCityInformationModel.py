@@ -52,6 +52,9 @@ class InterfaceCityInformationModel:
         buildings_columns = ["building_id as id", "building_area", "living_area", "population_balanced as population",
                              "storeys_count", "administrative_unit_id", "municipality_id", "block_id", "geometry"]
         self.Buildings = self.get_buildings(buildings_columns, place_slice).to_crs(self.city_crs)
+        self.Buildings = self.Buildings[
+            (self.Buildings.geom_type == "MultiPolygon") | (self.Buildings.geom_type == "Polygon")
+            ]
         self.Buildings = pickle.dumps(self.Buildings)
         print(self.city_name, datetime.datetime.now(),'Buildings')
 
