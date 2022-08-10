@@ -13,6 +13,8 @@ from shapely.geometry import Polygon
 from jsonschema.exceptions import ValidationError
 from .utils import routes_between_two_points
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 from matplotlib import pyplot as plt
 
 class BaseMethod():
@@ -357,72 +359,95 @@ class ServicesClusterization(BaseMethod):
 
         return json.loads(df_clusters.to_json())
 
+# #############################################  Spacematrix  #######################################################
+class Spacematrix(BaseMethod):
+    def __init__(self, city_model):
+        BaseMethod.__init__(self, city_model)
+        super().validation("spacematrix")
+        self.buildings = self.city_model.Buildings.copy()
+        self.blocks = self.city_model.Blocks.copy().set_index("id")
+
+    @staticmethod
+    def simple_preprocess_data(buildings, blocks):
+
+        # temporary filters. since there are a few bugs in buildings table from DB
+        buildings = buildings[buildings["block_id"].notna()]
+        buildings = buildings[buildings["storeys_count"].notna()]
+        buildings["is_living"] = buildings["is_living"].fillna(False)
+
+        buildings["building_area"] = buildings["basement_area"] * buildings["storeys_count"]
+        bad_living_area = buildings[buildings["living_area"] > buildings["building_area"]].index
+        buildings.loc[bad_living_area, "living_area"] = None
+
+        living_grouper = buildings.groupby(["is_living"])
+        buildings["living_area"] = living_grouper.apply(
+            lambda x: x.living_area.fillna(x.building_area * 0.8) if x.name else x.living_area.fillna(0)
+            ).droplevel(0).round(2)
+
+        blocks_area_nans = blocks[blocks["area"].isna()].index
+        blocks.loc[blocks_area_nans, "area"] = blocks["geometry"].loc[blocks_area_nans].area
+
+        return buildings, blocks
+
+    @staticmethod
+    def calculate_block_indices(buildings, blocks):
+
+        sum_grouper = buildings.groupby(["block_id"]).sum()
+        blocks["FSI"] = sum_grouper["building_area"] / blocks["area"]
+        blocks["GSI"] = sum_grouper["basement_area"] / blocks["area"]
+        blocks["MXI"] = (sum_grouper["living_area"] / sum_grouper["building_area"]).round(2)
+        blocks["L"] =( blocks["FSI"] / blocks["GSI"]).round()
+        blocks["OSR"] = ((1 - blocks["GSI"]) / blocks["FSI"]).round(2)
+        blocks[["FSI", "GSI"]] = blocks[["FSI", "GSI"]].round(2)
+
+        return blocks
+
+    def name_spacematrix_morph_types(cluster):
+
+        ranges = [[0, 3, 6, 10, 17], 
+                  [0, 1, 2], 
+                  [0, 0.22, 0.55]]
+
+        labels = [["Малоэтажный", "Среднеэтажный", "Повышенной этажности", "Многоэтажный", "Высотный"],
+                  [" низкоплотный", "", " плотный"], 
+                  [" нежилой", " смешанный", " жилой"]]
+
+        cluster_name = []
+        for ind in range(len(loc)):
+            cluster_name.append(
+                labels[ind][[i for i in range(len(ranges[ind])) if cluster.iloc[ind] >= ranges[ind][i]][-1]]
+                )
+        return "".join(cluster_name)
+
+
+    def get_spacematrix_morph_types(self, clusters_number=11, area_type=None, area_id=None):
+
+        buildings, blocks = self.simple_preprocess_data(self.buildings, self.blocks)
+        blocks = self.calculate_block_indices(buildings, blocks)
+
+        # blocks with OSR >=10 considered as unbuilt blocks
+        X = blocks[blocks["OSR"] < 10][['FSI', 'L', 'MXI']].dropna()
+        scaler = StandardScaler()
+        X_scaler = pd.DataFrame(scaler.fit_transform(X))
+        kmeans = KMeans(n_clusters=clusters_number, random_state=42).fit(X_scaler)
+        X["spacematrix_cluster"] = kmeans.labels_
+        blocks = blocks.join(X["spacematrix_cluster"])
+        cluster_grouper = blocks.groupby(["spacematrix_cluster"]).median()
+        named_clusters = cluster_grouper[["L", "FSI", "MXI"]].apply(
+            lambda x: self.name_spacematrix_morph_types(x), axis=1)
+        blocks = blocks.join(named_clusters.rename("spacematrix_morphotype"), on="spacematrix_cluster")
+
+        if area_type and area_id:
+            blocks = blocks[blocks[area_type + "_id"] == area_id]
+
+        return blocks
+
 class City_Metrics_Methods():
 
     def __init__(self, cities_model, cities_crs):
 
         self.cities_inf_model = cities_model
         self.cities_crs = cities_crs
-
-    # #################################  Spacematrix  ######################################
-    def Get_Polygon(self, mo, districts, arg, crs):
-
-        if "polygon" in arg:
-            coord = ast.literal_eval(arg.get("polygon"))
-            polygon = gpd.GeoSeries(Polygon(coord)).set_crs(4326).to_crs(crs)[0]
-
-        elif "municipalities" in arg:
-            value = str(arg.get("municipalities"))
-            polygon = mo[mo["name"] == value]
-            polygon = polygon["geometry"].values[0]
-
-        elif "districts" in arg:
-            value = str(arg.get("districts"))
-            polygon = districts[districts["name"] == value]
-            polygon = polygon["geometry"].values[0]
-
-        return polygon
-
-    def Get_Objects(self, arg):
-
-        city_inf_model = self.cities_inf_model["Saint_Petersburg"]
-        city_crs = self.cities_crs["Saint_Petersburg"]
-
-        buildings = city_inf_model.Spacematrix_Buildings.copy()
-        blocks = city_inf_model.Spacematrix_Blocks.copy()
-        mo = city_inf_model.Base_Layer_Municipalities.copy()
-        districts = city_inf_model.Base_Layer_Districts.copy()
-
-        polygon = self.Get_Polygon(mo, districts, arg, city_crs)
-        b_blocks = blocks.centroid.apply(lambda x: x.within(polygon))
-        blocks_within = blocks[blocks.index.isin(b_blocks[b_blocks].index)]
-        buildings_within = buildings[buildings["block"].isin(blocks_within["ID"].values)]
-
-        blocks_result = blocks_within[["area", "geometry"]].to_crs(4326).to_json()
-        buildings_result = buildings_within[["type", "floors", "area", "living_space", "geometry"]].to_crs(4326).to_json()
-
-        result = (blocks_result, buildings_result)
-        return result
-
-    def Get_Indices(self, arg):
-
-        city_inf_model = self.cities_inf_model["Saint_Petersburg"]
-        city_crs = self.cities_crs["Saint_Petersburg"]
-        blocks = city_inf_model.Spacematrix_Blocks.copy()
-        mo = city_inf_model.Base_Layer_Municipalities.copy()
-        districts = city_inf_model.Base_Layer_Districts.copy()
-
-        ind = str(arg.get("index"))
-        polygon = self.Get_Polygon(mo, districts, arg, city_crs)
-        b_blocks = blocks.centroid.apply(lambda x: x.within(polygon))
-        blocks_within = blocks[blocks.index.isin(b_blocks[b_blocks].index)].to_crs(4326)
-
-        if ind == "Spacematrix":
-            result = blocks_within[["cluster", ind, "FSI", "GSI", "L", "OSR", "MXI",
-                                    "geometry"]].astype({"cluster": "Int8"}).to_json()
-        else:
-            result = blocks_within[[ind, "geometry"]].to_json()
-        return result
 
     # ######################################### Wellbeing ##############################################
     def get_wellbeing(self, BCAM, living_situation_id=None, user_service_types=None, area=None,
