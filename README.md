@@ -14,4 +14,4 @@
 
 ## How to use CityGeoTools
 More detailed descriptions and examples of how to use the methods are provided as *jupyter notebooks* in [folder](). In order to use these methods, it is not necessary to have deep knowledge of python programming and maching learning. Simply follow the steps shown in the figure below. Two ways of using the presented methods are implemented - *general mode* and *user mode*.
-![Image](./plot.png)
+![Image](https://ibb.co/Dz2Wrrv)
