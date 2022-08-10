@@ -24,8 +24,8 @@ cities_model = {
 cities_metrics = {"Saint_Petersburg": ["connectivity_calculations", "pedastrian_walk_traffics",
                                        "mobility_analysis", "Visibility_analysis", "voronoi",
                                        "instagram_concentration", "house_location",
-                                       "blocks_clusterization", "services_clusterization", "diversity"
-                                       "house_selection", "service_location", "spacematrix", "provision"],
+                                       "blocks_clusterization", "services_clusterization", "diversity",
+                                       "house_selection", "service_location", "spacematrix", "provision", "wellbeing"],
 
                   "Krasnodar": ["mobility_analysis", "Visibility_analysis", "voronoi",
                                 "blocks_clusterization", "services_clusterization"],
