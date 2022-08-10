@@ -443,7 +443,6 @@ class Spacematrix(BaseMethod):
         blocks = self.calculate_block_indices(buildings, blocks)
 
         # blocks with OSR >=10 considered as unbuilt blocks
-        print(blocks)
         X = blocks[blocks["OSR"] < 10][['FSI', 'L', 'MXI']].dropna()
         scaler = StandardScaler()
         X_scaler = pd.DataFrame(scaler.fit_transform(X))

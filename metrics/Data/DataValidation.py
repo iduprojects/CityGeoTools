@@ -22,6 +22,7 @@ class DataValidation:
         self.weighted_voronoi = WeightedVoronoiData()
         self.blocks_clusterization = BlocksClusterizationData()
         self.services_clusterization = ServicesClusterizationData()
+        self.spacematrix = SpacematrixData()
 
     def check_methods(self, layer_name, layer):
 
@@ -110,4 +111,10 @@ class ServicesClusterizationData(DataValidation):
         self.Services = None
         self.message = {}
 
+class SpacematrixData(DataValidation):
+    def __init__(self):
+        self.specification_folder = "data_specification/spacematrix"
+        self.Buildings = None
+        self.Blocks = None
+        self.message = {}
     
