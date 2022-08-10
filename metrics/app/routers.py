@@ -79,9 +79,9 @@ async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIso
     return result
 
 
-@router.get("/Visibility_analysis/Visibility_analysis", response_model=FeatureCollection,
+@router.get("/visibility_analysis/visibility_analysis", response_model=FeatureCollection,
             tags=[Tags.visibility_analysis])
-async def Visibility_analisys(query_params: schemas.VisibilityAnalisysQueryParams = Depends()):
+async def visibility_analisys(query_params: schemas.VisibilityAnalisysQueryParams = Depends()):
     city_model = cities_model[query_params.city]
     request_points = [[query_params.x_from, query_params.y_from]]
     to_crs = cities_model[query_params.city].city_crs
@@ -89,18 +89,21 @@ async def Visibility_analisys(query_params: schemas.VisibilityAnalisysQueryParam
     return VisibilityAnalysis(city_model).get_visibility_result(request_point, query_params.view_distance)
 
 
-@router.post("/voronoi/Weighted_voronoi_calculation", response_model=schemas.WeightedVoronoiCalculationOut,
+@router.post("/voronoi/weighted_voronoi_calculation", response_model=schemas.WeightedVoronoiCalculationOut,
              tags=[Tags.weighted_voronoi])
-async def Weighted_voronoi_calculation(query_params: schemas.WeightedVoronoiCalculationIn):
+async def wighted_voronoi_calculation(query_params: schemas.WeightedVoronoiCalculationIn):
     city_model = cities_model[query_params.city]
     return WeightedVoronoi(city_model).get_weighted_voronoi_result(query_params.geojson.dict())
 
 
 @router.post("/blocks_clusterization/get_blocks", response_model=FeatureCollection,
              tags=[Tags.blocks_clusterization])
-async def get_blocks_calculations(query_params: schemas.BlocksClusterizationGetBlocks):
+async def get_blocks_clusterization(query_params: schemas.BlocksClusterizationGetBlocks):
     city_model = cities_model[query_params.city]
-    return BlocksClusterization(city_model).get_blocks(query_params.service_types, query_params.clusters_number)
+    return BlocksClusterization(city_model).get_blocks(
+        query_params.service_types, query_params.clusters_number, 
+        query_params.area_type, query_params.area_id, query_params.geojson
+        )
 
 @router.post("/blocks_clusterization/get_dendrogram",
              responses={
@@ -110,18 +113,18 @@ async def get_blocks_calculations(query_params: schemas.BlocksClusterizationGetB
           },
              response_class=StreamingResponse,
              tags=[Tags.blocks_clusterization])
-async def get_dendrogram(query_params: schemas.BlocksClusterizationGetBlocks):
+async def get_blocks_clusterization_dendrogram(query_params: schemas.BlocksClusterizationGetBlocks):
     city_model = cities_model[query_params.city]
     result = BlocksClusterization(city_model).get_blocks(query_params.service_types, query_params.clusters_number)
     return StreamingResponse(content=result, media_type="image/png")
 
 
 @router.post("/services_clusterization/get_clusters_polygons", response_model=FeatureCollection,
-             tags=[Tags.services_clusterization])
+             tags=[Tags.spacematrix])
 async def get_services_clusterization(query_params: schemas.ServicesClusterizationGetClustersPolygonsIn):
     city_model = cities_model[query_params.city]
     result = ServicesClusterization(city_model).get_clusters_polygon(
-        query_params.service_types, query_params.area_type, query_params.area_id, 
+        query_params.service_types, query_params.area_type, query_params.area_id, query_params.geojson,
         query_params.condition, query_params.condition_value, query_params.n_std
         )
 
@@ -134,7 +137,13 @@ async def get_services_clusterization(query_params: schemas.ServicesClusterizati
     return result
 
 
-# todo Spacematrix
+@router.post("/spacematrix/get_indices", response_model=FeatureCollection,
+            tags=[Tags.visibility_analysis])
+async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
+    city_model = cities_model[query_params.city]
+    return Spacematrix(city_model).get_spacematrix_morph_types(
+        query_params.clusters_number, query_params.area_type, query_params.area_id, query_params.geojson
+        )
 
 
 @router.get("/diversity/diversity", response_model=schemas.DiversityDiversityOut,

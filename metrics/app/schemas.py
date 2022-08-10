@@ -24,10 +24,11 @@ def _check_longitude_epsg_4326(lon):
 
     return lon
 
+class FeatureCollectionWithCRS(FeatureCollection):
+    crs: dict
+
 # /pedastrian_walk_traffics/pedastrian_walk_traffics_calculation
 class PedastrianWalkTrafficsCalculationIn(BaseModel):
-    class FeatureCollectionWithCRS(FeatureCollection):
-        crs: dict
     city: enums.CitiesEnum
     geojson: FeatureCollectionWithCRS
 
@@ -115,9 +116,6 @@ class VisibilityAnalisysQueryParams:
 
 # /voronoi/Weighted_voronoi_calculation
 class WeightedVoronoiCalculationIn(BaseModel):
-    class FeatureCollectionWithCRS(FeatureCollection):
-        crs: dict
-
     city: enums.CitiesEnum
     geojson: FeatureCollectionWithCRS
 
@@ -141,7 +139,6 @@ class WeightedVoronoiCalculationIn(BaseModel):
             }
         }
 
-
 class WeightedVoronoiCalculationOut(BaseModel):
     voronoi_polygons: FeatureCollection
     deficit_zones: FeatureCollection
@@ -153,6 +150,9 @@ class BlocksClusterizationGetBlocks(BaseModel):
     city: enums.CitiesEnum
     service_types: ServicesList # todo service types as enumerate
     clusters_number: Optional[int]
+    area_type: Optional[enums.TerritorialEnum]
+    area_id: Optional[int]
+    geojson: Optional[FeatureCollectionWithCRS]
 
     class Config:
         schema_extra = {
@@ -165,7 +165,9 @@ class BlocksClusterizationGetBlocks(BaseModel):
                         "dentists",
                         "parkings",
                         "pet_shops"
-                    ]
+                    ],
+                "area_type": "administrative_unit",
+                "area_id": 61
                 }
             }
 
@@ -174,6 +176,7 @@ class ServicesClusterizationGetClustersPolygonsIn(BaseModel):
     service_types: ServicesList
     area_type: Optional[enums.TerritorialEnum]
     area_id: Optional[int]
+    geojson: Optional[FeatureCollectionWithCRS]
     condition: enums.ClusterizationConditionsEnum
     condition_value: Optional[int]
     n_std: int = 2
@@ -199,7 +202,26 @@ class ServicesClusterizationGetClustersPolygonsIn(BaseModel):
                     ],
                 "condition": "distance",
                 "condition_value": 4000,
-                "n_std": 2
+                "n_std": 2,
+                "area_type": "administrative_unit",
+                "area_id": 61
+                }
+            }
+
+class SpacematrixIn(BaseModel):
+    city: enums.CitiesEnum
+    clusters_number: int = 11
+    area_type: Optional[enums.TerritorialEnum]
+    area_id: Optional[int]
+    geojson: Optional[FeatureCollectionWithCRS]
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "city": "Saint_Petersburg",
+                "clusters_number": 11,
+                "area_type": "administrative_unit",
+                "area_id": 61
                 }
             }
 
