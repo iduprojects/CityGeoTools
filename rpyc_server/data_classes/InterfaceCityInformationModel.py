@@ -49,8 +49,9 @@ class InterfaceCityInformationModel:
         place_slice = {"place": "city", "place_id": self.city_id}
 
         # Buildings
-        buildings_columns = ["building_id as id", "building_area", "living_area", "population_balanced as population",
-                             "storeys_count", "administrative_unit_id", "municipality_id", "block_id", "geometry"]
+        buildings_columns = ["building_id as id", "building_area as basement_area", "is_living", "living_area", 
+                            "population_balanced as population", "storeys_count", "administrative_unit_id", 
+                            "municipality_id", "block_id", "geometry"]
         self.Buildings = self.get_buildings(buildings_columns, place_slice).to_crs(self.city_crs)
         self.Buildings = self.Buildings[
             (self.Buildings.geom_type == "MultiPolygon") | (self.Buildings.geom_type == "Polygon")
@@ -78,7 +79,10 @@ class InterfaceCityInformationModel:
         print(self.city_name, datetime.datetime.now(),'Spacematrix_Blocks')
         self.Block_Diversity = self.get_file_from_mongo("infrastructure", "Blocks_Diversity", "geojson")
         print(self.city_name, datetime.datetime.now(),'Block_Diversity')
-        self.Blocks = self.get_territorial_units("blocks", ["id", "geometry"], place_slice=place_slice)
+        blocks_column = ["id", "municipality_id", "administrative_unit_id", "geometry"]
+        self.Blocks = self.get_territorial_units("blocks", blocks_column, place_slice=place_slice)
+        # temorary condition. area column must be recieved from db
+        self.Blocks["area"] = None
         print(self.city_name, datetime.datetime.now(),'Blocks')
         self.Spacematrix_Blocks = pickle.dumps(self.Spacematrix_Blocks)
         self.Block_Diversity = pickle.dumps(self.Block_Diversity)
