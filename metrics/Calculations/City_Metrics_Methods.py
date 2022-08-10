@@ -31,6 +31,17 @@ class BaseMethod():
                 bad_layers = self.city_model.methods.get_bad_layers(method)
                 raise ValidationError(f'Layers {", ".join(bad_layers)} do not match specification.')
 
+    def get_territorial_select(area_type, area_id, *args):
+        return tuple(df[df[area_type + "_id"] == area_id] for df in args)
+
+    def get_custom_polygon_select(geojson, set_crs, *args):
+
+        geojson_crs = geojson["crs"]["properties"]["name"]
+        geojson = gpd.GeoDataFrame.from_features(geojson['features'])
+        geojson = geojson.set_crs(geojson_crs).to_crs(set_crs)
+        custom_polygon = geojson['geometry'][0]
+        return tuple(df[df.within(custom_polygon)] for df in args)
+
     # TODO: add method for slicing object's dataframe with specifed parameter
 
 # ########################################  Trafiics calculation  ####################################################
@@ -46,13 +57,9 @@ class TrafficCalculator(BaseMethod):
 
     def get_trafic_calculation(self, request_area_geojson):
 
-        geojson_crs = request_area_geojson["crs"]["properties"]["name"]
-        request_area_geojson = gpd.GeoDataFrame.from_features(request_area_geojson['features'])
-        request_area_geojson = request_area_geojson.set_crs(geojson_crs).to_crs(self.city_crs)
         living_buildings = self.buildings[self.buildings['population'] > 0]
         living_buildings = living_buildings[['id', 'population', 'geometry']]
-        s = living_buildings.within(request_area_geojson['geometry'][0])
-        selected_buildings = living_buildings.loc[s[s].index]
+        selected_buildings = self.get_custom_polygon_select(request_area_geojson, self.city_crs, living_buildings)[0]
 
         if len(selected_buildings) == 0:
             return None
@@ -242,7 +249,7 @@ class BlocksClusterization(BaseMethod):
 
         return clusters_number
 
-    def get_blocks(self, service_types, clusters_number=None):
+    def get_blocks(self, service_types, clusters_number=None, area_type=None, area_id=None, geojson=None):
 
         clusterization, service_in_blocks = self.clusterize(service_types)
         
@@ -257,6 +264,11 @@ class BlocksClusterization(BaseMethod):
         mean_services_number = service_in_blocks[["cluster_labels"]].join(mean_services_number, on="cluster_labels")
         deviations_services_number = service_in_blocks[service_types] - mean_services_number[service_types]
         blocks = blocks.join(deviations_services_number, on="id", rsuffix="_deviation")
+
+        if area_type and area_id:
+            blocks = self.get_territorial_select(area_type, area_id, blocks)[0]
+        elif geojson:
+            blocks = self.get_custom_polygon_select(geojson, self.city_crs, blocks)[0]
 
         return json.loads(blocks.to_crs(4326).to_json())
 
@@ -306,12 +318,14 @@ class ServicesClusterization(BaseMethod):
         services_count = loc.groupby("service_code")["id"].count()
         return (services_count / all_services).round(2)
 
-    def get_clusters_polygon(self, service_types, area_type = None, area_id = None, 
+    def get_clusters_polygon(self, service_types, area_type = None, area_id = None, geojson = None, 
                             condition="distance", condition_value=4000, n_std = 2):
 
         services_select = self.services[self.services["service_code"].isin(service_types)]
         if area_type and area_id:
-            services_select = services_select[services_select[f"{area_type}_id"] == area_id]
+            services_select = self.get_territorial_select(area_type, area_id, services_select)[0]
+        elif geojson:
+            services_select = self.get_custom_polygon_select(geojson, self.city_crs, services_select)[0]
         if len(services_select) <= 1:
             return None
 
@@ -420,7 +434,7 @@ class Spacematrix(BaseMethod):
         return "".join(cluster_name)
 
 
-    def get_spacematrix_morph_types(self, clusters_number=11, area_type=None, area_id=None):
+    def get_spacematrix_morph_types(self, clusters_number=11, area_type=None, area_id=None, geojson=None):
 
         buildings, blocks = self.simple_preprocess_data(self.buildings, self.blocks)
         blocks = self.calculate_block_indices(buildings, blocks)
@@ -438,7 +452,9 @@ class Spacematrix(BaseMethod):
         blocks = blocks.join(named_clusters.rename("spacematrix_morphotype"), on="spacematrix_cluster")
 
         if area_type and area_id:
-            blocks = blocks[blocks[area_type + "_id"] == area_id]
+            blocks = self.get_territorial_select(area_type, area_id, blocks)[0]
+        elif geojson:
+            blocks = self.get_custom_polygon_select(geojson, self.city_crs, blocks)[0]
 
         return blocks
 
