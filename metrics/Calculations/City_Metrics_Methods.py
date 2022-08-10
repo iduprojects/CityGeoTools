@@ -31,9 +31,11 @@ class BaseMethod():
                 bad_layers = self.city_model.methods.get_bad_layers(method)
                 raise ValidationError(f'Layers {", ".join(bad_layers)} do not match specification.')
 
+    @staticmethod
     def get_territorial_select(area_type, area_id, *args):
         return tuple(df[df[area_type + "_id"] == area_id] for df in args)
 
+    @staticmethod
     def get_custom_polygon_select(geojson, set_crs, *args):
 
         geojson_crs = geojson["crs"]["properties"]["name"]
@@ -416,6 +418,7 @@ class Spacematrix(BaseMethod):
 
         return blocks
 
+    @staticmethod
     def name_spacematrix_morph_types(cluster):
 
         ranges = [[0, 3, 6, 10, 17], 
@@ -427,7 +430,7 @@ class Spacematrix(BaseMethod):
                   [" нежилой", " смешанный", " жилой"]]
 
         cluster_name = []
-        for ind in range(len(loc)):
+        for ind in range(len(cluster)):
             cluster_name.append(
                 labels[ind][[i for i in range(len(ranges[ind])) if cluster.iloc[ind] >= ranges[ind][i]][-1]]
                 )
@@ -440,6 +443,7 @@ class Spacematrix(BaseMethod):
         blocks = self.calculate_block_indices(buildings, blocks)
 
         # blocks with OSR >=10 considered as unbuilt blocks
+        print(blocks)
         X = blocks[blocks["OSR"] < 10][['FSI', 'L', 'MXI']].dropna()
         scaler = StandardScaler()
         X_scaler = pd.DataFrame(scaler.fit_transform(X))
@@ -456,7 +460,7 @@ class Spacematrix(BaseMethod):
         elif geojson:
             blocks = self.get_custom_polygon_select(geojson, self.city_crs, blocks)[0]
 
-        return blocks
+        return json.loads(blocks.to_crs(4326).to_json())
 
 class City_Metrics_Methods():
 
