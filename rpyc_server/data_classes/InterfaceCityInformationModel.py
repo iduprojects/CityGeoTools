@@ -20,7 +20,7 @@ import pickle
 import datetime
 
 # TODO: SQL queries as a separate class
-class InterfaceCityInformationModel:
+class DataQueryInterface:
 
     def __init__(self, city_name, cities_crs, cities_db_id):
 
