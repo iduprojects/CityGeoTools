@@ -13,5 +13,10 @@
 9.  Wellbeing (based on provision with services needed in living situations) - in progress for *user mode*
 
 ## How to use CityGeoTools
-More detailed descriptions and examples of how to use the methods are provided as *jupyter notebooks* in [folder](). In order to use these methods, it is not necessary to have deep knowledge of python programming and maching learning. Simply follow the steps shown in the figure below. Two ways of using the presented methods are implemented - *general mode* and *user mode*.
-![Image](https://ibb.co/Dz2Wrrv)
+More detailed descriptions and examples of how to use the methods are provided as *jupyter notebooks* in [examples](). In order to use these methods, it is not necessary to have deep knowledge of python programming and maching learning. Simply follow the steps shown in the figure below. Two ways of using the presented methods are implemented - *general mode* and *user mode*.
+  
+![Image](https://github.com/iduprojects/CityGeoTools/blob/metrics-refactor/plot.png?raw=true)
+
+## General mode
+General mode provides access to all data stored in databases through data query interface and allows to use all of the developed method trough API. This mode makes it possible to build an application for  urban environment analysis or integrate the methods into existed one. For an example of this use, check out our [Digital Urban Platform]().
+
