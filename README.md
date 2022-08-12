@@ -28,7 +28,7 @@ We leave the responsibility for collecting and preparing data to the user. In th
 The biggest problem in data collection is the incompleteness of information about the urban environment  — datasets often contain missing values. Before using the presented methods, it is necessary to deal with the missing values to obtain reliable results. Instead of deletion or filling the missing data with any point statistics, we suggest using our data imputer based on geospatial component of urban data. The data imputation algorithm and information about the accuracy of the imputed data are presented in the [paper](https://link.springer.com/chapter/10.1007/978-3-031-08757-8_21).
   
 The figure below shows comparison of the accuracy of the imputed values obtained with the developed method (green line), a method from scikit-learn package (black line) and mean imputation (gray line) in building features such as number of storeys and population.  
-![Image](https://github.com/iduprojects/CityGeoTools/blob/metrics-refactor/img/imputer.png?raw=true)
+![Image](https://github.com/iduprojects/CityGeoTools/blob/metrics-refactor/img/imputer.jpg?raw=true)
 ## General mode
 General mode provides access to all data stored in databases through a data query interface and allows the use of all of the developed methods through API. This mode makes it possible to build an application for urban environment analysis or integrate the methods into existing one. For an example of this use, check out our [Digital Urban Platform]().
 
