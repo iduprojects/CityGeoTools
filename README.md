@@ -19,7 +19,7 @@ More detailed descriptions and examples of how to use the methods are provided a
 
 It should be noted that we do not publish the package in a PyPI repository at this moment. Therefore, to work with the this package, first you need to download the repository to the local machine:
 ```shell
-https://github.com/iduprojects/CityGeoTools
+git clone https://github.com/iduprojects/CityGeoTools
 ```
 
 ## Data preparation  
