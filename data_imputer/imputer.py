@@ -131,7 +131,7 @@ class DataImputer:
         imputed_data = imputed_data.astype(self.dtypes.to_dict())
         imputed_data = imputed_data.join(self.add_flag_columns())
         imputed_data = gpd.GeoDataFrame(imputed_data.join(data.geometry)).set_crs(self.projection)
-        utils.save_to_file(imputed_data.reset_index(), "imputed_data", "_".join([self.file_name, self.time_start]))
+        utils.save_to_file(imputed_data.reset_index(), "data_imputer/imputed_data", "_".join([self.file_name, self.time_start]))
         self.imputed_data = imputed_data
         self.mean_score = {k: np.mean(v) for k, v in self.bunch_scores.items()}
 
@@ -191,9 +191,9 @@ class DataImputer:
         self.save_logs, self.save_models = save_options if self.num_iter == self.iter_counter else (False, False)
         file_name = f"{self.file_name}_{self.time_start}_{self.imput_counter}"
         if self.save_models:
-            os.mkdir(os.path.join(os.getcwd(), "fitted_model", file_name))
+            os.mkdir(os.path.join(os.getcwd(), "data_imputer/fitted_model", file_name))
         if self.save_logs:
-            os.mkdir(os.path.join(os.getcwd(), "logs", file_name))
+            os.mkdir(os.path.join(os.getcwd(), "data_imputer/logs", file_name))
 
     def add_flag_columns(self):
         flag_column = self.input_data.drop(["geometry"], axis=1).columns
@@ -204,15 +204,16 @@ class DataImputer:
         flag_data.columns = [c + "_is_imputed" for c in flag_column]
         return flag_data
 
-    def impute_by_saved_models(self, initial_impute_method: str, num_iter: int, positive_num: bool = True) -> GeoDataFrame:
+    def impute_by_saved_models(self, positive_num: bool = True) -> GeoDataFrame:
 
         data = self.data.copy()
+        num_iter = self.config_imputation["num_iteration"]
         self.num_iter = num_iter
         features_with_models = prediction.parse_config_models(list(data.columns))
         self.nans_position = {k: v for k, v in self.nans_position.items() if features_with_models[k] is not None}
         num_imputation = len(self.nans_position.keys()) * num_iter
 
-        zero_imputed_data = self.zero_impute(initial_impute_method)
+        zero_imputed_data = self.zero_impute(self.config_imputation["initial_imputation_type"])
         sort_data = utils.sort_columns(zero_imputed_data, "nans_ascending")
         sorted_semantic_data = sort_data.drop(["geometry"], axis=1)
         base_semantic_columns = list(self.dtypes.index)
@@ -224,7 +225,7 @@ class DataImputer:
         imputation = imputation[base_semantic_columns]
         imputed_data = imputation.astype(self.dtypes.to_dict())
         imputed_data = gpd.GeoDataFrame(imputed_data.join(data.geometry)).set_crs(self.projection)
-        utils.save_to_file(imputed_data.reset_index(), "imputed_data", "_".join([self.file_name, self.time_start]))
+        utils.save_to_file(imputed_data.reset_index(), "data_imputer/imputed_data", "_".join([self.file_name, self.time_start]))
 
         return imputed_data
 

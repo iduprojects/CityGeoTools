@@ -28,7 +28,27 @@ We leave the responsibility for collecting and preparing data to the user. In th
 The biggest problem in data collection is the incompleteness of information about the urban environment  — datasets often contain missing values. Before using the presented methods, it is necessary to deal with the missing values to obtain reliable results. Instead of deletion or filling the missing data with any point statistics, we suggest using our data imputer based on geospatial component of urban data. The data imputation algorithm and information about the accuracy of the imputed data are presented in the [paper](https://link.springer.com/chapter/10.1007/978-3-031-08757-8_21).
   
 The figure below shows comparison of the accuracy of the imputed values obtained with the developed method (green line), a method from scikit-learn package (black line) and mean imputation (gray line) in building features such as number of storeys and population.  
-![Image](https://github.com/iduprojects/CityGeoTools/blob/metrics-refactor/img/imputer.jpg?raw=true)
+![Image](https://github.com/iduprojects/CityGeoTools/blob/metrics-refactor/img/imputer.jpg?raw=true)  
+  
+Imputation options are set in three configuration files (more information about customizing options in the [examples]()).
++ *config_imputation.json* contains general options (such as number of iteration over dataset features, number of imputations, initial imputations strategy and neighbors search parameters). 
++ *config_learning.json* sets a pipeline of data preprocessing and a grid of hyperparameters for certain machine learning methods that are going to be optimized inside the HalvingGridSearch algorithm.
++ *config_prediction.json* contains a path to earlier fitted models that can be used to predict missing values.
+
+After customizing options in configuration files, you need to import DataImputer class, set path to a dataset which contains missing values, extend the dataset with aggregated neighbors features and call multiple imputation.   
+```python
+from data_imputer.imputer import DataImputer
+
+dataset_path = "data_imputer/simulations/living_building_spb_130822_170502.geojson"
+imputer = DataImputer(dataset_path)
+imputer.add_neighbors_features()
+full_data = imputer.multiple_imputation(save_models=True, save_logs=True)
+```
+If you already have fitted model, you can simply specify the path to the models and make multiple imputation the following way:
+```python
+full_data = imputer.impute_by_saved_models()
+```
+
 ## General mode
 General mode provides access to all data stored in databases through a data query interface and allows the use of all of the developed methods through API. This mode makes it possible to build an application for urban environment analysis or integrate the methods into existing one. For an example of this use, check out our [Digital Urban Platform]().
 

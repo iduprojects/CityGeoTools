@@ -1,7 +1,7 @@
 { 
   "epsg_projection": 32636,
   "categorical_features": ["gascentral", "hotwater", "electricity"],
-
+  
   "num_iteration": 3,
   "num_imputation": 1,
   "initial_imputation_type": "mean",
