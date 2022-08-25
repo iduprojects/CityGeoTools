@@ -55,7 +55,8 @@ def get_osmnx_graph(city_osm_id, city_crs, graph_type, speed=None):
     nx.set_node_attributes(G, nodes_coord)
     G.graph['crs'] = 'epsg:' + str(city_crs)
     G.graph['graph_type'] = travel_type + " graph"
-    G.graph[travel_type + 'speed'] = round(speed, 2)
+    G.graph[travel_type + ' speed'] = round(speed, 2)
+    del G.graph["node_default"], G.graph["edge_default"]
 
     print(f"{graph_type.capitalize()} graph done!")
     return G
@@ -172,7 +173,7 @@ def get_intermodal_graph(city_osm_id, city_crs, public_transport_speeds,
         if "desc" not in d:
             d["desc"] = ""
 
-    G_intermodal.graph["type"] = "intermodal graph"
+    G_intermodal.graph["graph_type"] = "intermodal graph"
     G_intermodal.graph["drive speed"] = drive_speed
     G_intermodal.graph.update({k: v for k, v in G_public_transport.graph.items() if "speed" in k})
     G_intermodal.graph["created by"] = "CityGeoTools"
