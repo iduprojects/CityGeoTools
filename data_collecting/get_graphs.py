@@ -56,7 +56,6 @@ def get_osmnx_graph(city_osm_id, city_crs, graph_type, speed=None):
     G.graph['crs'] = 'epsg:' + str(city_crs)
     G.graph['graph_type'] = travel_type + " graph"
     G.graph[travel_type + ' speed'] = round(speed, 2)
-    del G.graph["node_default"], G.graph["edge_default"]
 
     print(f"{graph_type.capitalize()} graph done!")
     return G
@@ -66,10 +65,16 @@ def public_routes_to_edges(city_osm_id, city_crs, transport_type, speed):
 
     routes = overpass_query(get_routes, city_osm_id, transport_type)
     print(f"Extracting and preparing {transport_type} routes:")
-    df_routes = routes.progress_apply(
-        lambda x: parse_overpass_route_response(x, city_crs), axis = 1, result_type="expand"
-        )
-    df_routes = gpd.GeoDataFrame(df_routes).dropna(subset=["way"]).set_geometry("way")
+
+    try:
+        df_routes = routes.progress_apply(
+            lambda x: parse_overpass_route_response(x, city_crs), axis = 1, result_type="expand"
+            )
+        df_routes = gpd.GeoDataFrame(df_routes).dropna(subset=["way"]).set_geometry("way")
+
+    except KeyError:
+        print(f"It seems there are no {transport_type} routes in the city. This transport type will be skipped.")
+        return []
 
     # some stops don't lie on lines, therefore it's needed to project them
     stop_points = df_routes.apply(lambda x: transform.project_platforms(x, city_crs), axis = 1)

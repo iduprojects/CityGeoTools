@@ -23,15 +23,18 @@ git clone https://github.com/iduprojects/CityGeoTools
 ```
 
 ## Data preparation
-We leave the responsibility for collecting and preparing data to the user. In the absence of reliable sources of information about the urban environment, it is recommended to use OpenStreetMap and [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) to get datasetes.   
+We leave the responsibility for collecting and preparing data to the user. In the absence of reliable sources of information about the urban environment, it is recommended to use OpenStreetMap and [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) to get datasetes. Transport graphs needed for some methods are an exception. We provide the code for building a walk graph, a car travelling graph and a public transport graph separately as well as an intermodal graph (that includes walk routes, road infrastructure for car travelling and public transport routes) in the file [get_graphs.py](https://github.com/iduprojects/CityGeoTools/tree/metrics-refactor/data_collecting).
+
+ To use implemented methods, the collected datasets **MUST** match specifications presented in the folder  [data_specification](https://github.com/iduprojects/CityGeoTools/tree/metrics-refactor/data_specification) regardless of the selected mode (general or user mode).
   
-The biggest problem in data collection is the incompleteness of information about the urban environment  — datasets often contain missing values. Before using the presented methods, it is necessary to deal with the missing values to obtain reliable results. Instead of deletion or filling the missing data with any point statistics, we suggest using our data imputer based on geospatial component of urban data. The data imputation algorithm and information about the accuracy of the imputed data are presented in the [paper](https://link.springer.com/chapter/10.1007/978-3-031-08757-8_21).
+ ## Data imputation
+The biggest problem in data collection is the incompleteness of information about the urban environment  — the datasets often contain missing values. Before using the presented methods, it is necessary to deal with the missing values to obtain reliable results. Instead of deletion or filling the missing data with any point statistics, we suggest using our data imputer based on geospatial component of urban data. The data imputation algorithm and information about the accuracy of the imputed data are presented in the [paper](https://link.springer.com/chapter/10.1007/978-3-031-08757-8_21).
   
 The figure below shows comparison of the accuracy of the imputed values obtained with the developed method (green line), a method from scikit-learn package (black line) and mean imputation (gray line) in building features such as number of storeys and population.  
 ![Image](https://github.com/iduprojects/CityGeoTools/blob/metrics-refactor/img/imputer.jpg?raw=true)  
   
 Imputation options are set in three configuration files (more information about customizing options in the [examples]()).
-+ *config_imputation.json* contains general options (such as number of iteration over dataset features, number of imputations, initial imputations strategy and neighbors search parameters). 
++ *config_imputation.json* contains general options (such as number of iterations over dataset features, number of imputations, initial imputation strategy and neighbors search parameters). 
 + *config_learning.json* sets a pipeline of data preprocessing and a grid of hyperparameters for certain machine learning methods that are going to be optimized inside the HalvingGridSearch algorithm.
 + *config_prediction.json* contains a path to earlier fitted models that can be used to predict missing values.
 
@@ -50,9 +53,11 @@ full_data = imputer.impute_by_saved_models()
 ```
 
 ## General mode
-General mode provides access to all data stored in databases through a data query interface and allows the use of all of the developed methods through API. This mode makes it possible to build an application for urban environment analysis or integrate the methods into existing one. For an example of this use, check out our [Digital Urban Platform]().
-
-To store urban data we recommend using PostgreSQL for structured tabular data and MongoDB for non-tabular data (e.g. for graphs in binary or XML format). The database structure for PostgreSQL and demo data (for St. Petersburg, Russia) are placed in the [data_model]() folder. Following our 'best practice' to orginize and store urban data, 
+General mode provides access to all data stored in databases through a data query interface and allows the use of all of the developed methods through API. This mode makes it possible to build an application for urban environment analysis or integrate the methods into existing one. For an example of the use, check out our [Digital Urban Platform]().  
+  
+![Image](https://github.com/iduprojects/CityGeoTools/blob/metrics-refactor/img/platform_example.png?raw=true)
+  
+To store urban data we recommend using PostgreSQL for structured tabular data and MongoDB for non-tabular data (e.g. for graphs in binary or XML format). The database structure for PostgreSQL and demo data (for Vasilyevsky Island, St. Petersburg, Russia) are placed in the [data_model](https://github.com/iduprojects/CityGeoTools/tree/metrics-refactor/data_model) folder. Following our 'best practice' to orginize and store urban data, ...
   
 ## User mode  
   
