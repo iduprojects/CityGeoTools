@@ -2,10 +2,14 @@ import geopandas as gpd
 import pandas as pd
 import osmnx as ox
 import networkx as nx
+import warnings
+warnings.filterwarnings("ignore")
 
 from itertools import chain
+from shapely import wkt
 from shapely.ops import nearest_points, substring
 from shapely.geometry import LineString, Point
+from tqdm import tqdm
 
 
 
@@ -233,21 +237,27 @@ def get_line_from_start_to_end(line, line_length):
 
 """
 
+These bunch of functions are used to make spatial union of two graphs.
 
 """
 
-def get_nearest_edge_geometry(points, walk_graph):
+def get_nearest_edge_geometry(points, G):
     
+    G = G.edge_subgraph([(u, v, n) for u, v, n, e in G.edges(data=True, keys=True) if e["type"] == "walk"])
+    G = convert_geometry(G.copy())
     coords = list(points.geometry.apply(lambda x: list(x.coords)[0]))
     x = [c[0] for c in list(coords)]
     y = [c[1] for c in list(coords)]
-    edges, distance = ox.distance.nearest_edges(walk_graph, x, y, return_dist=True)
-    edges_geom = list(map(lambda x: (x, walk_graph[x[0]][x[1]][x[2]]["geometry"]), edges))
+    edges, distance = ox.distance.nearest_edges(G, x, y, return_dist=True)
+    edges_geom = list(map(lambda x: (x, G[x[0]][x[1]][x[2]]["geometry"]), edges))
     edges_geom = pd.DataFrame(edges_geom, index=points.index, columns=["edge_id", "edge_geometry"])
     edges_geom["distance_to_edge"] = distance
-
     return pd.concat([points, edges_geom], axis=1)
 
+def convert_geometry(graph):
+    for u, v, n, data in graph.edges(data=True, keys=True):
+        data["geometry"] = wkt.loads(data["geometry"])
+    return graph
 
 def project_point_on_edge(points_edge_geom):
     
@@ -259,8 +269,7 @@ def project_point_on_edge(points_edge_geom):
         lambda x: x.edge_geometry.project(x.geometry), axis=1)
     points_edge_geom["len_to_end"] = points_edge_geom.apply(
         lambda x: x.edge_geometry.length - x.len_from_start, axis=1)
-    points_edge_geom = points_edge_geom[(points_edge_geom["len_from_start"] != 0) 
-                                        & (points_edge_geom["len_to_end"] != 0)]
+
     return points_edge_geom
 
 
@@ -275,8 +284,8 @@ def update_edges(points_info, G):
 
 def delete_edges(project_points, G):
     
-    G_copy = G.copy()
     bunch_edges = []
+    G_copy = convert_geometry(G.copy())
     for e in list(project_points["edge_id"]):
         flag = check_parallel_edge(G_copy, *e)
         if flag == 2:
@@ -285,12 +294,13 @@ def delete_edges(project_points, G):
             bunch_edges.append((e[0], e[1], e[2]))
     
     bunch_edges = list(set(bunch_edges))
-    G_copy.remove_edges_from(bunch_edges)
+    G.remove_edges_from(bunch_edges)
     
-    return G_copy
+    return G
 
 
 def check_parallel_edge(G, u, v, n):
+
     if u == v:
         return 1
     elif G.has_edge(u, v) and G.has_edge(v, u):
@@ -319,17 +329,18 @@ def generate_nodes_bunch(split_point):
     
     edge_pair = []
     edge_nodes = split_point.edge_id
-    edge_geom = split_point.edge_geometry
+    edge_geom_ = split_point.edge_geometry
     new_node_id = split_point.node_id
     len_from_start = split_point.len_from_start
     len_to_end = split_point.len_to_end
     len_edge = split_point.len
-    walk_speed = 5*1000/60
     
-    fst_edge_attr = {'length': len_from_start, "geometry": substring(edge_geom, 0, len_from_start),
-                     "time": len_from_start / walk_speed, "osm_id": "None", 'highway': "splitted"}
-    snd_edge_attr = {'length': len_to_end, "geometry": substring(edge_geom, len_from_start, len_edge),
-                     "time": len_to_end / walk_speed, "osm_id": "None", 'highway': "splitted"}
+    fst_edge_attr = {
+        'length_meter': len_from_start, "geometry": str(substring(edge_geom_, 0, len_from_start)), "type": "walk",
+        }
+    snd_edge_attr = {
+        'length_meter': len_to_end, "geometry": str(substring(edge_geom_, len_from_start, len_edge)), "type": "walk",
+        }
     edge_pair.extend([(edge_nodes[0], new_node_id, fst_edge_attr),(new_node_id, edge_nodes[0], fst_edge_attr),
                       (new_node_id, edge_nodes[1], snd_edge_attr), (edge_nodes[1], new_node_id, snd_edge_attr)])
     
@@ -340,18 +351,27 @@ def add_connecting_edges(G, split_nodes):
 
     start_node_idx = split_nodes["node_id"].max() + 1
     split_nodes["connecting_node_id"] = list(range(start_node_idx, start_node_idx + len(split_nodes)))
+    nodes_attr = split_nodes.set_index("connecting_node_id").geometry.apply(
+        lambda p: {"x": round(p.coords[0][0], 2), "y": round(p.coords[0][1], 2)}
+        ).to_dict()
     connecting_edges = split_nodes.apply(
         lambda x: (x.node_id, x.connecting_node_id, {
             "type": "walk", "length_meter": x.distance_to_edge, 
             "geometry": str(LineString([x.geometry, x.nearest_point_geometry]))
             }), axis=1).tolist()
     G.add_edges_from(connecting_edges)
+    nx.set_node_attributes(G, nodes_attr)
     return G, split_nodes
 
 
 def join_graph(G_base, G_to_project, points_df):
+
     new_nodes = points_df.set_index("node_id_to_project")["connecting_node_id"]
-    edge_to_add = [(new_nodes[n1], new_nodes[n2], d) for n1, n2, d in G_to_project.edges(data=True)]
-    G_base.add_edges_from(edge_to_add)
+    for n1, n2, d in tqdm(G_to_project.edges(data=True)):
+        G_base.add_edge(int(new_nodes[n1]), int(new_nodes[n2]), **d)
+        nx.set_node_attributes(
+            G_base, {int(new_nodes[n1]): G_to_project.nodes[n1], int(new_nodes[n2]): G_to_project.nodes[n2]}
+            )
+
     return G_base
 
