@@ -1,9 +1,10 @@
 import json
+import importlib
 import os
 import jsonschema
+import geopandas as gpd
 
 from jsonschema.exceptions import ValidationError
-from matplotlib.style import available
 from networkx.classes.graph import Graph
 from networkx.classes.digraph import DiGraph
 from networkx.classes.digraph import DiGraph
@@ -23,45 +24,47 @@ class DataValidation:
         self.blocks_clusterization = BlocksClusterizationData()
         self.services_clusterization = ServicesClusterizationData()
         self.spacematrix = SpacematrixData()
+        self.accessibility_isochrones = AccessibilityIsochronesData()
 
-    def check_methods(self, layer_name, layer):
+    def check_methods(self, layer_name, validate_object, validation_func):
 
         print(f"Validation of {layer_name} layer...")
         for method_name in data_dictionary[layer_name]:
             method_class = getattr(self, method_name)
-            layer_attr = getattr(method_class, layer_name)
-            if "graph" in layer_name:
-                layer_attr = method_class.validate_graphml_layers(layer_name, layer)
-            else:
-                layer_attr = method_class.validate_json_layers(layer_name, layer)
-
+            validation_func = getattr(method_class, validation_func)
+            validation_func(layer_name, validate_object)
     
     def validate_json_layers(self, layer_name, layer):
 
         file = layer_name + ".json"
         with open(os.path.join(self.specification_folder, file)) as schema:
             schema = json.load(schema)
+
         try:
             jsonschema.validate(instance=layer, schema=schema)
             setattr(self, layer_name, True)
             self.message[layer_name] = "Layer matches specification"
+
         except ValidationError as error:
             setattr(self, layer_name, False)
             self.message[layer_name] = error.message
-    
-    def validate_graphml_layers(self, layer_name, graph):
 
-        validity = {}
-        graph_types = [Graph, DiGraph, MultiGraph, MultiDiGraph]
-        validity["networkx_object"] = True if type(graph) in graph_types else False
-        validity["not_null_edges"] = True if len(graph.edges()) > 0 else False
-        validity["has_geometry"] = all([True if "geometry" in e[-1] else False for e in graph.edges(data=True)])
-        validity["has_geometry"] = all([True if "length" in e[-1] else False for e in graph.edges(data=True)])
-        validity["has_xy_attr"] = all([True if "x" in n[-1] and "y" in n[-1] else False 
-                                            for n in graph.nodes(data=True)])
-        setattr(self, layer_name, all(validity.values()))
-        bad_features = ", ".join([k for k, v in validity.items() if not v])
-        self.message[layer_name] = "Layer matches specification" if all(validity.values()) else f"Error in conditions {bad_features}"
+        return gpd.GeoDataFrame.from_features(layer).set_crs(4326).to_crs(32636)
+    
+    def validate_graph_layers(self, layer_name, graph):
+
+        path = self.specification_folder.replace("/", ".")
+        mod = importlib.import_module(".mobility_graph", path)
+        node_validity, edge_validity = mod.validate_graph(graph)
+        validity = all(node_validity.values()) & all(edge_validity.values())
+        setattr(self, layer_name, validity)
+
+        edge_error = ", ".join([k for k, v in edge_validity.items() if not v])
+        node_error = ", ".join([k for k, v in node_validity.items() if not v])
+
+        self.message[layer_name] = "Layer matches specification" if validity else ""
+        self.message[layer_name] += f"Edges do not have {edge_error} attributes. " if len(edge_error) > 0 else ""
+        self.message[layer_name] += f"Nodes do not have {node_error} attributes." if len(node_error) > 0 else ""
         
     def get_list_of_methods(self):
         return list(self.__dict__.keys())
@@ -118,3 +121,9 @@ class SpacematrixData(DataValidation):
         self.Blocks = None
         self.message = {}
     
+class AccessibilityIsochronesData(DataValidation):
+    def __init__(self):
+        self.specification_folder = "data_specification/accessibility_isochrones"
+        self.Buildings = None
+        self.Blocks = None
+        self.message = {}

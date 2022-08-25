@@ -31,22 +31,13 @@ class DataQueryInterface:
         self.mongo_address = "http://" + os.environ["MONGO"]
         self.engine = create_engine("postgresql://" + os.environ["POSTGRES"])
         
-        # Graphs
-        self.walk_graph = self.get_graph_for_city(city_name, "walk_graph", node_type=int)
-        self.walk_graph = pickle.dumps(self.walk_graph)
-        print(self.city_name, datetime.datetime.now(),'walk_graph')
-
-        self.drive_graph = self.get_graph_for_city(city_name, "drive_graph", node_type=int)
-        self.drive_graph = pickle.dumps(self.drive_graph)
-        print(self.city_name, datetime.datetime.now(),'drive_graph')
-
-        self.public_transport_graph = self.get_graph_for_city(city_name, "multimodal_graph", node_type=str)
-        self.set_xy_attributes(self.public_transport_graph)
-        self.public_transport_graph = pickle.dumps(self.public_transport_graph)
-        print(self.city_name, datetime.datetime.now(),'public_transport_graph')
-        
         # Select with city_id
         place_slice = {"place": "city", "place_id": self.city_id}
+        
+        # Graphs
+        self.mobility_graph = self.get_graph_for_city(city_name, "intermodal_graph", node_type=int)
+        self.mobility_graph = pickle.dumps(self.walk_graph)
+        print(self.city_name, datetime.datetime.now(),'intermodal_graph')
 
         # Buildings
         buildings_columns = ["building_id as id", "building_area as basement_area", "is_living", "living_area", 

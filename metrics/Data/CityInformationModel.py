@@ -2,7 +2,9 @@ import pandas as pd
 import os
 import pickle
 import rpyc
+import json
 import geopandas as gpd
+import graph_tool
 
 from sqlalchemy import create_engine
 from .DataValidation import DataValidation
@@ -21,8 +23,7 @@ class CityInformationModel:
         self.city_id = cities_db_id
         self.mode = mode
 
-        self.attr_names = ['walk_graph', 'drive_graph','public_transport_graph',
-                            'Buildings','Spacematrix_Buildings', 'Services',
+        self.attr_names = ['graph', 'Buildings','Spacematrix_Buildings', 'Services',
                             'Public_Transport_Stops','Spacematrix_Blocks',
                             'Block_Diversity', 'Blocks', 'Municipalities','Districts']
         self.provisions = ['houses_provision','services_provision']
@@ -77,19 +78,26 @@ class CityInformationModel:
         for attr_name in self.attr_names + self.provisions:
             setattr(self, attr_name, None)
 
-    def update_layer(self, attr_name, layer):
+    def update_layers(self, file_dict):
 
-        self.methods.check_methods(attr_name, layer)
-        if "graph" not in attr_name:
-            layer = self.get_pandas_object(attr_name, layer)
-        setattr(self, attr_name, layer)
+        for attr_name, file_name in file_dict.items():
+            self.update_layer(attr_name, file_name)
+
+    def update_layer(self, attr_name, file_name):
+
+        if "graph" in attr_name:
+            graph = graph_tool.load_graph(file_name)
+            self.methods.check_methods(attr_name, graph, "validate_graph_layers")
+            setattr(self, attr_name, graph)
+
+        else: 
+            with open(file_name) as f:
+                geojson = json.load(f)
+            self.methods.check_methods(attr_name,  geojson, "validate_json_layers")
+            gdf = gpd.GeoDataFrame.from_features(geojson).set_crs(4326).to_crs(self.city_crs)
+            setattr(self, attr_name, gdf)
+
         print(f"{attr_name} layer loaded successfully!")
-
-    def get_pandas_object(self, attr_name, layer):
-
-        if "type" in layer.keys() and layer["type"] == 'FeatureCollection':
-            print(f"Converting {attr_name} layer to GeoDataFrame and setting defind crs...")
-            return gpd.GeoDataFrame.from_features(layer).set_crs(4326).to_crs(32636)
 
 # ####################################################################################################
 

@@ -461,6 +461,14 @@ class Spacematrix(BaseMethod):
 
         return json.loads(blocks.to_crs(4326).to_json())
 
+# ######################################### Accessibility isochrones #################################################
+class AccessibilityIsochrones(BaseMethod):
+    def __init__(self, city_model):
+        BaseMethod.__init__(self, city_model)
+        super().validation("isochrone")
+        self.intermodal_graph = self.city_model.intermodal_graph.copy()
+
+
 class City_Metrics_Methods():
 
     def __init__(self, cities_model, cities_crs):

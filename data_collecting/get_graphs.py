@@ -104,7 +104,7 @@ def get_public_trasport_graph(city_osm_id, city_crs, transport_types_speed):
     
     G.add_edges_from(edegs_different_types)
     node_attributes = {node: {
-        "x": round(node[0], 2), "y": round(node[1], 2), "stop": True, "desc": [] 
+        "x": round(node[0], 2), "y": round(node[1], 2), "stop": "True", "desc": [] 
         } for node in list(G.nodes)}
         
     for p1, p2, data in list(G.edges(data=True)):
@@ -174,7 +174,7 @@ def get_intermodal_graph(city_osm_id, city_crs, public_transport_speeds,
 
     for u, d in G_intermodal.nodes(data=True):
         if "stop" not in d:
-            d["stop"] = False
+            d["stop"] = "False"
         if "desc" not in d:
             d["desc"] = ""
 
