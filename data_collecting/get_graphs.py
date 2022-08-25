@@ -164,13 +164,13 @@ def get_intermodal_graph(city_osm_id, city_crs, public_transport_speeds,
         if "time_min" not in d:
             d["time_min"] = round(d["length_meter"] / walk_speed)
         if "desc" not in d:
-            d["desc"] = None
+            d["desc"] = ""
 
     for u, d in G_intermodal.nodes(data=True):
         if "stop" not in d:
             d["stop"] = False
         if "desc" not in d:
-            d["desc"] = None
+            d["desc"] = ""
 
     G_intermodal.graph["type"] = "intermodal graph"
     G_intermodal.graph["drive speed"] = drive_speed
