@@ -50,7 +50,7 @@ def get_osmnx_graph(city_osm_id, city_crs, graph_type, speed=None):
             ) if not edge.geometry else edge.geometry
         G.add_edge(
             p1, p2, length_meter=edge.length, geometry=str(geometry), type = travel_type, 
-            time_min = round(edge.length / speed)
+            time_min = round(edge.length / speed, 2)
             )
     nx.set_node_attributes(G, nodes_coord)
     G.graph['crs'] = 'epsg:' + str(city_crs)
@@ -84,9 +84,10 @@ def public_routes_to_edges(city_osm_id, city_crs, transport_type, speed):
     for i, route in stop_points.iterrows():
         length = np.diff(list(route["distance"]))
         for j in range(len(route["pathes"])):
+            edge_length = float(length[j])
             p1 = route["pathes"][j][0]
             p2 = route["pathes"][j][1]
-            d = {"time_min": round(length[j]/speed + time_on_stop), "length_meter": round(length[j], 2), 
+            d = {"time_min": round(edge_length/speed + time_on_stop, 2), "length_meter": round(edge_length, 2), 
                 "type": transport_type, "desc": f"route {i}", "geometry": str(LineString([p1, p2]))}
             edges.append((p1, p2, d))
 
@@ -153,7 +154,7 @@ def graphs_spatial_union(G_base, G_to_project):
 
 
 def get_intermodal_graph(city_osm_id, city_crs, public_transport_speeds, 
-                        drive_speed =  4 * 1000 / 60, walk_speed = 17 * 1000 / 60):
+                        walk_speed =  4 * 1000 / 60, drive_speed = 17 * 1000 / 60):
 
     G_walk = get_osmnx_graph(city_osm_id, city_crs, "walk", speed=walk_speed)
     nx.write_graphml(G_walk, "/var/essdata/IDU/other/mm_22/walk_graph.graphml")
@@ -168,7 +169,7 @@ def get_intermodal_graph(city_osm_id, city_crs, public_transport_speeds,
 
     for u, v, d in G_intermodal.edges(data=True):
         if "time_min" not in d:
-            d["time_min"] = round(d["length_meter"] / walk_speed)
+            d["time_min"] = round(d["length_meter"] / walk_speed, 2)
         if "desc" not in d:
             d["desc"] = ""
 

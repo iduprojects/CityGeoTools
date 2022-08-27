@@ -318,7 +318,7 @@ def add_splitted_edges(G, split_nodes):
     split_nodes["node_id"] = range(start_node_idx, start_node_idx + len(split_nodes))
     nodes_bunch = split_nodes.apply(lambda x: generate_nodes_bunch(x), axis=1)
     nodes_attr = split_nodes.set_index("node_id").nearest_point_geometry.apply(
-        lambda x: {"x": list(x.coords)[0][0], "y": list(x.coords)[0][1]}).to_dict()
+        lambda x: {"x": round(list(x.coords)[0][0], 2), "y": round(list(x.coords)[0][1], 2)}).to_dict()
     G.add_edges_from(list(nodes_bunch.explode()))
     nx.set_node_attributes(G, nodes_attr)
     
@@ -354,12 +354,13 @@ def add_connecting_edges(G, split_nodes):
     nodes_attr = split_nodes.set_index("connecting_node_id").geometry.apply(
         lambda p: {"x": round(p.coords[0][0], 2), "y": round(p.coords[0][1], 2)}
         ).to_dict()
-    connecting_edges = split_nodes.apply(
+    conn_edges = split_nodes.apply(
         lambda x: (x.node_id, x.connecting_node_id, {
             "type": "walk", "length_meter": x.distance_to_edge, 
             "geometry": str(LineString([x.geometry, x.nearest_point_geometry]))
-            }), axis=1).tolist()
-    G.add_edges_from(connecting_edges)
+            }), axis=1)
+    conn_edges_another_direct = conn_edges.apply(lambda x: (x[1], x[0], x[2]))
+    G.add_edges_from(conn_edges.tolist() + conn_edges_another_direct.tolist())
     nx.set_node_attributes(G, nodes_attr)
     return G, split_nodes
 
