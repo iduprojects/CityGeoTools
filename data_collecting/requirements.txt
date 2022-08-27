@@ -1,0 +1,10 @@
+geopandas==0.11.1
+momepy==0.5.3
+networkx==2.6.3
+numpy==1.19.5
+osm2geojson==0.2.0
+osmnx==1.1.1
+pandas==1.1.5
+requests==2.26.0
+Shapely==1.7.1
+tqdm==4.61.2
