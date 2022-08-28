@@ -465,9 +465,11 @@ class Spacematrix(BaseMethod):
 class AccessibilityIsochrones(BaseMethod):
     def __init__(self, city_model):
         BaseMethod.__init__(self, city_model)
-        super().validation("isochrone")
-        self.intermodal_graph = self.city_model.intermodal_graph.copy()
-
+        super().validation("accessibility_isochrones")
+        self.mobility_graph = self.city_model.intermodal_graph.copy()
+    
+    def get_accessibility_isochrone(self, travel_type, x_from, y_from, weight_value, weight_type, routes=False):
+        pass
 
 class City_Metrics_Methods():
 

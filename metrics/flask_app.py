@@ -7,8 +7,8 @@ import geopandas as gpd
 from flask import Flask, jsonify, request, send_file, abort
 from flask_cors import CORS, cross_origin
 from Calculations.City_Metrics_Methods import City_Metrics_Methods
-from Calculations.Basics.Basics_City_Analysis_Methods import Basics_City_Analysis_Methods
-from Data.cities_dictionary import cities_model, cities_crs, cities_metrics, cities_name
+from calculations.Basics.Basics_City_Analysis_Methods import Basics_City_Analysis_Methods
+from data.cities_dictionary import cities_model, cities_crs, cities_metrics, cities_name
 
 
 app = Flask(__name__)

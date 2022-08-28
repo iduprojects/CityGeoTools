@@ -9,14 +9,14 @@ from geojson_pydantic import FeatureCollection
 
 from app import enums, schemas
 from app.core.config import settings
-from Calculations import utils
-from Calculations.CityMetricsMethods import *
-from Calculations.Basics.Basics_City_Analysis_Methods import Basics_City_Analysis_Methods
-from Data.cities_dictionary import cities_model, cities_crs
+from calculations import utils
+from calculations.CityMetricsMethods import *
+from calculations.Basics.Basics_City_Analysis_Methods import Basics_City_Analysis_Methods
+from data.cities_dictionary import cities_model, cities_crs
 
 router = APIRouter()
 
-CMM = CityMetrics_Methods(cities_model, cities_crs)
+CMM = City_Metrics_Methods(cities_model, cities_crs)
 BCAM = Basics_City_Analysis_Methods(cities_model, cities_crs)
 
 

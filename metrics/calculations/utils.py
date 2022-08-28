@@ -40,6 +40,9 @@ def load_graph_geometry(graph):
     for u, v, data in graph.edges(data=True):
         data["geometry"] = shapely.wkt.loads(data["geometry"])
 
+    for u, data in graph.nodes(data=True):
+        data["geometry"] = shapely.geometry.Point([data["x"], data["y"]])
+
     return graph
 
 

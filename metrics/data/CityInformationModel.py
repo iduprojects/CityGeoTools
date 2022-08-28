@@ -94,6 +94,7 @@ class CityInformationModel:
 
         if  attr_name == "mobility_graph":
             graph = nx.read_graphml(file_name, node_type=int)
+            graph = utils.load_graph_geometry(graph)
             self.methods.check_methods(attr_name, graph, "validate_graph_layers")
             setattr(self, attr_name, graph)
             self.graph_nk_length = utils.convert_nx2nk(graph, weight="length_meter")
