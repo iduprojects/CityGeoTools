@@ -1,13 +1,15 @@
+from ctypes import util
 import pandas as pd
 import os
 import pickle
 import rpyc
 import json
 import geopandas as gpd
-import graph_tool
+import networkx as nx
 
 from sqlalchemy import create_engine
 from .DataValidation import DataValidation
+from ..Calculations import utils
 
 # TODO: SQL queries as a separate class
 # TODO provisions lengths from rpyc method
@@ -23,7 +25,7 @@ class CityInformationModel:
         self.city_id = cities_db_id
         self.mode = mode
 
-        self.attr_names = ['graph', 'Buildings','Spacematrix_Buildings', 'Services',
+        self.attr_names = ['mobility_graph', 'Buildings','Spacematrix_Buildings', 'Services',
                             'Public_Transport_Stops','Spacematrix_Blocks',
                             'Block_Diversity', 'Blocks', 'Municipalities','Districts']
         self.provisions = ['houses_provision','services_provision']
@@ -56,6 +58,9 @@ class CityInformationModel:
             print(self.city_name, attr_name)
             setattr(self, attr_name, pickle.loads(
                 rpyc_connect.root.get_city_model_attr(self.city_name, attr_name)))
+
+            self.graph_nk_length = utils.convert_nx2nk(self.mobility_graph, weight="length_meter")
+            self.graph_nk_time = utils.convert_nx2nk(self.mobility_graph, weight="time_min")
         
         for attr_name in self.provisions:
             try:
@@ -85,10 +90,15 @@ class CityInformationModel:
 
     def update_layer(self, attr_name, file_name):
 
-        if "graph" in attr_name:
-            graph = graph_tool.load_graph(file_name)
+        if attr_name not in self.get_all_attributes():
+            raise ValueError("Invalid attribute name.")
+
+        if  attr_name == "mobility_graph":
+            graph = nx.read_graphml(file_name, node_type=int)
             self.methods.check_methods(attr_name, graph, "validate_graph_layers")
             setattr(self, attr_name, graph)
+            self.graph_nk_length = utils.convert_nx2nk(graph, weight="length_meter")
+            self.graph_nk_time = utils.convert_nx2nk(graph, weight="time_min")
 
         else: 
             with open(file_name) as f:
@@ -96,6 +106,7 @@ class CityInformationModel:
             self.methods.check_methods(attr_name,  geojson, "validate_json_layers")
             gdf = gpd.GeoDataFrame.from_features(geojson).set_crs(4326).to_crs(self.city_crs)
             setattr(self, attr_name, gdf)
+        
 
         print(f"{attr_name} layer loaded successfully!")
 

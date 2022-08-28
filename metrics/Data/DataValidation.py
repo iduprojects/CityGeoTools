@@ -26,13 +26,14 @@ class DataValidation:
         self.spacematrix = SpacematrixData()
         self.accessibility_isochrones = AccessibilityIsochronesData()
 
+
     def check_methods(self, layer_name, validate_object, validation_func):
 
         print(f"Validation of {layer_name} layer...")
         for method_name in data_dictionary[layer_name]:
             method_class = getattr(self, method_name)
-            validation_func = getattr(method_class, validation_func)
-            validation_func(layer_name, validate_object)
+            validation_func_obj = getattr(method_class, validation_func)
+            validation_func_obj(layer_name, validate_object)
     
     def validate_json_layers(self, layer_name, layer):
 
@@ -51,18 +52,20 @@ class DataValidation:
 
         return gpd.GeoDataFrame.from_features(layer).set_crs(4326).to_crs(32636)
     
-    def validate_graph_layers(self, layer_name, graph):
+    def validate_graph_layers(self, layer_name, G):
 
         path = self.specification_folder.replace("/", ".")
         mod = importlib.import_module(".mobility_graph", path)
-        node_validity, edge_validity = mod.validate_graph(graph)
-        validity = all(node_validity.values()) & all(edge_validity.values())
+        node_validity, edge_validity = mod.validate_graph(G)
+        graph_size = len(G.edges()) > 1
+        validity = graph_size & all(node_validity.values()) & all(edge_validity.values())
         setattr(self, layer_name, validity)
 
         edge_error = ", ".join([k for k, v in edge_validity.items() if not v])
         node_error = ", ".join([k for k, v in node_validity.items() if not v])
 
         self.message[layer_name] = "Layer matches specification" if validity else ""
+        self.message[layer_name] += f"Graph has too many edges." if not graph_size else ""
         self.message[layer_name] += f"Edges do not have {edge_error} attributes. " if len(edge_error) > 0 else ""
         self.message[layer_name] += f"Nodes do not have {node_error} attributes." if len(node_error) > 0 else ""
         

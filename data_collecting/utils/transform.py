@@ -356,7 +356,7 @@ def add_connecting_edges(G, split_nodes):
         ).to_dict()
     conn_edges = split_nodes.apply(
         lambda x: (x.node_id, x.connecting_node_id, {
-            "type": "walk", "length_meter": x.distance_to_edge, 
+            "type": "walk", "length_meter": round(x.distance_to_edge, 3), 
             "geometry": str(LineString([x.geometry, x.nearest_point_geometry]))
             }), axis=1)
     conn_edges_another_direct = conn_edges.apply(lambda x: (x[1], x[0], x[2]))
