@@ -53,7 +53,7 @@ class TrafficCalculator(BaseMethod):
 
         BaseMethod.__init__(self, city_model)
         super().validation("traffic_calculator")
-        self.stops = self.city_model.Public_Transport_Stops.copy()
+        self.stops = self.city_model.PublicTransportStops.copy()
         self.buildings = self.city_model.Buildings.copy()
         self.walk_graph = self.city_model.walk_graph.copy()
 

@@ -25,9 +25,8 @@ class CityInformationModel:
         self.city_id = cities_db_id
         self.mode = mode
 
-        self.attr_names = ['mobility_graph', 'Buildings','Spacematrix_Buildings', 'Services',
-                            'Public_Transport_Stops','Spacematrix_Blocks',
-                            'Block_Diversity', 'Blocks', 'Municipalities','Districts']
+        self.attr_names = ['MobilityGraph', 'Buildings', 'Services', 'PublicTransportStops',
+                            'Blocks', 'Municipalities','Administrative_units']
         self.provisions = ['houses_provision','services_provision']
         self.set_city_layers()
         self.methods = DataValidation() if self.mode == "user_mode" else None
@@ -59,8 +58,8 @@ class CityInformationModel:
             setattr(self, attr_name, pickle.loads(
                 rpyc_connect.root.get_city_model_attr(self.city_name, attr_name)))
 
-            self.graph_nk_length = utils.convert_nx2nk(self.mobility_graph, weight="length_meter")
-            self.graph_nk_time = utils.convert_nx2nk(self.mobility_graph, weight="time_min")
+            self.graph_nk_length = utils.convert_nx2nk(self.MobilityGraph, weight="length_meter")
+            self.graph_nk_time = utils.convert_nx2nk(self.MobilityGraph, weight="time_min")
         
         for attr_name in self.provisions:
             try:
