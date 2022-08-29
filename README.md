@@ -74,6 +74,17 @@ cd metrics
 pip install -r requirements.txt
 POSTGRES=user:password@address/database_name RPYC_SERVER=address uvicorn app.main:app --host 0.0.0.0 --port 5000
 ```
+The documentation for using the methods can be found at **/docs**. Method call example:
+```python
+params = {
+    'city': 'Saint_Petersburg',
+    'x_from': '59.944',
+    'y_from': '30.304',
+    'view_distance': '700',
+}
+
+response = requests.get('http://localhost:5000/api/v2/visibility_analysis/visibility_analysis', params=params)
+```
 ### Docker
 The most hands-off way to start working with City GeoTools in general mode is using docker. Put environment variables POSTGRES and MONGO into .env file and run the commands:
 ```shell
