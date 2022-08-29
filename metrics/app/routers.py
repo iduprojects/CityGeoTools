@@ -1,6 +1,4 @@
-import os
 from enum import auto
-from typing import List
 
 import geopandas as gpd
 from fastapi import APIRouter, HTTPException, status, Body, Depends
@@ -8,17 +6,11 @@ from fastapi.responses import StreamingResponse
 from geojson_pydantic import FeatureCollection
 
 from app import enums, schemas
-from app.core.config import settings
-from metrics.utils import utils
+from calculations.utils import request_points_project
 from calculations.CityMetricsMethods import *
-from calculations.Basics.Basics_City_Analysis_Methods import Basics_City_Analysis_Methods
-from data.cities_dictionary import cities_model, cities_crs
+from data.cities_dictionary import cities_model
 
 router = APIRouter()
-
-CMM = City_Metrics_Methods(cities_model, cities_crs)
-BCAM = Basics_City_Analysis_Methods(cities_model, cities_crs)
-
 
 class Tags(str, enums.AutoName):
     def _generate_next_value_(name, start, count, last_values):
@@ -67,7 +59,7 @@ async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIso
     city_model = cities_model[query_params.city]
     request_points = [[query_params.x_from, query_params.y_from]]
     to_crs = cities_model[query_params.city].city_crs
-    x_from, y_from = utils.request_points_project(request_points, 4326, to_crs)[0]
+    x_from, y_from = request_points_project(request_points, 4326, to_crs)[0]
     print(x_from, y_from)
     result = AccessibilityIsochrones(city_model).get_accessibility_isochrone(
         travel_type=query_params.travel_type, x_from=x_from, y_from=y_from, 
@@ -83,7 +75,7 @@ async def visibility_analisys(query_params: schemas.VisibilityAnalisysQueryParam
     city_model = cities_model[query_params.city]
     request_points = [[query_params.x_from, query_params.y_from]]
     to_crs = cities_model[query_params.city].city_crs
-    request_point = utils.request_points_project(request_points, 4326, to_crs)[0]
+    request_point = request_points_project(request_points, 4326, to_crs)[0]
     return VisibilityAnalysis(city_model).get_visibility_result(request_point, query_params.view_distance)
 
 
@@ -144,63 +136,63 @@ async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
         )
 
 
-@router.get("/diversity/diversity", response_model=schemas.DiversityDiversityOut,
-            tags=[Tags.diversity])
-async def get_diversity(query_params: schemas.DiversityDiversityQueryParams = Depends()):  # todo validate service_type?
-    """
-    In user request:
-    :param: service_type -> str
-    :return: polygons of blocks/municipalities -> geojson
-    """
-    result = BCAM.Get_Diversity(query_params.service_type)
-    return result
+# @router.get("/diversity/diversity", response_model=schemas.DiversityDiversityOut,
+#             tags=[Tags.diversity])
+# async def get_diversity(query_params: schemas.DiversityDiversityQueryParams = Depends()):  # todo validate service_type?
+#     """
+#     In user request:
+#     :param: service_type -> str
+#     :return: polygons of blocks/municipalities -> geojson
+#     """
+#     result = BCAM.Get_Diversity(query_params.service_type)
+#     return result
 
 
-@router.post("/provision/get_provision", response_model=schemas.ProvisionGetProvisionOut,
-             tags=[Tags.provision])
-async def get_provision(user_request: schemas.ProvisionGetProvisionIn):
-    """
-    In user request:
-    required params: service_type, area, provision_type
-    optional params: city, without_services_options, load_options, provision_option
-    :return: dict of FeatureCollections houses and services
-    """
-    result = BCAM.get_provision(**user_request.dict())
-    return result
+# @router.post("/provision/get_provision", response_model=schemas.ProvisionGetProvisionOut,
+#              tags=[Tags.provision])
+# async def get_provision(user_request: schemas.ProvisionGetProvisionIn):
+#     """
+#     In user request:
+#     required params: service_type, area, provision_type
+#     optional params: city, without_services_options, load_options, provision_option
+#     :return: dict of FeatureCollections houses and services
+#     """
+#     result = BCAM.get_provision(**user_request.dict())
+#     return result
 
 
-@router.post("/provision/get_info", response_model=schemas.ProvisionGetInfoOut,
-             tags=[Tags.provision])
-async def get_provision_info(user_request: schemas.ProvisionGetInfoIn):
-    """
-    In user request:
-    required params: object_type, functional_object_id, service_type, provision_type
-    :return: dict of FeatureCollections of houses, services and isochrone (not for all request)
-    """
-    result = BCAM.get_provision_info(**user_request.dict())
-    return result
+# @router.post("/provision/get_info", response_model=schemas.ProvisionGetInfoOut,
+#              tags=[Tags.provision])
+# async def get_provision_info(user_request: schemas.ProvisionGetInfoIn):
+#     """
+#     In user request:
+#     required params: object_type, functional_object_id, service_type, provision_type
+#     :return: dict of FeatureCollections of houses, services and isochrone (not for all request)
+#     """
+#     result = BCAM.get_provision_info(**user_request.dict())
+#     return result
 
 
-@router.post("/wellbeing/get_wellbeing", response_model=schemas.WellbeingGetWellbeingOut,
-             tags=[Tags.well_being])
-async def get_wellbeing(user_request: schemas.WellbeingGetWellbeingIn):
-    """
-    In user request:
-    required params: provision_type and either living_situation_id or user_service_types
-    :return: dict of FeatureCollections houses and services
-    """
-    result = CMM.get_wellbeing(BCAM, **user_request.dict())
-    return result
+# @router.post("/wellbeing/get_wellbeing", response_model=schemas.WellbeingGetWellbeingOut,
+#              tags=[Tags.well_being])
+# async def get_wellbeing(user_request: schemas.WellbeingGetWellbeingIn):
+#     """
+#     In user request:
+#     required params: provision_type and either living_situation_id or user_service_types
+#     :return: dict of FeatureCollections houses and services
+#     """
+#     result = CMM.get_wellbeing(BCAM, **user_request.dict())
+#     return result
 
 
-@router.post("/wellbeing/get_wellbeing_info", response_model=schemas.WellbeingGetWellbeingInfoOut,
-             tags=[Tags.well_being])
-async def get_wellbeing_info(user_request: schemas.WellbeingGetWellbeingInfoIn):
-    """
-    In user request:
-    required params: provision_type, object_type, functional_object_id and either living_situation_id or user_service_types
-    :return: dict of FeatureCollections of houses, services, isochrone (not for all request) and service types as json (not for all request)
-    """
-    result = CMM.get_wellbeing_info(BCAM, **user_request.dict())
-    return result
+# @router.post("/wellbeing/get_wellbeing_info", response_model=schemas.WellbeingGetWellbeingInfoOut,
+#              tags=[Tags.well_being])
+# async def get_wellbeing_info(user_request: schemas.WellbeingGetWellbeingInfoIn):
+#     """
+#     In user request:
+#     required params: provision_type, object_type, functional_object_id and either living_situation_id or user_service_types
+#     :return: dict of FeatureCollections of houses, services, isochrone (not for all request) and service types as json (not for all request)
+#     """
+#     result = CMM.get_wellbeing_info(BCAM, **user_request.dict())
+#     return result
 

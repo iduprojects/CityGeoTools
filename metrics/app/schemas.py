@@ -92,16 +92,19 @@ class MobilityAnalysisIsochronesQueryParams:
         }
 
 
+MobilityAnalysisIsochronesGeometry = Geometry
 class MobilityAnalysisIsochronesProperties(BaseModel):
     travel_type: enums.MobilityAnalysisIsochronesTravelTypeLabelEnum
     weight_type: enums.MobilityAnalysisIsochronesWeightTypeEnum
+    weight_value: conint(ge=1)
 
-
-MobilityAnalysisIsochronesGeometry = Geometry
-MobilityAnalysisIsochronesOut = FeatureCollection[
+class MobilityAnalysisIsochronesOut(BaseModel):
+    isochrone: FeatureCollection[
     MobilityAnalysisIsochronesGeometry,
     MobilityAnalysisIsochronesProperties
 ]
+    stops: FeatureCollection
+    routes: FeatureCollection
 
 # /Visibility_analysis/Visibility_analysis
 class VisibilityAnalisysQueryParams:

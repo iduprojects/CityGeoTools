@@ -9,7 +9,7 @@ import networkx as nx
 
 from sqlalchemy import create_engine
 from .DataValidation import DataValidation
-from data_transform import load_graph_geometry, convert_nx2nk
+from .data_transform import load_graph_geometry, convert_nx2nk
 
 # TODO: SQL queries as a separate class
 # TODO provisions lengths from rpyc method
@@ -58,10 +58,10 @@ class CityInformationModel:
             setattr(self, attr_name, pickle.loads(
                 rpyc_connect.root.get_city_model_attr(self.city_name, attr_name)))
 
-            self.MobilityGraph = load_graph_geometry(self.MobilityGraph)
             if self.city_name == "Saint_Petersburg":
                 self.graph_nk_length = convert_nx2nk(self.MobilityGraph, weight="length_meter")
                 self.graph_nk_time = convert_nx2nk(self.MobilityGraph, weight="time_min")
+                self.MobilityGraph = load_graph_geometry(self.MobilityGraph)
         
         for attr_name in self.provisions:
             try:
