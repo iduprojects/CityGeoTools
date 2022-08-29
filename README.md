@@ -55,7 +55,7 @@ full_data = imputer.impute_by_saved_models()
 ## General mode
 General mode provides access to all data stored in databases through a data query interface and allows the use of all of the developed methods through API. This mode makes it possible to build an application for urban environment analysis or integrate the methods into existing one. For an example of the use, check out our [Digital Urban Platform]().  
   
-![Image](./platform_example.png)
+![Image](https://github.com/iduprojects/CityGeoTools/blob/metrics-refactor/img/platform_example.png?raw=true)
   
 To store urban data we recommend using PostgreSQL for structured tabular data and MongoDB for non-tabular data (e.g. for graphs in binary or XML format). The database structure for PostgreSQL and demo data (for Vasilyevsky Island, St. Petersburg, Russia) are placed in the [data_model](https://github.com/iduprojects/CityGeoTools/tree/metrics-refactor/data_model) folder. Following our best practice to organize and store urban data, you can consider and analyze urban data at the levels of:
 1. atomic objects (such as parcels, buildings, services) that have their own properties;
@@ -65,19 +65,22 @@ To store urban data we recommend using PostgreSQL for structured tabular data an
 CityGeoTools is built on top of the Pandas and Geopandas packages. So uploading from PostgreSQL and transformation SQL tables of massive datasets (e.g. buildings) to GeoDataFrame could take a lot of time. To achieve better performance of application development, RPYC server is used as a separate server with python objects (such as GeoDataFrame, NetworkX graph, etc.) stored in binary format. This allows to avoid long application startup and speed up methods' performance. To start the RPYC server, run the commands bellow with your connection data:
 ```shell
 cd rpyc_server
+pip install -r requirements.txt
 POSTGRES=user:password@address/database_name MONGO=address python rpyc_server.py
 ```
 After the RPYC server is available, run the application:
 ```shell
 cd metrics
+pip install -r requirements.txt
 POSTGRES=user:password@address/database_name RPYC_SERVER=address uvicorn app.main:app --host 0.0.0.0 --port 5000
 ```
 ### Docker
-To do the same using docker (without having to install all the dependencies from requirements files), run the commands:
+The most hands-off way to start working with City GeoTools in general mode is using docker. Put environment variables POSTGRES and MONGO into .env file and run the commands:
 ```shell
 docker-compose build
 docker-compose up
 ```
   
 ## User mode  
+  
   
