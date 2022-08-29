@@ -58,10 +58,9 @@ class CityInformationModel:
             setattr(self, attr_name, pickle.loads(
                 rpyc_connect.root.get_city_model_attr(self.city_name, attr_name)))
 
-            if self.city_name == "Saint_Petersburg":
-                self.graph_nk_length = convert_nx2nk(self.MobilityGraph, weight="length_meter")
-                self.graph_nk_time = convert_nx2nk(self.MobilityGraph, weight="time_min")
-                self.MobilityGraph = load_graph_geometry(self.MobilityGraph)
+            self.graph_nk_length = convert_nx2nk(self.MobilityGraph, weight="length_meter")
+            self.graph_nk_time = convert_nx2nk(self.MobilityGraph, weight="time_min")
+            self.MobilityGraph = load_graph_geometry(self.MobilityGraph)
         
         for attr_name in self.provisions:
             try:

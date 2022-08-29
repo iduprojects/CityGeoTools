@@ -22,11 +22,8 @@ class DataQueryInterface(QueryInterface):
         place_slice = {"place": "city", "place_id": self.city_id}
         
         # Graphs
-        if self.city_name == "Saint_Petersburg":
-            self.MobilityGraph = self.get_graph_for_city(city_name, "intermodal_graph", node_type=int)
-            self.MobilityGraph = pickle.dumps(self.MobilityGraph)
-        else:
-            self.MobilityGraph = pickle.dumps(None)
+        self.MobilityGraph = self.get_graph_for_city(city_name, "intermodal_graph", node_type=int)
+        self.MobilityGraph = pickle.dumps(self.MobilityGraph)
         print(self.city_name, datetime.datetime.now(),'intermodal_graph')
 
 
@@ -39,7 +36,6 @@ class DataQueryInterface(QueryInterface):
         self.Buildings = self.Buildings[
             (self.Buildings.geom_type == "MultiPolygon") | (self.Buildings.geom_type == "Polygon")
             ]
-        print(self.Buildings)
         self.Buildings = pickle.dumps(self.Buildings)
         print(self.city_name, datetime.datetime.now(),'Buildings')
 

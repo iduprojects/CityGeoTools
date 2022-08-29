@@ -60,7 +60,6 @@ async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIso
     request_points = [[query_params.x_from, query_params.y_from]]
     to_crs = cities_model[query_params.city].city_crs
     x_from, y_from = request_points_project(request_points, 4326, to_crs)[0]
-    print(x_from, y_from)
     result = AccessibilityIsochrones(city_model).get_accessibility_isochrone(
         travel_type=query_params.travel_type, x_from=x_from, y_from=y_from, 
         weight_type=query_params.weight_type, weight_value=query_params.weight_value, routes=query_params.routes
