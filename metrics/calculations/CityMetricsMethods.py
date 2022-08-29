@@ -514,7 +514,7 @@ class AccessibilityIsochrones(BaseMethod):
                 {"travel_type": [self.travel_names[travel_type]], "weight_type": [weight_type], 
                 "weight_value": [weight_value], "geometry": [isochrone_geom]}).set_crs(self.city_crs).to_crs(4326)
  
-        routes, stops = self.get_routes(nodes_data, travel_type) if routes else "None", "None"
+        routes, stops = self.get_routes(nodes_data, travel_type) if routes else None, None
         return {"isochrone": json.loads(isochrone.to_json()), "routes": routes, "stops": stops}
 
 

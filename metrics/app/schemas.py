@@ -103,8 +103,8 @@ class MobilityAnalysisIsochronesOut(BaseModel):
     MobilityAnalysisIsochronesGeometry,
     MobilityAnalysisIsochronesProperties
 ]
-    stops: FeatureCollection
-    routes: FeatureCollection
+    stops: Optional[FeatureCollection]
+    routes: Optional[FeatureCollection]
 
 # /Visibility_analysis/Visibility_analysis
 class VisibilityAnalisysQueryParams:
