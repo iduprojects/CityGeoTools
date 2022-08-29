@@ -9,11 +9,11 @@ from .QueryInterface import QueryInterface
 
 class DataQueryInterface(QueryInterface):
 
-    def __init__(self, city_name, cities_crs, cities_db_id):
+    def __init__(self, city_name, city_crs, city_db_id):
 
         self.city_name = city_name
-        self.city_crs = cities_crs[city_name]
-        self.city_id = cities_db_id[city_name]
+        self.city_crs = city_crs
+        self.city_id = city_db_id
 
         self.mongo_address = "http://" + os.environ["MONGO"]
         self.engine = create_engine("postgresql://" + os.environ["POSTGRES"])
@@ -22,8 +22,11 @@ class DataQueryInterface(QueryInterface):
         place_slice = {"place": "city", "place_id": self.city_id}
         
         # Graphs
-        self.MobilityGraph = self.get_graph_for_city(city_name, "intermodal_graph", node_type=int)
-        self.MobilityGraph = pickle.dumps(self.walk_graph)
+        if self.city_name == "Saint_Petersburg":
+            self.MobilityGraph = self.get_graph_for_city(city_name, "intermodal_graph", node_type=int)
+            self.MobilityGraph = pickle.dumps(self.MobilityGraph)
+        else:
+            self.MobilityGraph = pickle.dumps(None)
         print(self.city_name, datetime.datetime.now(),'intermodal_graph')
 
 
@@ -36,6 +39,7 @@ class DataQueryInterface(QueryInterface):
         self.Buildings = self.Buildings[
             (self.Buildings.geom_type == "MultiPolygon") | (self.Buildings.geom_type == "Polygon")
             ]
+        print(self.Buildings)
         self.Buildings = pickle.dumps(self.Buildings)
         print(self.city_name, datetime.datetime.now(),'Buildings')
 
@@ -66,9 +70,9 @@ class DataQueryInterface(QueryInterface):
         print(self.city_name, datetime.datetime.now(),'Municipalities')
 
         # Districts
-        self.Administrative_units = self.get_territorial_units("administrative_units", ["id", "geometry"], place_slice=place_slice)
-        self.Administrative_units = pickle.dumps(self.Districts)
-        print(self.city_name, datetime.datetime.now(),'Districts')
+        self.AdministrativeUnits = self.get_territorial_units("administrative_units", ["id", "geometry"], place_slice=place_slice)
+        self.AdministrativeUnits = pickle.dumps(self.AdministrativeUnits)
+        print(self.city_name, datetime.datetime.now(),'AdministrativeUnits')
     
         # Provision
         if self.city_name == "Saint_Petersburg":

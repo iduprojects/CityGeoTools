@@ -18,7 +18,7 @@ class QueryInterface:
 
     def get_graph_for_city(self, city: str, graph_type: str, node_type: type) -> MultiDiGraph:
 
-        file_name = graph_type + "_" + city.lower()
+        file_name = city.lower() + "_" + graph_type
         graph = requests.get(self.mongo_address + "/uploads/city_graphs/" + file_name)
         graph = nx.readwrite.graphml.parse_graphml(graph.text, node_type=node_type)
         if graph_type == "walk_graph" or graph_type == "drive_graph":
@@ -28,8 +28,8 @@ class QueryInterface:
     @staticmethod
     def load_graph_geometry(graph: MultiDiGraph) -> MultiDiGraph:
 
-        for u, v, data in graph.edges(data=True):
-            data["geometry"] = wkt.loads(data["geometry"])
+        # for u, v, data in graph.edges(data=True):
+        #     data["geometry"] = wkt.loads(data["geometry"])
         
         for u, data in graph.nodes(data=True):
             data["geometry"] = shapely.geometry.Point([data["x"], data["y"]])
