@@ -46,8 +46,8 @@ class MobilityAnalysisIsochronesTravelTypeLabelEnum(str, Enum):
 
 
 class MobilityAnalysisIsochronesWeightTypeEnum(str, Enum):
-    TIME = "time"
-    METER = "meter"
+    TIME = "time_min"
+    METER = "length_meter"
 
 
 class InstagramConcentrationSeason(str, AutoName):

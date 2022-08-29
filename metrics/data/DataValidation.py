@@ -127,6 +127,5 @@ class SpacematrixData(DataValidation):
 class AccessibilityIsochronesData(DataValidation):
     def __init__(self):
         self.specification_folder = "data_specification/accessibility_isochrones"
-        self.Buildings = None
-        self.Blocks = None
+        self.MobilityGraph = None
         self.message = {}

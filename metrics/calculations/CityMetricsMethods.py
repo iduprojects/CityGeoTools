@@ -5,17 +5,17 @@ import math
 import json
 import numpy as np
 import shapely.wkt
-import ast
 import io
 import pca
+import networkx as nx
 
-from shapely.geometry import Polygon
 from jsonschema.exceptions import ValidationError
-from .utils import routes_between_two_points
+from utils import routes_between_two_points
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from matplotlib import pyplot as plt
+from scipy import spatial
 
 class BaseMethod():
 
@@ -466,10 +466,81 @@ class AccessibilityIsochrones(BaseMethod):
     def __init__(self, city_model):
         BaseMethod.__init__(self, city_model)
         super().validation("accessibility_isochrones")
-        self.mobility_graph = self.city_model.intermodal_graph.copy()
+        self.mobility_graph = self.city_model.MobilityGraph.copy()
+        self.walk_speed = 4 * 1000 / 60
+        self.edge_types = {
+            "public_transport": ["subway", "bus", "tram", "trolleybus", "walk"],
+            "walk": ["walk"], 
+            "car": ["car"]
+            }
     
     def get_accessibility_isochrone(self, travel_type, x_from, y_from, weight_value, weight_type, routes=False):
-        pass
+        
+        mobility_graph = self.mobility_graph.edge_subgraph(
+            [(u, v, k) for u, v, k, d in self.mobility_graph.edges(data=True, keys=True) 
+            if d["type"] in self.edge_types[travel_type]]
+            )
+        nodes_data = pd.DataFrame.from_records(
+            [d for u, d in mobility_graph.nodes(data=True)], index=list(mobility_graph.nodes())
+            ).sort_index().reset_index()
+
+        distance, start_node = spatial.KDTree(nodes_data[["x", "y"]]).query([x_from, y_from])
+        start_node = nodes_data.loc[start_node]["index"]
+        margin_weight = distance / self.walk_speed if weight_type == "time_min" else distance
+        weight_value = weight_value - margin_weight
+
+        weights_sum = nx.single_source_dijkstra_path_length(
+            mobility_graph, start_node, cutoff=weight_value, weight=weight_type)
+        nodes_data = nodes_data.loc[list(weights_sum.keys())]
+        nodes_data = gpd.GeoDataFrame(nodes_data, crs=self.city_crs)
+
+        if travel_type == "public_transport" and weight_type == "time_min":
+            distance = dict((k, (weight_value - v) * self.walk_speed) for k, v in weights_sum.items())
+            nodes_data["left_distance"] = distance.values()
+            nodes_data["geometry"] = nodes_data["geometry"].buffer(nodes_data["left_distance"])
+            isochrone_geom = nodes_data.unary_union
+        
+        else:
+            distance = dict((k, (weight_value - v)) for k, v in weights_sum.items())
+            nodes_data["left_distance"] = distance.values()
+            isochrone_geom = shapely.geometry.MultiPoint(nodes_data["geometry"].tolist()).convex_hull
+
+        isochrone = gpd.GeoDataFrame(
+                {"travel_type": [travel_type], "weight_type": [weight_type], "weight_value": [weight_value],
+                "geometry": [isochrone_geom]}).set_crs(self.city_crs).to_crs(4326)
+ 
+        routes, stops = self.get_routes(nodes_data, travel_type) if routes else "None", "None"
+        return {"isochrone": json.loads(isochrone.to_json()), "routes": routes, "stops": stops}
+
+
+    def get_routes(self, selected_nodes, travel_type):
+
+        nodes = selected_nodes[["index", "x", "y", "geometry", "desc"]]
+        subgraph = self.mobility_graph.subgraph(selected_nodes["index"].tolist())
+        routes = pd.DataFrame.from_records([
+            e[-1] for e in subgraph.edges(data=True, keys=True)
+            ]).reset_index(drop=True)
+
+        if travel_type == "public_transport":
+            stops = nodes[nodes["stop"] == "True"]
+            stops = stops[["index", "x", "y", "geometry", "desc"]]
+            stop_types = stops["desc"].apply(
+                lambda x: pd.Series({t: True for t in x.split(", ")}
+                ), type).fillna(False)
+            stops = stops.join(stop_types)
+
+            routes = routes["type"].isin(self.edge_types[:-1])
+        
+        else:
+            raise ValidationError("Not implementet yet.")
+        
+        routes["geometry"] = routes["geometry"].apply(lambda x: shapely.wkt.loads(x))
+        routes = routes[["type", "time_min", "length_meter", "geometry"]]
+        routes = gpd.GeoDataFrame(routes, crs=self.city_crs)
+
+        return json.loads(routes.to_crs(4326).to_json()), json.loads(stops.to_crs(4326).to_json())
+        
+
 
 class City_Metrics_Methods():
 

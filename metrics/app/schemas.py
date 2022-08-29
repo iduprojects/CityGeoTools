@@ -67,6 +67,7 @@ class MobilityAnalysisIsochronesQueryParams:
                  weight_value: conint(ge=1) = Query(..., example=10),
                  x_from: float = Query(..., example=59.94288),
                  y_from: float = Query(..., example=30.31413),
+                 routes: bool = False
                  ):
         self.city = city
         self.travel_type = travel_type
@@ -74,6 +75,7 @@ class MobilityAnalysisIsochronesQueryParams:
         self.weight_value = weight_value
         self.x_from = _check_latitude_epsg_4326(x_from)
         self.y_from = _check_longitude_epsg_4326(y_from)
+        self.routes = routes
 
     class Config:
         schema_extra = {
@@ -82,7 +84,7 @@ class MobilityAnalysisIsochronesQueryParams:
                     'city': 'Saint_Petersburg',
                     'travel_type': 'public_transport',
                     'weight_type': 'time',
-                    'weight_value': 10,
+                    'weight_value': 15,
                     'x_from': 59.8059,
                     'y_from': 30.4267,
                 }

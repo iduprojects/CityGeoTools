@@ -9,7 +9,7 @@ from geojson_pydantic import FeatureCollection
 
 from app import enums, schemas
 from app.core.config import settings
-from calculations import utils
+from metrics.utils import utils
 from calculations.CityMetricsMethods import *
 from calculations.Basics.Basics_City_Analysis_Methods import Basics_City_Analysis_Methods
 from data.cities_dictionary import cities_model, cities_crs
@@ -40,6 +40,7 @@ class Tags(str, enums.AutoName):
 async def read_root():
     return {"Hello": "World"}
 
+
 @router.post('/pedastrian_walk_traffics/pedastrian_walk_traffics_calculation', 
             response_model=schemas.PedastrianWalkTrafficsCalculationOut, tags=[Tags.trafics_calculation])
 def pedastrian_walk_traffics_calculation(query_params: schemas.PedastrianWalkTrafficsCalculationIn):
@@ -52,28 +53,25 @@ def pedastrian_walk_traffics_calculation(query_params: schemas.PedastrianWalkTra
         )
     return result
 
+
 @router.get("/mobility_analysis/isochrones", response_model=schemas.MobilityAnalysisIsochronesOut,
             tags=[Tags.mobility_analysis])
 async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIsochronesQueryParams = Depends()):
-    if (query_params.travel_type == enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT) and \
-            (query_params.weight_type == enums.MobilityAnalysisIsochronesWeightTypeEnum.METER):
+    if (query_params.travel_type != enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT) and \
+        (query_params.routes == True):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="The weight type isn't supported for public transport isochrones."
+            detail="Getting routes isn't supported for walk and car isochrones."
         )
-
-    # todo решить вопрос универсальной подстановкой методов
-    if query_params.travel_type == enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT:
-        result = BCAM.transport_isochrone(
-            city=query_params.city, travel_type=query_params.travel_type,
-            weight_type=query_params.weight_type, weight_value=query_params.weight_value,
-            x_from=query_params.x_from, y_from=query_params.y_from,
-        )
-    else:
-        result = BCAM.walk_drive_isochrone(
-            city=query_params.city, travel_type=query_params.travel_type,
-            weight_type=query_params.weight_type, weight_value=query_params.weight_value,
-            x_from=query_params.x_from, y_from=query_params.y_from,
+    
+    city_model = cities_model[query_params.city]
+    request_points = [[query_params.x_from, query_params.y_from]]
+    to_crs = cities_model[query_params.city].city_crs
+    x_from, y_from = utils.request_points_project(request_points, 4326, to_crs)[0]
+    print(x_from, y_from)
+    result = AccessibilityIsochrones(city_model).get_accessibility_isochrone(
+        travel_type=query_params.travel_type, x_from=x_from, y_from=y_from, 
+        weight_type=query_params.weight_type, weight_value=query_params.weight_value, routes=query_params.routes
         )
 
     return result

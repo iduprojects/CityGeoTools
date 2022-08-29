@@ -9,7 +9,7 @@ import networkx as nx
 
 from sqlalchemy import create_engine
 from .DataValidation import DataValidation
-from ..calculations import utils
+from data_transform import load_graph_geometry, convert_nx2nk
 
 # TODO: SQL queries as a separate class
 # TODO provisions lengths from rpyc method
@@ -26,7 +26,7 @@ class CityInformationModel:
         self.mode = mode
 
         self.attr_names = ['MobilityGraph', 'Buildings', 'Services', 'PublicTransportStops',
-                            'Blocks', 'Municipalities','Administrative_units']
+                            'Blocks', 'Municipalities','AdministrativeUnits']
         self.provisions = ['houses_provision','services_provision']
         self.set_city_layers()
         self.methods = DataValidation() if self.mode == "user_mode" else None
@@ -58,8 +58,10 @@ class CityInformationModel:
             setattr(self, attr_name, pickle.loads(
                 rpyc_connect.root.get_city_model_attr(self.city_name, attr_name)))
 
-            self.graph_nk_length = utils.convert_nx2nk(self.MobilityGraph, weight="length_meter")
-            self.graph_nk_time = utils.convert_nx2nk(self.MobilityGraph, weight="time_min")
+            self.MobilityGraph = load_graph_geometry(self.MobilityGraph)
+            if self.city_name == "Saint_Petersburg":
+                self.graph_nk_length = convert_nx2nk(self.MobilityGraph, weight="length_meter")
+                self.graph_nk_time = convert_nx2nk(self.MobilityGraph, weight="time_min")
         
         for attr_name in self.provisions:
             try:
@@ -92,13 +94,13 @@ class CityInformationModel:
         if attr_name not in self.get_all_attributes():
             raise ValueError("Invalid attribute name.")
 
-        if  attr_name == "mobility_graph":
+        if  attr_name == "MobilityGraph":
             graph = nx.read_graphml(file_name, node_type=int)
-            graph = utils.load_graph_geometry(graph)
+            graph = load_graph_geometry(graph)
             self.methods.check_methods(attr_name, graph, "validate_graph_layers")
             setattr(self, attr_name, graph)
-            self.graph_nk_length = utils.convert_nx2nk(graph, weight="length_meter")
-            self.graph_nk_time = utils.convert_nx2nk(graph, weight="time_min")
+            self.graph_nk_length = convert_nx2nk(graph, weight="length_meter")
+            self.graph_nk_time = convert_nx2nk(graph, weight="time_min")
 
         else: 
             with open(file_name) as f:
