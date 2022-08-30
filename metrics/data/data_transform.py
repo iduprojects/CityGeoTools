@@ -13,10 +13,21 @@ def load_graph_geometry(graph, node=True, edge=False):
 
     return graph
 
-
-def convert_nx2nk(G_nx, weight=None):
-
+def get_nx2_nk_idmap(G_nx):
     idmap = dict((id, u) for (id, u) in zip(G_nx.nodes(), range(G_nx.number_of_nodes())))
+    return idmap
+
+def get_nk_attrs(G_nx):
+    attrs = dict(
+        (u, {"x": d[-1]["x"], "y": d[-1]["y"]}) 
+        for (d, u) in zip(G_nx.nodes(data=True), range(G_nx.number_of_nodes()))
+        )
+    return attrs
+
+def convert_nx2nk(G_nx, idmap=None, weight=None):
+
+    if not idmap:
+        idmap = get_nx2_nk_idmap(G_nx)
     n = max(idmap.values()) + 1
     edges = list(G_nx.edges())
 
@@ -42,3 +53,5 @@ def convert_nx2nk(G_nx, weight=None):
         for u_, v_ in edges:
                 u, v = idmap[u_], idmap[v_]
                 G_nk.addEdge(u, v)
+
+    return G_nk
