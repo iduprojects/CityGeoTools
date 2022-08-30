@@ -475,8 +475,8 @@ class AccessibilityIsochrones(BaseMethod):
             }
         self.travel_names = {
             "public_transport": "Общественный транспорт",
-            "walk": "Личный транспорт", 
-            "drive": "Пешком"
+            "walk": "Пешком", 
+            "drive": "Личный транспорт"
         }
     
     def get_accessibility_isochrone(self, travel_type, x_from, y_from, weight_value, weight_type, routes=False):
@@ -487,23 +487,24 @@ class AccessibilityIsochrones(BaseMethod):
             )
         nodes_data = pd.DataFrame.from_records(
             [d for u, d in mobility_graph.nodes(data=True)], index=list(mobility_graph.nodes())
-            ).sort_index().reset_index()
+            ).sort_index()
 
         distance, start_node = spatial.KDTree(nodes_data[["x", "y"]]).query([x_from, y_from])
-        start_node = nodes_data.loc[start_node]["index"]
+        start_node = nodes_data.iloc[start_node].name
         margin_weight = distance / self.walk_speed if weight_type == "time_min" else distance
         weight_value = weight_value - margin_weight
 
         weights_sum = nx.single_source_dijkstra_path_length(
             mobility_graph, start_node, cutoff=weight_value, weight=weight_type)
-        nodes_data = nodes_data.loc[list(weights_sum.keys())]
+        nodes_data = nodes_data.loc[list(weights_sum.keys())].reset_index()
         nodes_data = gpd.GeoDataFrame(nodes_data, crs=self.city_crs)
 
         if travel_type == "public_transport" and weight_type == "time_min":
-            distance = dict((k, (weight_value - v) * self.walk_speed) for k, v in weights_sum.items())
+            # 0.8 is routes curvature coefficient 
+            distance = dict((k, (weight_value - v) * self.walk_speed * 0.8) for k, v in weights_sum.items())
             nodes_data["left_distance"] = distance.values()
-            nodes_data["geometry"] = nodes_data["geometry"].buffer(nodes_data["left_distance"])
-            isochrone_geom = nodes_data.unary_union
+            isochrone_geom = nodes_data["geometry"].buffer(nodes_data["left_distance"])
+            isochrone_geom = isochrone_geom.unary_union
         
         else:
             distance = dict((k, (weight_value - v)) for k, v in weights_sum.items())
@@ -514,13 +515,14 @@ class AccessibilityIsochrones(BaseMethod):
                 {"travel_type": [self.travel_names[travel_type]], "weight_type": [weight_type], 
                 "weight_value": [weight_value], "geometry": [isochrone_geom]}).set_crs(self.city_crs).to_crs(4326)
  
-        routes, stops = self.get_routes(nodes_data, travel_type) if routes else None, None
+        routes, stops = self.get_routes(nodes_data, travel_type) if routes else (None, None)
+        print(type(stops))
         return {"isochrone": json.loads(isochrone.to_json()), "routes": routes, "stops": stops}
 
 
     def get_routes(self, selected_nodes, travel_type):
 
-        nodes = selected_nodes[["index", "x", "y", "geometry", "desc"]]
+        nodes = selected_nodes[["index", "x", "y", "stop", "desc", "geometry"]]
         subgraph = self.mobility_graph.subgraph(selected_nodes["index"].tolist())
         routes = pd.DataFrame.from_records([
             e[-1] for e in subgraph.edges(data=True, keys=True)
@@ -534,7 +536,7 @@ class AccessibilityIsochrones(BaseMethod):
                 ), type).fillna(False)
             stops = stops.join(stop_types)
 
-            routes = routes["type"].isin(self.edge_types[:-1])
+            routes = routes[routes["type"].isin(self.edge_types[travel_type][:-1])]
         
         else:
             raise ValidationError("Not implementet yet.")
