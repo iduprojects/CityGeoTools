@@ -55,7 +55,7 @@ class TrafficCalculator(BaseMethod):
         super().validation("traffic_calculator")
         self.stops = self.city_model.PublicTransportStops.copy()
         self.buildings = self.city_model.Buildings.copy()
-        self.walk_graph = self.city_model.walk_graph.copy()
+        self.walk_graph = self.city_model.MobilityGraph.copy()
 
     def get_trafic_calculation(self, request_area_geojson):
 
@@ -71,7 +71,7 @@ class TrafficCalculator(BaseMethod):
             lambda x: stops['geometry'].distance(x['geometry']).idxmin(), axis=1)
         nearest_stops = stops.loc[list(selected_buildings['nearest_stop_id'])]
         path_info = selected_buildings.apply(
-            lambda x: routes_between_two_points(graph=self.walk_graph, weight="length",
+            lambda x: routes_between_two_points(graph=self.walk_graph, weight="length_meter",
             p1 = x['geometry'].centroid.coords[0], p2 = stops.loc[x['nearest_stop_id']].geometry.coords[0]), 
             result_type="expand", axis=1)
         house_stop_routes = selected_buildings.copy().drop(["geometry"], axis=1).join(path_info)
@@ -80,7 +80,7 @@ class TrafficCalculator(BaseMethod):
         house_stop_routes['population'] = (house_stop_routes['population'] * 0.3).round().astype("int")
         house_stop_routes = house_stop_routes.rename(
             columns={'population': 'route_traffic', 'id': 'building_id', "route_geometry": "geometry"})
-        house_stop_routes = house_stop_routes.set_crs(selected_buildings.crs)
+        house_stop_routes = gpd.GeoDataFrame(house_stop_routes, crs=selected_buildings.crs)
 
         return {"buildings": json.loads(selected_buildings.reset_index(drop=True).to_crs(4326).to_json()), 
                 "stops": json.loads(nearest_stops.reset_index(drop=True).to_crs(4326).to_json()), 
