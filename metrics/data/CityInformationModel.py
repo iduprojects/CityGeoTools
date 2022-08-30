@@ -9,7 +9,7 @@ import networkx as nx
 
 from sqlalchemy import create_engine
 from .DataValidation import DataValidation
-from .data_transform import load_graph_geometry, convert_nx2nk
+from .data_transform import load_graph_geometry, convert_nx2nk, get_nx2_nk_idmap, get_nk_attrs
 
 # TODO: SQL queries as a separate class
 # TODO provisions lengths from rpyc method
@@ -27,13 +27,12 @@ class CityInformationModel:
 
         self.attr_names = ['MobilityGraph', 'Buildings', 'Services', 'PublicTransportStops',
                             'Blocks', 'Municipalities','AdministrativeUnits']
-        self.provisions = ['houses_provision','services_provision']
         self.set_city_layers()
         self.methods = DataValidation() if self.mode == "user_mode" else None
     
     def get_all_attributes(self):
         all_attr = self.__dict__
-        del all_attr["attr_names"], all_attr["provisions"]
+        del all_attr["attr_names"]
         return all_attr
 
     def set_city_layers(self):
@@ -58,29 +57,14 @@ class CityInformationModel:
             setattr(self, attr_name, pickle.loads(
                 rpyc_connect.root.get_city_model_attr(self.city_name, attr_name)))
 
-            self.graph_nk_length = convert_nx2nk(self.MobilityGraph, weight="length_meter")
-            self.graph_nk_time = convert_nx2nk(self.MobilityGraph, weight="time_min")
+            self.nk_idmap = get_nx2_nk_idmap(self.MobilityGraph)
+            self.nk_attrs = get_nk_attrs(self.MobilityGraph)
+            self.graph_nk_length = convert_nx2nk(self.MobilityGraph, idmap=self.nk_idmap, weight="length_meter")
+            self.graph_nk_time = convert_nx2nk(self.MobilityGraph, idmap=self.nk_idmap, weight="time_min")
             self.MobilityGraph = load_graph_geometry(self.MobilityGraph)
-        
-        for attr_name in self.provisions:
-            try:
-                if attr_name == 'services_provision':
-                    chunk_num_range = 60
-                elif attr_name == 'houses_provision':
-                    chunk_num_range = 22
-
-                print(self.city_name, attr_name)
-                setattr(self, 
-                        attr_name, 
-                        pd.concat([pickle.loads(
-                            self.rpyc_connect.root.get_provisions(self.city_name, attr_name, chunk_num)) 
-                            for chunk_num in range(chunk_num_range)]))
-            except:
-                print(self.city_name, attr_name, "None")
-                setattr(self, attr_name, None)
 
     def set_none_layers(self):
-        for attr_name in self.attr_names + self.provisions:
+        for attr_name in self.attr_names:
             setattr(self, attr_name, None)
 
     def update_layers(self, file_dict):
@@ -98,6 +82,8 @@ class CityInformationModel:
             graph = load_graph_geometry(graph)
             self.methods.check_methods(attr_name, graph, "validate_graph_layers")
             setattr(self, attr_name, graph)
+            self.nk_idmap = get_nx2_nk_idmap(graph)
+            self.nk_attrs = get_nk_attrs(graph)
             self.graph_nk_length = convert_nx2nk(graph, weight="length_meter")
             self.graph_nk_time = convert_nx2nk(graph, weight="time_min")
 
@@ -110,46 +96,3 @@ class CityInformationModel:
         
 
         print(f"{attr_name} layer loaded successfully!")
-
-# ####################################################################################################
-
-    def get_service_normative(self, code):
-        normative = pd.read_sql(f"""
-        SELECT public_transport_time_normative as public_transport,
-               walking_radius_normative as walk
-               FROM city_service_types 
-               WHERE code = '{code}'""", con=self.engine).dropna(axis=1).T.to_records()[0]
-        return normative
-
-    def get_living_situation_evaluation(self, situation_id):
-        sql_query = f"""
-            SELECT AVG(evaluation) evaluation, t.code service_code
-            FROM maintenance.living_situations_evaluation e
-            JOIN city_service_types t ON t.id = e.city_service_type_id
-            WHERE living_situation_id = {situation_id}
-            GROUP BY t.code"""
-        df = pd.read_sql(sql_query, con=self.engine)
-        return df
-
-    def get_service_type(self, id):
-        sql_query = f"""
-            SELECT t.city_service_type_code
-            FROM all_services t
-            WHERE t.functional_object_id = '{id}'"""
-        df = pd.read_sql(sql_query, con=self.engine)
-        return df["city_service_type_code"][0]
-
-    def get_service_code(self, ru_code):
-        sql_query = f"""
-            SELECT t.code
-            FROM city_service_types t
-            WHERE t.name = '{ru_code}'"""
-        df = pd.read_sql(sql_query, con=self.engine)
-        return df["code"][0]
-
-    def get_social_groups_significance(self, user_request):
-        social_groups_significance = requests.get(self.db_api_provision +
-            "/api/relevance/service_types/?social_group={social_group_name}".format(
-                    social_group_name=user_request['user_social_group_selection'])
-                    ).json()['_embedded']['service_types']
-        return social_groups_significance

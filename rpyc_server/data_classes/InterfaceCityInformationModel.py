@@ -69,29 +69,3 @@ class DataQueryInterface(QueryInterface):
         self.AdministrativeUnits = self.get_territorial_units("administrative_units", ["id", "geometry"], place_slice=place_slice)
         self.AdministrativeUnits = pickle.dumps(self.AdministrativeUnits)
         print(self.city_name, datetime.datetime.now(),'AdministrativeUnits')
-    
-        # Provision
-        if self.city_name == "Saint_Petersburg":
-            print(self.city_name, datetime.datetime.now(), 'houses_provision')
-            houses_provision = pd.read_sql_table("new_houses_provision_tmp", con=self.engine, schema="provision")
-            houses_provision = self.transform_provision_file(houses_provision)
-            self.houses_provision = houses_provision.rename(
-                columns={"administrative_unit_id": "district_id", "municipality_id": "mo_id"})
-
-            print(self.city_name, datetime.datetime.now(),'services_provision')
-            services_provision = pd.read_sql("""
-                    SELECT p.*, s.administrative_unit_id, s.municipality_id, s.block_id
-                    FROM provision.new_services_load_tmp p
-                    LEFT JOIN all_services s ON p.functional_object_id=s.functional_object_id""", con=self.engine)
-            services_provision = self.transform_provision_file(services_provision)
-            self.services_provision = services_provision.rename(
-                columns={"administrative_unit_id": "district_id", "municipality_id": "mo_id"})
-            chunk_size = 1000
-            self.houses_provision = [pickle.dumps(self.houses_provision.iloc[i:i+chunk_size]) for i in range(0, len(self.houses_provision), chunk_size)]
-            self.services_provision = [pickle.dumps(self.services_provision.iloc[i:i+chunk_size]) for i in range(0, len(self.services_provision), chunk_size)]
-            del houses_provision, services_provision
-        else:
-            self.houses_provision = pickle.dumps(None)
-            self.services_provision = None
-        
-        print(f"{city_name} is loaded")
