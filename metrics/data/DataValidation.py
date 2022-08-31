@@ -5,12 +5,6 @@ import jsonschema
 import geopandas as gpd
 
 from jsonschema.exceptions import ValidationError
-from networkx.classes.graph import Graph
-from networkx.classes.digraph import DiGraph
-from networkx.classes.digraph import DiGraph
-from networkx.classes.multidigraph import MultiDiGraph
-from networkx.classes.multigraph import MultiGraph
-
 from .data_dictionary import data_dictionary
 
 
@@ -25,6 +19,7 @@ class DataValidation:
         self.services_clusterization = ServicesClusterizationData()
         self.spacematrix = SpacematrixData()
         self.accessibility_isochrones = AccessibilityIsochronesData()
+        self.diversity
 
 
     def check_methods(self, layer_name, validate_object, validation_func):

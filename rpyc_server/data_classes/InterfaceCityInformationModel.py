@@ -45,7 +45,7 @@ class DataQueryInterface(QueryInterface):
                             "city_service_type_id", "city_service_type_code as service_code", "service_name",
                             "block_id", "administrative_unit_id", "municipality_id"]
                             
-        self.Services = self.get_services(service_columns, add_normative=True, place_slice=place_slice)
+        self.Services = self.get_services(service_columns, place_slice=place_slice)
         self.PublicTransportStops = self.Services[self.Services["service_code"] == "stops"]
         self.Services = pickle.dumps(self.Services)
         self.PublicTransportStops = pickle.dumps(self.PublicTransportStops)

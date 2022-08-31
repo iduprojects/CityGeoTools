@@ -336,7 +336,6 @@ class ServicesClusterization(BaseMethod):
 
         # Find outliers of clusters and exclude it
         outlier = services_select.groupby("cluster")["geometry"].apply(lambda x: self.find_dense_groups(x, n_std))
-        cluster_normal = 0
         if any(~outlier):
             services_normal = services_select[~outlier]
 
@@ -348,7 +347,7 @@ class ServicesClusterization(BaseMethod):
                 # Get MultiPoint from cluster Points and make polygon
                 polygons_normal = services_normal.dissolve("cluster").convex_hull
                 df_clusters_normal = pd.concat([cluster_service, polygons_normal.rename("geometry")], axis=1
-                                                ).reset_index(drop=True)
+                                                )
                 cluster_normal = df_clusters_normal.index.max()
         else:
             df_clusters_normal = None
@@ -370,11 +369,12 @@ class ServicesClusterization(BaseMethod):
 
         df_clusters = pd.concat([df_clusters_normal, df_clusters_outlier]).fillna(0).set_geometry("geometry")
         df_clusters["geometry"] = df_clusters["geometry"].buffer(50, join_style=3)
-        df_clusters = df_clusters.reset_index().rename(columns={"index": "cluster_id"})
+        df_clusters = df_clusters.rename(columns={"index": "cluster_id"})
 
+        services = pd.concat([services_normal, services_outlier]).set_crs(self.city_crs).to_crs(4326)
         df_clusters = df_clusters.set_crs(self.city_crs).to_crs(4326)
 
-        return json.loads(df_clusters.to_json())
+        return {"polygons": json.loads(df_clusters.to_json()), "services": json.loads(services.to_json())}
 
 # #############################################  Spacematrix  #######################################################
 class Spacematrix(BaseMethod):
