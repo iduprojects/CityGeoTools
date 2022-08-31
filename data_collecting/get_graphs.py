@@ -157,11 +157,8 @@ def get_intermodal_graph(city_osm_id, city_crs, public_transport_speeds,
                         walk_speed =  4 * 1000 / 60, drive_speed = 17 * 1000 / 60):
 
     G_walk = get_osmnx_graph(city_osm_id, city_crs, "walk", speed=walk_speed)
-    nx.write_graphml(G_walk, "/var/essdata/IDU/other/mm_22/walk_graph.graphml")
     G_drive = get_osmnx_graph(city_osm_id, city_crs, "drive", speed=drive_speed)
-    nx.write_graphml(G_drive, "/var/essdata/IDU/other/mm_22/drive_graph.graphml")
     G_public_transport = get_public_trasport_graph(city_osm_id, city_crs, public_transport_speeds)
-    nx.write_graphml(G_public_transport, "/var/essdata/IDU/other/mm_22/public_transport_graph.graphml")
 
     print("Union of graphs...")
     G_intermodal = graphs_spatial_union(G_walk, G_drive)
