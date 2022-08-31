@@ -10,7 +10,7 @@ import pca
 import networkx as nx
 
 from jsonschema.exceptions import ValidationError
-from .utils import routes_between_two_points
+from .utils import nk_routes_between_two_points
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
@@ -55,7 +55,8 @@ class TrafficCalculator(BaseMethod):
         super().validation("traffic_calculator")
         self.stops = self.city_model.PublicTransportStops.copy()
         self.buildings = self.city_model.Buildings.copy()
-        self.walk_graph = self.city_model.MobilityGraph.copy()
+        self.mobility_graph = self.city_model.graph_nk_length
+        self.mobility_graph_attrs = self.city_model.nk_attrs.copy()
 
     def get_trafic_calculation(self, request_area_geojson):
 
@@ -71,7 +72,7 @@ class TrafficCalculator(BaseMethod):
             lambda x: stops['geometry'].distance(x['geometry']).idxmin(), axis=1)
         nearest_stops = stops.loc[list(selected_buildings['nearest_stop_id'])]
         path_info = selected_buildings.apply(
-            lambda x: routes_between_two_points(graph=self.walk_graph, weight="length_meter",
+            lambda x: nk_routes_between_two_points(self.mobility_graph, self.mobility_graph_attrs,
             p1 = x['geometry'].centroid.coords[0], p2 = stops.loc[x['nearest_stop_id']].geometry.coords[0]), 
             result_type="expand", axis=1)
         house_stop_routes = selected_buildings.copy().drop(["geometry"], axis=1).join(path_info)
