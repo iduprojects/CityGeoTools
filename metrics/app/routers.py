@@ -61,8 +61,10 @@ async def visibility_analysis(query_params: schemas.VisibilityAnalisysQueryParam
     return VisibilityAnalysis(city_model).get_visibility_result(request_point, query_params.view_distance)
 
 
-@router.post("/voronoi/weighted_voronoi_calculation", response_model=schemas.WeightedVoronoiCalculationOut,
-             tags=[Tags.weighted_voronoi])  # todo 3
+@router.post(
+    "/voronoi/weighted_voronoi_calculation",
+    response_model=schemas.WeightedVoronoiCalculationOut, tags=[Tags.weighted_voronoi]
+)
 async def wighted_voronoi_calculation(query_params: schemas.WeightedVoronoiCalculationIn):
     city_model = cities_model[query_params.city]
     return WeightedVoronoi(city_model).get_weighted_voronoi_result(query_params.geojson.dict())
@@ -76,6 +78,7 @@ async def get_blocks_clusterization(query_params: schemas.BlocksClusterizationGe
         query_params.service_types, query_params.clusters_number, 
         query_params.area_type, query_params.area_id, query_params.geojson
         )
+
 
 @router.post("/blocks_clusterization/get_dendrogram", # todo 4
              responses={

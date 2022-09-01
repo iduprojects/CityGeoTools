@@ -1,7 +1,7 @@
 import pytest
 
 from tests.conf import testing_settings
-from tests.geojson_example import CitiesPolygonForTrafficsCalculation
+from tests.geojson_example import CitiesPolygonForTrafficsCalculation, SAINT_PETERSBURG_VORONOI_GEOJSON
 from metrics.app import schemas, enums
 
 
@@ -54,31 +54,14 @@ class TestVisibilityAnalysis:
         assert resp.status_code == 200
 
 
-class TestWeightedVoronoi:  # fixme 4326
+class TestWeightedVoronoi:
     URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/voronoi"
-    SAINT_PETERSBURG_VORONOI_GEOJSON = {
-        "type": "FeatureCollection",
-        "name": "test",
-        "crs": {
-            "type": "name",
-            "properties": {
-                "name": "urn:ogc:def:crs:EPSG::3857"
-            }
-        },
-        "features": [
-            {"type": "Feature", "properties": {"weight": 5.330623275960242},
-             "geometry": {"type": "Point", "coordinates": [3365424.7412466537, 8388892.177795848]}},
-            {"type": "Feature", "properties": {"weight": 6.51134526170844},
-             "geometry": {"type": "Point", "coordinates": [3366784.3993621334, 8390015.740133371]}},
-            {"type": "Feature", "properties": {"weight": 4.7412358799581495},
-             "geometry": {"type": "Point", "coordinates": [3366811.6122107455, 8384317.056265167]}}]
-    }
 
-    @pytest.mark.parametrize("city, geojson", [  # todo add geojson to KRASNODAR and SEVASTOPOL
+    @pytest.mark.parametrize("city, geojson", [
         (enums.CitiesEnum.SAINT_PETERSBURG, SAINT_PETERSBURG_VORONOI_GEOJSON)
     ])
-    def test_Weighted_voronoi_calculation(self, client, city, geojson):
-        url = self.URL + "/Weighted_voronoi_calculation"
+    def test_weighted_voronoi_calculation(self, client, city, geojson):
+        url = self.URL + "/weighted_voronoi_calculation"
         data = {
             "city": city,
             "geojson": geojson,

@@ -127,3 +127,25 @@ class CitiesPolygonForTrafficsCalculation:
             }
         ]
     }
+
+
+SAINT_PETERSBURG_VORONOI_GEOJSON = {
+    "type": "FeatureCollection",
+    "name": "test",
+    "crs": {
+        "type": "name",
+        "properties": {
+            "name": "urn:ogc:def:crs:EPSG::3857"
+        }
+    },
+    "features": [
+        {"type": "Feature", "properties": {"weight": 5.330623275960242},
+         "geometry": {"type": "Point", "coordinates": [30.31498650660696, 59.93638028149156]}},
+        {"type": "Feature", "properties": {"weight": 6.51134526170844},
+         "geometry": {"type": "Point", "coordinates": [30.311885872985744, 59.93523889144893]}},
+        {"type": "Feature", "properties": {"weight": 4.7412358799581495},
+         "geometry": {"type": "Point", "coordinates": [30.313581029083153, 59.9341243829608]}},
+        {"type": "Feature", "properties": {"weight": 3.9958149574123587},
+         "geometry": {"type": "Point", "coordinates": [30.31658510317982, 59.935217355409094]}},
+    ]
+}
