@@ -5,6 +5,32 @@ from tests.geojson_example import CitiesPolygonForTrafficsCalculation
 from metrics.app import schemas, enums
 
 
+class TestTrafficsCalculation:
+    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/pedastrian_walk_traffics"
+
+    @pytest.mark.parametrize("city, geojson", [
+        (enums.CitiesEnum.SAINT_PETERSBURG, CitiesPolygonForTrafficsCalculation.SAINT_PETERSBURG_INSIDE_GEOJSON),
+        (enums.CitiesEnum.KRASNODAR, CitiesPolygonForTrafficsCalculation.KRASNODAR_INSIDE_GEOJSON),
+        (enums.CitiesEnum.SEVASTOPOL, CitiesPolygonForTrafficsCalculation.SEVASTOPOL_INSIDE_GEOJSON),
+    ])
+    def test_pedastrian_walk_traffics_calculation(self, client, city, geojson):
+        url = self.URL + "/pedastrian_walk_traffics_calculation"
+        resp = client.post(url, json={"city": city, "geojson": geojson})
+
+        assert resp.status_code == 200
+
+    @pytest.mark.parametrize("city, geojson", [
+        (enums.CitiesEnum.SAINT_PETERSBURG, CitiesPolygonForTrafficsCalculation.SAINT_PETERSBURG_OUTSIDE_GEOJSON),
+        (enums.CitiesEnum.KRASNODAR, CitiesPolygonForTrafficsCalculation.KRASNODAR_OUTSIDE_GEOJSON),
+        (enums.CitiesEnum.SEVASTOPOL, CitiesPolygonForTrafficsCalculation.SEVASTOPOL_OUTSIDE_GEOJSON),
+    ])
+    def test_400_error(self, client, city, geojson):
+        url = self.URL + "/pedastrian_walk_traffics_calculation"
+        resp = client.post(url, json={"city": city, "geojson": geojson})
+
+        assert resp.status_code == 400
+
+
 class TestBCAM:
     class TestMobilityAnalysisRoutes:
         """ Проверка метрики доступности. """
@@ -378,7 +404,7 @@ class TestBCAM:
 
         @pytest.mark.parametrize("view_distance", [700])
         @pytest.mark.parametrize("city, x_from, y_from", VIEWPOINTS)
-        def test_Visibility_analisys(self, client, city, x_from, y_from, view_distance):
+        def test_visibility_analysis(self, client, city, x_from, y_from, view_distance):
             url = self.URL + "/Visibility_analysis"
             params = {
                 "city": city,
@@ -426,32 +452,7 @@ class TestCMM:
 
             assert resp.status_code == 200
 
-    class TestTraficsCalculation:
-        URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/pedastrian_walk_traffics"
-
-        @pytest.mark.parametrize("city, geojson", [
-            (enums.CitiesEnum.SAINT_PETERSBURG, CitiesPolygonForTrafficsCalculation.SAINT_PETERSBURG_INSIDE_GEOJSON),
-            (enums.CitiesEnum.KRASNODAR, CitiesPolygonForTrafficsCalculation.KRASNODAR_INSIDE_GEOJSON),
-            (enums.CitiesEnum.SEVASTOPOL, CitiesPolygonForTrafficsCalculation.SEVASTOPOL_INSIDE_GEOJSON),
-        ])
-        def test_pedastrian_walk_traffics_calculation(self, client, city, geojson):
-            url = self.URL + "/pedastrian_walk_traffics_calculation"
-            resp = client.post(url, json={"city": city, "geojson": geojson})
-
-            assert resp.status_code == 200
-
-        @pytest.mark.parametrize("city, geojson", [
-            (enums.CitiesEnum.SAINT_PETERSBURG, CitiesPolygonForTrafficsCalculation.SAINT_PETERSBURG_OUTSIDE_GEOJSON),
-            (enums.CitiesEnum.KRASNODAR, CitiesPolygonForTrafficsCalculation.KRASNODAR_OUTSIDE_GEOJSON),
-            (enums.CitiesEnum.SEVASTOPOL, CitiesPolygonForTrafficsCalculation.SEVASTOPOL_OUTSIDE_GEOJSON),
-        ])
-        def test_400_error(self, client, city, geojson):
-            url = self.URL + "/pedastrian_walk_traffics_calculation"
-            resp = client.post(url, json={"city": city, "geojson": geojson})
-
-            assert resp.status_code == 400
-
-    class TestWeightedVoronoi:
+    class TestWeightedVoronoi:  # fixme 4326
         URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/voronoi"
         SAINT_PETERSBURG_VORONOI_GEOJSON = {
             "type": "FeatureCollection",

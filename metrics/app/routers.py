@@ -49,31 +49,11 @@ def pedastrian_walk_traffics_calculation(query_params: schemas.PedastrianWalkTra
     return result
 
 
-@router.get("/mobility_analysis/isochrones", response_model=schemas.MobilityAnalysisIsochronesOut,
-            tags=[Tags.mobility_analysis])
-async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIsochronesQueryParams = Depends()):
-    if (query_params.travel_type != enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT) and \
-        (query_params.routes == True):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Getting routes isn't supported for walk and car isochrones."
-        )
-    
-    city_model = cities_model[query_params.city]
-    request_points = [[query_params.x_from, query_params.y_from]]
-    to_crs = cities_model[query_params.city].city_crs
-    x_from, y_from = request_points_project(request_points, 4326, to_crs)[0]
-    result = AccessibilityIsochrones(city_model).get_accessibility_isochrone(
-        travel_type=query_params.travel_type, x_from=x_from, y_from=y_from, 
-        weight_type=query_params.weight_type, weight_value=query_params.weight_value, routes=query_params.routes
-        )
-
-    return result
-
-
-@router.get("/visibility_analysis/visibility_analysis", response_model=FeatureCollection,
-            tags=[Tags.visibility_analysis])
-async def visibility_analisys(query_params: schemas.VisibilityAnalisysQueryParams = Depends()):
+@router.get(
+    "/visibility_analysis/visibility_analysis",
+    response_model=FeatureCollection, tags=[Tags.visibility_analysis]
+)  # todo 2
+async def visibility_analysis(query_params: schemas.VisibilityAnalisysQueryParams = Depends()):
     city_model = cities_model[query_params.city]
     request_points = [[query_params.x_from, query_params.y_from]]
     to_crs = cities_model[query_params.city].city_crs
@@ -82,14 +62,14 @@ async def visibility_analisys(query_params: schemas.VisibilityAnalisysQueryParam
 
 
 @router.post("/voronoi/weighted_voronoi_calculation", response_model=schemas.WeightedVoronoiCalculationOut,
-             tags=[Tags.weighted_voronoi])
+             tags=[Tags.weighted_voronoi])  # todo 3
 async def wighted_voronoi_calculation(query_params: schemas.WeightedVoronoiCalculationIn):
     city_model = cities_model[query_params.city]
     return WeightedVoronoi(city_model).get_weighted_voronoi_result(query_params.geojson.dict())
 
 
 @router.post("/blocks_clusterization/get_blocks", response_model=FeatureCollection,
-             tags=[Tags.blocks_clusterization])
+             tags=[Tags.blocks_clusterization])  # todo 4
 async def get_blocks_clusterization(query_params: schemas.BlocksClusterizationGetBlocks):
     city_model = cities_model[query_params.city]
     return BlocksClusterization(city_model).get_blocks(
@@ -97,7 +77,7 @@ async def get_blocks_clusterization(query_params: schemas.BlocksClusterizationGe
         query_params.area_type, query_params.area_id, query_params.geojson
         )
 
-@router.post("/blocks_clusterization/get_dendrogram",
+@router.post("/blocks_clusterization/get_dendrogram", # todo 4
              responses={
               200: {
                   "content": {"image/png": {}}
@@ -112,7 +92,7 @@ async def get_blocks_clusterization_dendrogram(query_params: schemas.BlocksClust
 
 
 @router.post("/services_clusterization/get_clusters_polygons", response_model=FeatureCollection,
-             tags=[Tags.spacematrix])
+             tags=[Tags.spacematrix]) # todo 5
 async def get_services_clusterization(query_params: schemas.ServicesClusterizationGetClustersPolygonsIn):
     city_model = cities_model[query_params.city]
     result = ServicesClusterization(city_model).get_clusters_polygon(
@@ -129,14 +109,35 @@ async def get_services_clusterization(query_params: schemas.ServicesClusterizati
     return result
 
 
-@router.post("/spacematrix/get_indices", response_model=FeatureCollection,
-            tags=[Tags.visibility_analysis])  # fixme spacematrix or visibility_analysis
+@router.post("/spacematrix/get_indices", response_model=FeatureCollection,  # todo 6
+            tags=[Tags.visibility_analysis])  # fixme spacematrix
 async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
     city_model = cities_model[query_params.city]
     return Spacematrix(city_model).get_spacematrix_morph_types(
         query_params.clusters_number, query_params.area_type, query_params.area_id, query_params.geojson
         )
 
+
+@router.get("/mobility_analysis/isochrones", response_model=schemas.MobilityAnalysisIsochronesOut,
+            tags=[Tags.mobility_analysis])  # todo 7 метрика
+async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIsochronesQueryParams = Depends()):
+    if (query_params.travel_type != enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT) and \
+            (query_params.routes == True):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Getting routes isn't supported for walk and car isochrones."
+        )
+
+    city_model = cities_model[query_params.city]
+    request_points = [[query_params.x_from, query_params.y_from]]
+    to_crs = cities_model[query_params.city].city_crs
+    x_from, y_from = request_points_project(request_points, 4326, to_crs)[0]
+    result = AccessibilityIsochrones(city_model).get_accessibility_isochrone(
+        travel_type=query_params.travel_type, x_from=x_from, y_from=y_from,
+        weight_type=query_params.weight_type, weight_value=query_params.weight_value, routes=query_params.routes
+    )
+
+    return result
 
 # @router.get("/diversity/diversity", response_model=schemas.DiversityDiversityOut,
 #             tags=[Tags.diversity])
