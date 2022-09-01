@@ -52,7 +52,7 @@ def pedastrian_walk_traffics_calculation(query_params: schemas.PedastrianWalkTra
 @router.get(
     "/visibility_analysis/visibility_analysis",
     response_model=FeatureCollection, tags=[Tags.visibility_analysis]
-)  # todo 2
+)
 async def visibility_analysis(query_params: schemas.VisibilityAnalisysQueryParams = Depends()):
     city_model = cities_model[query_params.city]
     request_points = [[query_params.x_from, query_params.y_from]]

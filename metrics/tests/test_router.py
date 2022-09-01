@@ -32,7 +32,7 @@ class TestTrafficsCalculation:
 
 
 class TestVisibilityAnalysis:
-    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/Visibility_analysis"
+    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/visibility_analysis"
     VIEWPOINTS = [  # random points in city bbox. latitude, longitude
         (enums.CitiesEnum.SAINT_PETERSBURG, 59.785982, 30.2971539),
         (enums.CitiesEnum.KRASNODAR, 45.0111502, 38.9100388),
@@ -42,7 +42,7 @@ class TestVisibilityAnalysis:
     @pytest.mark.parametrize("view_distance", [700])
     @pytest.mark.parametrize("city, x_from, y_from", VIEWPOINTS)
     def test_visibility_analysis(self, client, city, x_from, y_from, view_distance):
-        url = self.URL + "/Visibility_analysis"
+        url = self.URL + "/visibility_analysis"
         params = {
             "city": city,
             "x_from": x_from,
