@@ -31,6 +31,29 @@ class TestTrafficsCalculation:
         assert resp.status_code == 400
 
 
+class TestVisibilityAnalysis:
+    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/Visibility_analysis"
+    VIEWPOINTS = [  # random points in city bbox. latitude, longitude
+        (enums.CitiesEnum.SAINT_PETERSBURG, 59.785982, 30.2971539),
+        (enums.CitiesEnum.KRASNODAR, 45.0111502, 38.9100388),
+        (enums.CitiesEnum.SEVASTOPOL, 44.7775737, 33.4171179),
+    ]
+
+    @pytest.mark.parametrize("view_distance", [700])
+    @pytest.mark.parametrize("city, x_from, y_from", VIEWPOINTS)
+    def test_visibility_analysis(self, client, city, x_from, y_from, view_distance):
+        url = self.URL + "/Visibility_analysis"
+        params = {
+            "city": city,
+            "x_from": x_from,
+            "y_from": y_from,
+            "view_distance": view_distance,
+        }
+
+        resp = client.get(url, params=params)
+        assert resp.status_code == 200
+
+
 class TestBCAM:
     class TestMobilityAnalysisRoutes:
         """ Проверка метрики доступности. """
@@ -393,28 +416,6 @@ class TestBCAM:
 
             resp = client.get(url, params=params)
             assert resp.status_code == 422
-
-    class TestVisibilityAnalysis:
-        URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/Visibility_analysis"
-        VIEWPOINTS = [  # random points in city bbox. latitude, longitude
-            (enums.CitiesEnum.SAINT_PETERSBURG, 59.785982, 30.2971539),
-            (enums.CitiesEnum.KRASNODAR, 45.0111502, 38.9100388),
-            (enums.CitiesEnum.SEVASTOPOL, 44.7775737, 33.4171179),
-        ]
-
-        @pytest.mark.parametrize("view_distance", [700])
-        @pytest.mark.parametrize("city, x_from, y_from", VIEWPOINTS)
-        def test_visibility_analysis(self, client, city, x_from, y_from, view_distance):
-            url = self.URL + "/Visibility_analysis"
-            params = {
-                "city": city,
-                "x_from": x_from,
-                "y_from": y_from,
-                "view_distance": view_distance,
-            }
-
-            resp = client.get(url, params=params)
-            assert resp.status_code == 200
 
     @pytest.mark.skip(reason="Not implemented test")
     def test_get_provision(self):
