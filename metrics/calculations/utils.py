@@ -22,7 +22,7 @@ def geojson_projection_management(geojson, set_crs, to_crs):
 def nk_routes_between_two_points(G_nk, attrs, p1, p2, exact_geometry=False):
     
     nodes_data = pd.DataFrame(attrs.values(), index=attrs.keys())
-    distance, p_ = spatial.KDTree(nodes_data).query([p1, p2])
+    distance, p_ = spatial.cKDTree(nodes_data).query([p1, p2])
     p1_ = nodes_data.iloc[p_[0]].name
     p2_ = nodes_data.iloc[p_[1]].name
     dijkstra = nk.distance.Dijkstra(G_nk, source=p1_, target=p2_, storePaths=True)
@@ -42,7 +42,7 @@ def nx_routes_between_two_points(G_nx, p1, p2, weight, exact_geometry=False):
     nodes_data = pd.DataFrame.from_records(
             [{"x": d["x"], "y": d["y"]} for u, d in G_nx.nodes(data=True)], index=list(G_nx.nodes())
             ).sort_index()
-    distance, p_ = spatial.KDTree(nodes_data).query([p1, p2])
+    distance, p_ = spatial.cKDTree(nodes_data).query([p1, p2])
     p1_ = nodes_data.iloc[p_[0]].name
     p2_ = nodes_data.iloc[p_[1]].name
     try:
