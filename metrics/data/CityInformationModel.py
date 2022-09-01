@@ -32,7 +32,6 @@ class CityInformationModel:
     
     def get_all_attributes(self):
         all_attr = self.__dict__
-        del all_attr["attr_names"]
         return all_attr
 
     def set_city_layers(self):
@@ -41,6 +40,7 @@ class CityInformationModel:
             self.get_city_layers_from_db()
         else:
             self.set_none_layers()
+        del self.attr_names
         
     def get_city_layers_from_db(self):
 
@@ -57,11 +57,12 @@ class CityInformationModel:
             setattr(self, attr_name, pickle.loads(
                 rpyc_connect.root.get_city_model_attr(self.city_name, attr_name)))
 
-            self.nk_idmap = get_nx2_nk_idmap(self.MobilityGraph)
-            self.nk_attrs = get_nk_attrs(self.MobilityGraph)
-            self.graph_nk_length = convert_nx2nk(self.MobilityGraph, idmap=self.nk_idmap, weight="length_meter")
-            self.graph_nk_time = convert_nx2nk(self.MobilityGraph, idmap=self.nk_idmap, weight="time_min")
-            self.MobilityGraph = load_graph_geometry(self.MobilityGraph)
+        self.nk_idmap = get_nx2_nk_idmap(self.MobilityGraph)
+        self.nk_attrs = get_nk_attrs(self.MobilityGraph)
+        self.graph_nk_length = convert_nx2nk(self.MobilityGraph, idmap=self.nk_idmap, weight="length_meter")
+        self.graph_nk_time = convert_nx2nk(self.MobilityGraph, idmap=self.nk_idmap, weight="time_min")
+        self.MobilityGraph = load_graph_geometry(self.MobilityGraph)
+
 
     def set_none_layers(self):
         for attr_name in self.attr_names:
