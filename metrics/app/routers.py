@@ -12,6 +12,7 @@ from data.cities_dictionary import cities_model
 
 router = APIRouter()
 
+
 class Tags(str, enums.AutoName):
     def _generate_next_value_(name, start, count, last_values):
         return name
@@ -33,8 +34,10 @@ async def read_root():
     return {"Hello": "World"}
 
 
-@router.post('/pedastrian_walk_traffics/pedastrian_walk_traffics_calculation', 
-            response_model=schemas.PedastrianWalkTrafficsCalculationOut, tags=[Tags.trafics_calculation])
+@router.post(
+    '/pedastrian_walk_traffics/pedastrian_walk_traffics_calculation',
+    response_model=schemas.PedastrianWalkTrafficsCalculationOut, tags=[Tags.trafics_calculation]
+)
 def pedastrian_walk_traffics_calculation(query_params: schemas.PedastrianWalkTrafficsCalculationIn):
     city_model = cities_model[query_params.city]
     result = TrafficCalculator(city_model).get_trafic_calculation(query_params.geojson.dict())
@@ -127,7 +130,7 @@ async def get_services_clusterization(query_params: schemas.ServicesClusterizati
 
 
 @router.post("/spacematrix/get_indices", response_model=FeatureCollection,
-            tags=[Tags.visibility_analysis])
+            tags=[Tags.visibility_analysis])  # fixme spacematrix or visibility_analysis
 async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
     city_model = cities_model[query_params.city]
     return Spacematrix(city_model).get_spacematrix_morph_types(

@@ -1,7 +1,8 @@
 import pytest
 
 from tests.conf import testing_settings
-from app import schemas, enums
+from tests.geojson_example import CitiesPolygonForTrafficsCalculation
+from metrics.app import schemas, enums
 
 
 class TestBCAM:
@@ -427,71 +428,26 @@ class TestCMM:
 
     class TestTraficsCalculation:
         URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/pedastrian_walk_traffics"
-        TEST_POLYGON = {
-            "type": "FeatureCollection",
-            "name": "test_area",
-            "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}},
-            "features": [
-                {
-                    "type": "Feature",
-                    "properties": {},
-                    "geometry": {
-                        "type": "Polygon",
-                        "coordinates": [
-                            [[30.253654233376736, 59.952160447703385], [30.255163054210676, 59.95547985353806],
-                             [30.26592597615947, 59.954205738167175], [30.268843029771755, 59.95102044973996],
-                             [30.266428916437448, 59.94884104186871], [30.258013049119235, 59.94833810159073],
-                             [30.253654233376736, 59.952160447703385]]]
-                    }
-                }
-            ]
-        }
 
-        def test_pedastrian_walk_traffics_calculation(self, client):
+        @pytest.mark.parametrize("city, geojson", [
+            (enums.CitiesEnum.SAINT_PETERSBURG, CitiesPolygonForTrafficsCalculation.SAINT_PETERSBURG_INSIDE_GEOJSON),
+            (enums.CitiesEnum.KRASNODAR, CitiesPolygonForTrafficsCalculation.KRASNODAR_INSIDE_GEOJSON),
+            (enums.CitiesEnum.SEVASTOPOL, CitiesPolygonForTrafficsCalculation.SEVASTOPOL_INSIDE_GEOJSON),
+        ])
+        def test_pedastrian_walk_traffics_calculation(self, client, city, geojson):
             url = self.URL + "/pedastrian_walk_traffics_calculation"
-            resp = client.post(url, json=self.TEST_POLYGON)
+            resp = client.post(url, json={"city": city, "geojson": geojson})
 
             assert resp.status_code == 200
 
-        def test_400_error(self, client):
-            outside_spb_polygon = {
-                "type": "FeatureCollection",
-                "features": [
-                    {
-                        "type": "Feature",
-                        "properties": {},
-                        "geometry": {
-                            "type": "Polygon",
-                            "coordinates": [
-                                [
-                                    [
-                                        28.992919921875004,
-                                        61.03169171684717
-                                    ],
-                                    [
-                                        28.7841796875,
-                                        60.77525532466672
-                                    ],
-                                    [
-                                        29.33349609375,
-                                        60.6301017662667
-                                    ],
-                                    [
-                                        29.838867187500004,
-                                        60.91441435497479
-                                    ],
-                                    [
-                                        28.992919921875004,
-                                        61.03169171684717
-                                    ]
-                                ]
-                            ]
-                        }
-                    }
-                ]
-            }
+        @pytest.mark.parametrize("city, geojson", [
+            (enums.CitiesEnum.SAINT_PETERSBURG, CitiesPolygonForTrafficsCalculation.SAINT_PETERSBURG_OUTSIDE_GEOJSON),
+            (enums.CitiesEnum.KRASNODAR, CitiesPolygonForTrafficsCalculation.KRASNODAR_OUTSIDE_GEOJSON),
+            (enums.CitiesEnum.SEVASTOPOL, CitiesPolygonForTrafficsCalculation.SEVASTOPOL_OUTSIDE_GEOJSON),
+        ])
+        def test_400_error(self, client, city, geojson):
             url = self.URL + "/pedastrian_walk_traffics_calculation"
-            resp = client.post(url, json=outside_spb_polygon)
+            resp = client.post(url, json={"city": city, "geojson": geojson})
 
             assert resp.status_code == 400
 
