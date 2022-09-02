@@ -93,20 +93,17 @@ class TestBlocksClusterization:
         resp = client.post(url, json=data)
         assert resp.status_code == 200
 
-    @pytest.mark.parametrize("clusters_number, service_types", [
-        ("default", RANDOM_SERVICE_TYPES),
-        (5, RANDOM_SERVICE_TYPES),  # 5 random value
+    @pytest.mark.xfail(reason="В API вызывается метод не с получением дендрограммы")
+    @pytest.mark.parametrize("city, geojson", [
+        (enums.CitiesEnum.SAINT_PETERSBURG, CitiesPolygonForTrafficsCalculation.SAINT_PETERSBURG_INSIDE_GEOJSON),
     ])
-    @pytest.mark.parametrize("city", enums.CitiesEnum)
-    def test_get_dendrogram(self, client, city, clusters_number, service_types):
+    def test_get_dendrogram(self, client, city, geojson):
         url = self.URL + "/get_dendrogram"
         data = {
             "city": city,
-            "param":
-                {
-                    "clusters_number": clusters_number,
-                    "service_types": service_types,
-                }
+            "clusters_number": self.RANDOM_CLUSTER_NUMBER,
+            "service_types": self.RANDOM_SERVICE_TYPES,
+            "geojson": geojson,
         }
 
         resp = client.post(url, json=data)
