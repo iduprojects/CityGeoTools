@@ -46,7 +46,7 @@
         },
         "properties": {
           "type": "object",
-          "required": ["id", "is_living", "population"],
+          "required": ["id", "population"],
           "properties": {
             "id": {
               "description": "The unique identifier for a building",
