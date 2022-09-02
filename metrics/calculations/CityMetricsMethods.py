@@ -17,6 +17,9 @@ from sklearn.preprocessing import StandardScaler
 from matplotlib import pyplot as plt
 from scipy import spatial
 
+from app.schemas import FeatureCollectionWithCRS
+
+
 class BaseMethod():
 
     def __init__(self, city_model):
@@ -36,8 +39,8 @@ class BaseMethod():
         return tuple(df[df[area_type + "_id"] == area_id] for df in args)
 
     @staticmethod
-    def get_custom_polygon_select(geojson, set_crs, *args):
-
+    def get_custom_polygon_select(geojson: FeatureCollectionWithCRS, set_crs, *args):
+        geojson = geojson.dict()  # для обратной совместимости с кодом внутри метода
         geojson_crs = geojson["crs"]["properties"]["name"]
         geojson = gpd.GeoDataFrame.from_features(geojson['features'])
         geojson = geojson.set_crs(geojson_crs).to_crs(set_crs)
