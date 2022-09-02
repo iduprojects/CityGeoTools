@@ -97,17 +97,10 @@ class QueryInterface:
         else:
             return df
 
-    def get_services(self, columns: list, equal_slice: dict = None, place_slice: dict = None,
-                     add_normative: bool = False) -> Union[GeoDataFrame, DataFrame]:
+    def get_services(self, columns: list, equal_slice: dict = None, place_slice: dict = None) -> Union[GeoDataFrame, DataFrame]:
 
         join_table = ""
         columns = ["t." + c for c in columns]
-        if add_normative:
-            columns.extend(['s.houses_in_radius', 's.people_in_radius', 's.service_load',
-                            's.needed_capacity AS loaded_capacity', 's.reserve_resource', 'n.normative'])
-            join_table = f"""
-            LEFT JOIN provision.services s ON functional_object_id = s.service_id 
-            LEFT JOIN provision.normatives n ON functional_object_id = n.normative """
 
         sql_query = self.generate_general_sql_query(
             "all_services", columns, join_tables=join_table, equal_slice=equal_slice, place_slice=place_slice)

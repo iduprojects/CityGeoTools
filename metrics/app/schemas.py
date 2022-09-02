@@ -213,6 +213,10 @@ class ServicesClusterizationGetClustersPolygonsIn(BaseModel):
                 }
             }
 
+class ServicesClusterizationGetClustersPolygonsOut(BaseModel):
+    polygons: FeatureCollection
+    services: FeatureCollection
+
 class SpacematrixIn(BaseModel):
     city: enums.CitiesEnum
     clusters_number: int = 11

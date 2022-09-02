@@ -1,5 +1,3 @@
-import graph_tool
-
 def validate_graph(G):
 
     edge_validity = {}

@@ -1,0 +1,83 @@
+{
+  "id": "https://json.schemastore.org/geojson",
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Buildings",
+  "description": "Buildings within city boundary",
+  "type": "object",
+  "required": ["type", "crs", "features"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["FeatureCollection"]
+    },
+    "crs": {
+      "type": "object",
+      "required": ["type", "properties"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["name"]
+        },
+        "properties": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "enum": ["urn:ogc:def:crs:OGC:1.3:CRS84"]
+            }
+          }
+        }
+      }
+  },
+    "features": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/feature"}
+    }
+  },
+  "definitions": {
+    "feature": {
+      "type": "object",
+      "required": ["type", "properties", "geometry"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["Feature"]
+        },
+        "properties": {
+          "type": "object",
+          "required": ["id", "is_living"],
+          "properties": {
+            "id": {
+              "description": "The unique identifier for a building",
+              "type": "integer"
+            }
+          }
+        },
+        "geometry": {
+          "type": "object",
+          "items": {"$ref": "#/definitions/geometry"}
+        }
+      }
+    },
+    "geometry": {
+      "type": "object",
+      "required": ["type", "coordinates"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["MultiPolygon", "Polygon"]
+        },
+        "coordinates": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    }
+  }
+}

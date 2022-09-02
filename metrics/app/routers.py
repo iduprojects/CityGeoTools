@@ -93,12 +93,12 @@ async def get_blocks_clusterization(query_params: schemas.BlocksClusterizationGe
              tags=[Tags.blocks_clusterization])
 async def get_blocks_clusterization_dendrogram(query_params: schemas.BlocksClusterizationGetBlocks):
     city_model = cities_model[query_params.city]
-    result = BlocksClusterization(city_model).get_blocks(query_params.service_types, query_params.clusters_number)
+    result = BlocksClusterization(city_model).get_dendrogram(query_params.service_types)
     return StreamingResponse(content=result, media_type="image/png")
 
 
-@router.post("/services_clusterization/get_clusters_polygons", response_model=FeatureCollection,
-             tags=[Tags.spacematrix]) # todo 5
+@router.post("/services_clusterization/get_clusters_polygons",
+            response_model=schemas.ServicesClusterizationGetClustersPolygonsOut, tags=[Tags.spacematrix])  # todo 5
 async def get_services_clusterization(query_params: schemas.ServicesClusterizationGetClustersPolygonsIn):
     city_model = cities_model[query_params.city]
     result = ServicesClusterization(city_model).get_clusters_polygon(
@@ -116,7 +116,7 @@ async def get_services_clusterization(query_params: schemas.ServicesClusterizati
 
 
 @router.post("/spacematrix/get_indices", response_model=FeatureCollection,  # todo 6
-            tags=[Tags.visibility_analysis])  # fixme spacematrix
+            tags=[Tags.spacematrix])
 async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
     city_model = cities_model[query_params.city]
     return Spacematrix(city_model).get_spacematrix_morph_types(

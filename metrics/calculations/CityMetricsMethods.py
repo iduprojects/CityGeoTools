@@ -10,7 +10,7 @@ import pca
 import networkx as nx
 
 from jsonschema.exceptions import ValidationError
-from .utils import routes_between_two_points
+from .utils import nk_routes_between_two_points
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
@@ -58,7 +58,8 @@ class TrafficCalculator(BaseMethod):
         super().validation("traffic_calculator")
         self.stops = self.city_model.PublicTransportStops.copy()
         self.buildings = self.city_model.Buildings.copy()
-        self.walk_graph = self.city_model.MobilityGraph.copy()
+        self.mobility_graph = self.city_model.graph_nk_length
+        self.mobility_graph_attrs = self.city_model.nk_attrs.copy()
 
     def get_trafic_calculation(self, request_area_geojson):
 
@@ -74,7 +75,7 @@ class TrafficCalculator(BaseMethod):
             lambda x: stops['geometry'].distance(x['geometry']).idxmin(), axis=1)
         nearest_stops = stops.loc[list(selected_buildings['nearest_stop_id'])]
         path_info = selected_buildings.apply(
-            lambda x: routes_between_two_points(graph=self.walk_graph, weight="length_meter",
+            lambda x: nk_routes_between_two_points(self.mobility_graph, self.mobility_graph_attrs,
             p1 = x['geometry'].centroid.coords[0], p2 = stops.loc[x['nearest_stop_id']].geometry.coords[0]), 
             result_type="expand", axis=1)
         house_stop_routes = selected_buildings.copy().drop(["geometry"], axis=1).join(path_info)
@@ -338,7 +339,6 @@ class ServicesClusterization(BaseMethod):
 
         # Find outliers of clusters and exclude it
         outlier = services_select.groupby("cluster")["geometry"].apply(lambda x: self.find_dense_groups(x, n_std))
-        cluster_normal = 0
         if any(~outlier):
             services_normal = services_select[~outlier]
 
@@ -350,7 +350,7 @@ class ServicesClusterization(BaseMethod):
                 # Get MultiPoint from cluster Points and make polygon
                 polygons_normal = services_normal.dissolve("cluster").convex_hull
                 df_clusters_normal = pd.concat([cluster_service, polygons_normal.rename("geometry")], axis=1
-                                                ).reset_index(drop=True)
+                                                )
                 cluster_normal = df_clusters_normal.index.max()
         else:
             df_clusters_normal = None
@@ -372,11 +372,12 @@ class ServicesClusterization(BaseMethod):
 
         df_clusters = pd.concat([df_clusters_normal, df_clusters_outlier]).fillna(0).set_geometry("geometry")
         df_clusters["geometry"] = df_clusters["geometry"].buffer(50, join_style=3)
-        df_clusters = df_clusters.reset_index().rename(columns={"index": "cluster_id"})
+        df_clusters = df_clusters.rename(columns={"index": "cluster_id"})
 
+        services = pd.concat([services_normal, services_outlier]).set_crs(self.city_crs).to_crs(4326)
         df_clusters = df_clusters.set_crs(self.city_crs).to_crs(4326)
 
-        return json.loads(df_clusters.to_json())
+        return {"polygons": json.loads(df_clusters.to_json()), "services": json.loads(services.to_json())}
 
 # #############################################  Spacematrix  #######################################################
 class Spacematrix(BaseMethod):

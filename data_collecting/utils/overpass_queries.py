@@ -53,9 +53,8 @@ def overpass_query(func, *args, attempts=5):
             time.sleep(20)
             continue
     
-    raise JSONDecodeError(
-        msg=f"""Something went wrong with Overpass API when JSON was parsed. Check the query and to send it later.
-                {e.msg}""", doc=e.doc, pos=e.pos)
+    raise SystemError(
+    """Something went wrong with Overpass API when JSON was parsed. Check the query and to send it later.""")
 
 
 def parse_overpass_route_response(loc, city_crs):

@@ -5,12 +5,6 @@ import jsonschema
 import geopandas as gpd
 
 from jsonschema.exceptions import ValidationError
-from networkx.classes.graph import Graph
-from networkx.classes.digraph import DiGraph
-from networkx.classes.digraph import DiGraph
-from networkx.classes.multidigraph import MultiDiGraph
-from networkx.classes.multigraph import MultiGraph
-
 from .data_dictionary import data_dictionary
 
 
@@ -25,6 +19,7 @@ class DataValidation:
         self.services_clusterization = ServicesClusterizationData()
         self.spacematrix = SpacematrixData()
         self.accessibility_isochrones = AccessibilityIsochronesData()
+        self.diversity = DiversityData()
 
 
     def check_methods(self, layer_name, validate_object, validation_func):
@@ -65,7 +60,7 @@ class DataValidation:
         node_error = ", ".join([k for k, v in node_validity.items() if not v])
 
         self.message[layer_name] = "Layer matches specification" if validity else ""
-        self.message[layer_name] += f"Graph has too many edges." if not graph_size else ""
+        self.message[layer_name] += f"Graph has too little edges." if not graph_size else ""
         self.message[layer_name] += f"Edges do not have {edge_error} attributes. " if len(edge_error) > 0 else ""
         self.message[layer_name] += f"Nodes do not have {node_error} attributes." if len(node_error) > 0 else ""
         
@@ -128,4 +123,12 @@ class AccessibilityIsochronesData(DataValidation):
     def __init__(self):
         self.specification_folder = "data_specification/accessibility_isochrones"
         self.MobilityGraph = None
+        self.message = {}
+
+class DiversityData(DataValidation):
+    def __init__(self):
+        self.specification_folder = "data_specification/diversity"
+        self.MobilityGraph = None
+        self.Buildings = None
+        self.Services = None
         self.message = {}
