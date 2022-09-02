@@ -70,14 +70,17 @@ async def wighted_voronoi_calculation(query_params: schemas.WeightedVoronoiCalcu
     return WeightedVoronoi(city_model).get_weighted_voronoi_result(query_params.geojson.dict())
 
 
-@router.post("/blocks_clusterization/get_blocks", response_model=FeatureCollection,
-             tags=[Tags.blocks_clusterization])  # todo 4
+@router.post(
+    "/blocks_clusterization/get_blocks",
+    response_model=FeatureCollection, tags=[Tags.blocks_clusterization]
+)
 async def get_blocks_clusterization(query_params: schemas.BlocksClusterizationGetBlocks):
     city_model = cities_model[query_params.city]
     return BlocksClusterization(city_model).get_blocks(
         query_params.service_types, query_params.clusters_number, 
         query_params.area_type, query_params.area_id, query_params.geojson
         )
+
 
 
 @router.post("/blocks_clusterization/get_dendrogram", # todo 4

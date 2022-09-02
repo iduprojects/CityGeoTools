@@ -74,21 +74,20 @@ class TestWeightedVoronoi:
 class TestBlocksClusterization:
     URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/blocks_clusterization"
     RANDOM_SERVICE_TYPES = ["garbage_containers", "bakeries"]
+    RANDOM_CLUSTER_NUMBER = 5
+    DEFAULT_CLUSTER_NUMBER = None
 
-    @pytest.mark.parametrize("clusters_number, service_types", [
-        ("default", RANDOM_SERVICE_TYPES),
-        (5, RANDOM_SERVICE_TYPES),  # 5 random value
+    @pytest.mark.parametrize("clusters_number", [DEFAULT_CLUSTER_NUMBER, RANDOM_CLUSTER_NUMBER])
+    @pytest.mark.parametrize("city, geojson", [
+        (enums.CitiesEnum.SAINT_PETERSBURG, CitiesPolygonForTrafficsCalculation.SAINT_PETERSBURG_INSIDE_GEOJSON),
     ])
-    @pytest.mark.parametrize("city", enums.CitiesEnum)
-    def test_get_blocks_calculations(self, client, city, clusters_number, service_types):
+    def test_get_blocks_calculations(self, client, city, clusters_number, geojson):
         url = self.URL + "/get_blocks"
         data = {
             "city": city,
-            "param":
-                {
-                    "clusters_number": clusters_number,
-                    "service_types": service_types,
-                }
+            "clusters_number": clusters_number,
+            "service_types": self.RANDOM_SERVICE_TYPES,
+            "geojson": geojson,
         }
 
         resp = client.post(url, json=data)
