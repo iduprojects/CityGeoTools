@@ -36,6 +36,9 @@ class DataQueryInterface(QueryInterface):
         self.Buildings = self.Buildings[
             (self.Buildings.geom_type == "MultiPolygon") | (self.Buildings.geom_type == "Polygon")
             ]
+        self.Buildings[["x", "y"]] = self.Buildings.centroid.apply(
+            lambda b: pd.Series([b.coords[0][0], b.coords[0][1]])
+            )
         self.Buildings = pickle.dumps(self.Buildings)
         print(self.city_name, datetime.datetime.now(),'Buildings')
 
@@ -45,11 +48,20 @@ class DataQueryInterface(QueryInterface):
                             "city_service_type_id", "city_service_type_code as service_code", "service_name",
                             "block_id", "administrative_unit_id", "municipality_id"]
                             
-        self.Services = self.get_services(service_columns, place_slice=place_slice)
+        self.Services = self.get_services(service_columns, add_normative=True, place_slice=place_slice)
+        self.Services[["x", "y"]] = self.Services.geometry.apply(
+            lambda s: pd.Series([s.coords[0][0], s.coords[0][1]])
+            )
         self.PublicTransportStops = self.Services[self.Services["service_code"] == "stops"]
+        self.ServiceTypes = pd.read_sql_table(
+            "city_service_types", con=self.engine, 
+            columns=["id", "code", "public_transport_time_normative", "walking_radius_normative"])
+
         self.Services = pickle.dumps(self.Services)
-        self.PublicTransportStops = pickle.dumps(self.PublicTransportStops)
         print(self.city_name, datetime.datetime.now(),'Services')
+        self.ServiceTypes = pickle.dumps(self.ServiceTypes)
+        print(self.city_name, datetime.datetime.now(),'ServiceTypes')
+        self.PublicTransportStops = pickle.dumps(self.PublicTransportStops)
         print(self.city_name, datetime.datetime.now(),'PublicTransportStops')
 
 
