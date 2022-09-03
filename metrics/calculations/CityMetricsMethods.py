@@ -1,3 +1,4 @@
+from multiprocessing.sharedctypes import Value
 import geopandas as gpd
 import shapely
 import pandas as pd
@@ -8,6 +9,7 @@ import shapely.wkt
 import io
 import pca
 import networkx as nx
+import networkit as nk
 
 from jsonschema.exceptions import ValidationError
 from .utils import nk_routes_between_two_points
@@ -517,7 +519,6 @@ class AccessibilityIsochrones(BaseMethod):
                 "weight_value": [weight_value], "geometry": [isochrone_geom]}).set_crs(self.city_crs).to_crs(4326)
  
         routes, stops = self.get_routes(nodes_data, travel_type) if routes else (None, None)
-        print(type(stops))
         return {"isochrone": json.loads(isochrone.to_json()), "routes": routes, "stops": stops}
 
 
@@ -549,7 +550,111 @@ class AccessibilityIsochrones(BaseMethod):
         return json.loads(routes.to_crs(4326).to_json()), json.loads(stops.to_crs(4326).to_json())
 
 
+# ################################################ Diversity ######################################################
+class Diversity(BaseMethod):
+    def __init__(self, city_model):
+        BaseMethod.__init__(self, city_model)
+        super().validation("diversity")
+        self.mobility_graph_length = self.city_model.graph_nk_length
+        self.mobility_graph_time = self.city_model.graph_nk_time
+        self.graph_attrs = self.city_model.nk_attrs.copy()
+        self.buildings = self.city_model.Buildings.copy()
+        self.services = self.city_model.Services.copy()
+        self.service_types = self.city_model.ServiceTypes.copy()
+        self.municipalities = self.city_model.Municipalities.copy()
+        self.blocks = self.city_model.Blocks.copy()
+
+    def define_service_normative(self, service_type):
+
+        service_type_info = self.service_types[self.service_types["code"] == service_type]
+
+        if service_type_info["walking_radius_normative"].notna().values:
+            travel_type = "walk"
+            limit_value = service_type_info["walking_radius_normative"].values[0]
+            graph = self.mobility_graph_length
+        elif service_type_info["public_transport_time_normative"].notna().values:
+            travel_type = "public_transport"
+            limit_value = service_type_info["public_transport_time_normative"].values[0]
+            graph = self.mobility_graph_time
+        else:
+            raise ValueError("Any service type normative is None.")
+
+        return travel_type, limit_value, graph
+        
+    def get_distance_matrix(self, houses, services, graph, limit_value):
+
+        nodes_data = pd.DataFrame(self.graph_attrs.values(), index=self.graph_attrs.keys())
+        houses_distance, houses_nodes = spatial.cKDTree(nodes_data).query([houses[["x", "y"]]])
+        services_distance, services_nodes = spatial.cKDTree(nodes_data).query([services[["x", "y"]]])
+
+        if len(services_nodes[0]) < len(houses_nodes[0]):
+            source, target = services_nodes, houses_nodes
+            source_dist, target_dist = services_distance, houses_distance
+        else:
+            source, target = houses_nodes, services_nodes
+            source_dist, target_dist = houses_distance, services_distance
+
+        dijkstra = nk.distance.SPSP(graph, source[0])
+        dijkstra = dijkstra.run()
+        dist_matrix = dijkstra.getDistances(asarray=True)
+        dist_matrix = dist_matrix[:, target[0]] + target_dist[0] + np.vstack(np.array(source_dist[0]))
+        dist_matrix = np.where(dist_matrix > limit_value, dist_matrix, 1)
+        dist_matrix = np.where(dist_matrix <= limit_value, dist_matrix, 0)
+
+        return dist_matrix
+
+    @staticmethod
+    def calculate_diversity(houses, dist_matrix):
+
+        count_services = dist_matrix.sum(axis=0)
+        diversity_estim = {1:0.2, 2:0.4, 3:0.6, 4:0.8, 5:1}
+        for count, estim in diversity_estim.items():
+            count_services[count_services == count] = estim
+        count_services = np.where(count_services < 5, count_services, 1)
+        houses_diversity = pd.Series(count_services, index=houses["id"]).rename("diversity")
+        houses = houses.join(houses_diversity, on="id")
+        return houses
+
+    def get_diversity(self, service_type):
+
+        services = self.services[self.services["service_code"] == service_type]
+        houses = self.buildings[self.buildings['is_living'] == True].reset_index(drop=True)
+
+        travel_type, limit_value, graph = self.define_service_normative(service_type)
+        dist_matrix = self.get_distance_matrix(houses, services, graph, limit_value)
+        houses = self.calculate_diversity(houses, dist_matrix)
+
+        blocks = self.blocks.dropna(subset=["municipality_id"]) # TEMPORARY
+        blocks = self.blocks.join(houses.groupby(["block_id"])["diversity"].mean().round(2), on="id")
+        municipalities = self.municipalities.join(
+            houses.groupby(["municipality_id"])["diversity"].mean().round(2), on="id"
+            )
+        return {
+            "buildings": json.loads(houses.fillna("None").to_json()),
+            "municipalities": json.loads(municipalities.fillna("None").to_json()),
+            "blocks": json.loads(blocks.fillna("None").to_json())
+                    }
+
+    def get_info(self, house_id, service_type):
+
+        services = self.services[self.services["service_code"] == service_type]
+        house = self.buildings[self.buildings['id'] == house_id].reset_index(drop=True)
+        house_x, house_y = house[["x", "y"]].values[0]
+
+        travel_type, limit_value, graph = self.define_service_normative(service_type)
+        dist_matrix = self.get_distance_matrix(house, services, graph, limit_value)
+        house = self.calculate_diversity(house, np.vstack(dist_matrix[0]))
+
+        selected_services = services[dist_matrix[0] == 1]
+        isochrone = AccessibilityIsochrones(self.city_model).get_accessibility_isochrone(
+            travel_type, house_x, house_y, limit_value, travel_type
+        )
+        return {
+            "house": json.loads(house.to_crs(4326).to_json()),
+            "services": json.loads(selected_services.to_crs(4326).to_json()),
+            "isochrone": isochrone["isochrone"]
+        }
 
 
 
-
+                        

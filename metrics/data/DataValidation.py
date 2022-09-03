@@ -44,8 +44,6 @@ class DataValidation:
         except ValidationError as error:
             setattr(self, layer_name, False)
             self.message[layer_name] = error.message
-
-        return gpd.GeoDataFrame.from_features(layer).set_crs(4326).to_crs(32636)
     
     def validate_graph_layers(self, layer_name, G):
 
@@ -83,8 +81,8 @@ class TrafficCalculatorData(DataValidation):
     def __init__(self):
         self.specification_folder = "data_specification/traffic_calculator"
         self.Buildings = None
-        self.Public_Transport_Stops = None
-        self.walk_graph = None
+        self.PublicTransportStops = None
+        self.MobilityGraph = None
         self.message = {}
 
 
@@ -131,4 +129,7 @@ class DiversityData(DataValidation):
         self.MobilityGraph = None
         self.Buildings = None
         self.Services = None
+        self.ServiceTypes = None
+        self.Municipalities = None
+        self.Blocks = None
         self.message = {}
