@@ -97,15 +97,22 @@ class QueryInterface:
         else:
             return df
 
-    def get_services(self, columns: list, equal_slice: dict = None, place_slice: dict = None) -> Union[GeoDataFrame, DataFrame]:
+    def get_services(self, columns: list, add_normative: bool = False, equal_slice: dict = None, 
+                    place_slice: dict = None) -> Union[GeoDataFrame, DataFrame]:
 
         join_table = ""
         columns = ["t." + c for c in columns]
 
         sql_query = self.generate_general_sql_query(
             "all_services", columns, join_tables=join_table, equal_slice=equal_slice, place_slice=place_slice)
-        sql_query = sql_query.replace("functional_object_id,", "functional_object_id AS index,")
         df = pd.read_sql(sql_query, con=self.engine)
+        
+        if add_normative:
+            columns.extend(['s.public_transport_time_normative as access_normative_min', 
+                            's.walking_radius_normative as access_normative_meter'])
+            join_table = f"""
+            LEFT JOIN provision.services s ON functional_object_id = s.service_id"""
+
         if "geometry" in df.columns:
             df['geometry'] = df['geometry'].apply(lambda x: shape(ast.literal_eval(x)))
             gdf = gpd.GeoDataFrame(df, geometry=df.geometry).set_crs(4326).to_crs(self.city_crs)
