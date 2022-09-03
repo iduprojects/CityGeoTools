@@ -1,8 +1,8 @@
 {
   "id": "https://json.schemastore.org/geojson",
   "$schema": "http://json-schema.org/draft-04/schema#",
-  "title": "Buildings",
-  "description": "Buildings within city boundary",
+  "title": "Blocks",
+  "description": "Blocks within city boundary",
   "type": "object",
   "required": ["type", "crs", "features"],
   "properties": {
@@ -46,32 +46,24 @@
         },
         "properties": {
           "type": "object",
-          "required": ["id", "is_living", "block_id", "municipality_id"],
+          "required": ["id", "municipality_id"],
           "properties": {
             "id": {
-              "description": "The unique identifier for a building",
+              "description": "The unique identifier for a block",
               "type": "integer"
-            },
-            "is_living": {
-              "description": "Attribute describes weather a building is residential or not",
-              "type": "boolean"
             },
             "municipality_id": {
-              "description": "The identifier of municipality where a service is located",
-              "type": "integer"
-            },
-            "block_id": {
-              "description": "The identifier of block where a service is located",
+              "description": "The identifier of municipality where a block is located",
               "type": "integer"
             }
-          }
-        },
+            }
+          },
         "geometry": {
           "type": "object",
           "items": {"$ref": "#/definitions/geometry"}
         }
-      }
-    },
+        }
+      },
     "geometry": {
       "type": "object",
       "required": ["type", "coordinates"],
@@ -91,5 +83,5 @@
         }
       }
     }
+    }
   }
-}

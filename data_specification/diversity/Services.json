@@ -46,8 +46,7 @@
         },
         "properties": {
           "type": "object",
-          "required": ["id", "service_code", "access_normative_min", "access_normative_meter", 
-                       "block_id", "municipality_id", "administrative_unit_id"],
+          "required": ["id", "service_code"],
           "properties": {
             "id": {
               "description": "The unique identifier for a service",
@@ -56,18 +55,6 @@
             "service_code": {
               "description": "Service type",
               "type": "string"
-            },
-            "administrative_unit_id": {
-              "description": "The identifier of district where a service is located",
-              "type": "integer"
-            },
-            "municipality_id": {
-              "description": "The identifier of municipality where a service is located",
-              "type": "integer"
-            },
-            "block_id": {
-              "description": "The identifier of block where a service is located",
-              "type": "integer"
             }
             }
           },
