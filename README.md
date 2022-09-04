@@ -8,7 +8,7 @@
 4.   Service clusterization (based on services location)
 5.   Spacematrix clusterization (based on [research](https://elibrary.ru/item.asp?id=45845752))
 6. Availability isochrone (based on [research]())
-7.  Diversity analysis (based on available services) - in progress for user mode
+7.  Diversity analysis (based on available services)
 8.  Provision population with services - in progress for user mode
 9.  Wellbeing (based on provision with services needed in living situations) - in progress for user mode
 
