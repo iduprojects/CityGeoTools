@@ -495,22 +495,22 @@ class AccessibilityIsochrones(BaseMethod):
         distance, start_node = spatial.KDTree(nodes_data[["x", "y"]]).query([x_from, y_from])
         start_node = nodes_data.iloc[start_node].name
         margin_weight = distance / self.walk_speed if weight_type == "time_min" else distance
-        weight_value = weight_value - margin_weight
+        weight_value_remain = weight_value - margin_weight
 
         weights_sum = nx.single_source_dijkstra_path_length(
-            mobility_graph, start_node, cutoff=weight_value, weight=weight_type)
+            mobility_graph, start_node, cutoff=weight_value_remain, weight=weight_type)
         nodes_data = nodes_data.loc[list(weights_sum.keys())].reset_index()
         nodes_data = gpd.GeoDataFrame(nodes_data, crs=self.city_crs)
 
         if travel_type == "public_transport" and weight_type == "time_min":
             # 0.8 is routes curvature coefficient 
-            distance = dict((k, (weight_value - v) * self.walk_speed * 0.8) for k, v in weights_sum.items())
+            distance = dict((k, (weight_value_remain - v) * self.walk_speed * 0.8) for k, v in weights_sum.items())
             nodes_data["left_distance"] = distance.values()
             isochrone_geom = nodes_data["geometry"].buffer(nodes_data["left_distance"])
             isochrone_geom = isochrone_geom.unary_union
         
         else:
-            distance = dict((k, (weight_value - v)) for k, v in weights_sum.items())
+            distance = dict((k, (weight_value_remain - v)) for k, v in weights_sum.items())
             nodes_data["left_distance"] = distance.values()
             isochrone_geom = shapely.geometry.MultiPoint(nodes_data["geometry"].tolist()).convex_hull
 
@@ -570,16 +570,18 @@ class Diversity(BaseMethod):
 
         if service_type_info["walking_radius_normative"].notna().values:
             travel_type = "walk"
+            weigth = "length_meter"
             limit_value = service_type_info["walking_radius_normative"].values[0]
             graph = self.mobility_graph_length
         elif service_type_info["public_transport_time_normative"].notna().values:
             travel_type = "public_transport"
+            weigth = "time_min"
             limit_value = service_type_info["public_transport_time_normative"].values[0]
             graph = self.mobility_graph_time
         else:
             raise ValueError("Any service type normative is None.")
 
-        return travel_type, limit_value, graph
+        return travel_type, weigth, limit_value, graph
         
     def get_distance_matrix(self, houses, services, graph, limit_value):
 
@@ -620,7 +622,7 @@ class Diversity(BaseMethod):
         services = self.services[self.services["service_code"] == service_type]
         houses = self.buildings[self.buildings['is_living'] == True].reset_index(drop=True)
 
-        travel_type, limit_value, graph = self.define_service_normative(service_type)
+        travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
         dist_matrix = self.get_distance_matrix(houses, services, graph, limit_value)
         houses = self.calculate_diversity(houses, dist_matrix)
 
@@ -630,9 +632,9 @@ class Diversity(BaseMethod):
             houses.groupby(["municipality_id"])["diversity"].mean().round(2), on="id"
             )
         return {
-            "buildings": json.loads(houses.fillna("None").to_json()),
-            "municipalities": json.loads(municipalities.fillna("None").to_json()),
-            "blocks": json.loads(blocks.fillna("None").to_json())
+            "buildings": json.loads(houses.to_crs(4326).fillna("None").to_json()),
+            "municipalities": json.loads(municipalities.to_crs(4326).fillna("None").to_json()),
+            "blocks": json.loads(blocks.to_crs(4326).fillna("None").to_json())
                     }
 
     def get_info(self, house_id, service_type):
@@ -641,13 +643,13 @@ class Diversity(BaseMethod):
         house = self.buildings[self.buildings['id'] == house_id].reset_index(drop=True)
         house_x, house_y = house[["x", "y"]].values[0]
 
-        travel_type, limit_value, graph = self.define_service_normative(service_type)
+        travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
         dist_matrix = self.get_distance_matrix(house, services, graph, limit_value)
         house = self.calculate_diversity(house, np.vstack(dist_matrix[0]))
 
         selected_services = services[dist_matrix[0] == 1]
         isochrone = AccessibilityIsochrones(self.city_model).get_accessibility_isochrone(
-            travel_type, house_x, house_y, limit_value, travel_type
+            travel_type, house_x, house_y, limit_value, weigth
         )
         return {
             "house": json.loads(house.to_crs(4326).to_json()),
