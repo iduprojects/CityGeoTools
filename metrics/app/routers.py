@@ -135,16 +135,19 @@ async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
         )
 
 
-# @router.get("/diversity/diversity", response_model=schemas.DiversityDiversityOut,
-#             tags=[Tags.diversity])
-# async def get_diversity(query_params: schemas.DiversityDiversityQueryParams = Depends()):  # todo validate service_type?
-#     """
-#     In user request:
-#     :param: service_type -> str
-#     :return: polygons of blocks/municipalities -> geojson
-#     """
-#     result = BCAM.Get_Diversity(query_params.service_type)
-#     return result
+@router.get("/diversity/diversity", response_model=schemas.DiversityOut,
+            tags=[Tags.diversity])
+async def get_diversity(query_params: schemas.DiversityQueryParams = Depends()):  # todo validate service_type?
+    city_model = cities_model[query_params.city]
+    result = Diversity(city_model).get_diversity(query_params.service_type)
+    return result
+
+@router.get("/diversity/get_info", response_model=schemas.DiversityGetInfoOut,
+            tags=[Tags.diversity])
+async def get_diversity(query_params: schemas.DiversityGetInfoQueryParams = Depends()):
+    city_model = cities_model[query_params.city]
+    result = Diversity(city_model).get_info(query_params.house_id, query_params.service_type)
+    return result
 
 
 # @router.post("/provision/get_provision", response_model=schemas.ProvisionGetProvisionOut,
