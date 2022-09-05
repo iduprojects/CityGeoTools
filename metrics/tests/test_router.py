@@ -134,6 +134,25 @@ class TestServicesClusterization:
         resp = client.post(url, json=data)
         assert resp.status_code == 200
 
+    @pytest.mark.parametrize("city, geojson, expected_code", [
+        (enums.CitiesEnum.SAINT_PETERSBURG, CitiesPolygonForTrafficsCalculation.SAINT_PETERSBURG_INSIDE_GEOJSON, 200),
+        (enums.CitiesEnum.KRASNODAR, CitiesPolygonForTrafficsCalculation.KRASNODAR_INSIDE_GEOJSON, 400),
+        (enums.CitiesEnum.SEVASTOPOL, CitiesPolygonForTrafficsCalculation.SEVASTOPOL_INSIDE_GEOJSON, 400),
+    ])
+    @pytest.mark.parametrize("condition", enums.ClusterizationConditionsEnum)
+    def test_get_services_clusterization_with_geojson_param(self, client, city, geojson, condition, expected_code):
+        """ Запрос с передачей geojson. """
+        url = self.URL + "/get_clusters_polygons"
+        data = {
+            "city": city,
+            "geojson": geojson,
+            "service_types": self.RANDOM_SERVICE_TYPES,
+            "condition": condition,
+        }
+
+        resp = client.post(url, json=data)
+        assert resp.status_code == expected_code
+
     @pytest.mark.parametrize("city, area_type, area_id", MUNICIPALITIES)
     @pytest.mark.parametrize("condition", enums.ClusterizationConditionsEnum.DISTANCE)
     def test_get_services_clusterization(self, client, city, area_type, area_id, condition):
@@ -166,6 +185,7 @@ class TestServicesClusterization:
 
         error_msg = "Not enough objects to cluster"
         assert error_msg in resp.text
+
 
 
 class TestSpacematrix:
