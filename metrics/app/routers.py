@@ -130,8 +130,10 @@ async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
 @router.get("/mobility_analysis/isochrones", response_model=schemas.MobilityAnalysisIsochronesOut,
             tags=[Tags.mobility_analysis])  # todo 7 метрика
 async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIsochronesQueryParams = Depends()):
-    if (query_params.travel_type != enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT) and \
-            (query_params.routes == True):
+    if (
+            (query_params.travel_type != enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT) and
+            query_params.routes
+    ):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Getting routes isn't supported for walk and car isochrones."
