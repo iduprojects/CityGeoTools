@@ -194,6 +194,22 @@ class TestSpacematrix:
         resp = client.post(url, json=data)
         assert resp.status_code == 200
 
+    @pytest.mark.parametrize("city, geojson", [
+        (enums.CitiesEnum.SAINT_PETERSBURG, CitiesPolygonForTrafficsCalculation.SAINT_PETERSBURG_INSIDE_GEOJSON,),
+        (enums.CitiesEnum.KRASNODAR, CitiesPolygonForTrafficsCalculation.KRASNODAR_INSIDE_GEOJSON, ),
+        pytest.param(enums.CitiesEnum.SEVASTOPOL, CitiesPolygonForTrafficsCalculation.SEVASTOPOL_INSIDE_GEOJSON, marks=pytest.mark.xfail(reason="Тест падает только для Севастополя")),
+    ])
+    def test_get_spacematrix_indices_geojson(self, client, city, geojson):
+        """ Запрос со передачей geojson геометрии. """
+        data = {
+            "city": city,
+            "geojson": geojson
+        }
+
+        url = self.URL + "/get_indices"
+        resp = client.post(url, json=data)
+        assert resp.status_code == 200
+
 
 class TestMobilityAnalysisIsochrones:
     """ Проверка метрики доступности. """
