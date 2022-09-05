@@ -146,13 +146,13 @@ class TestServicesClusterization:
 
     @pytest.mark.parametrize("city", enums.CitiesEnum)
     @pytest.mark.parametrize("service_types", [RANDOM_SERVICE_TYPES])
-    def test_get_services_clusterization_without_area(self, client, city, service_types):
+    @pytest.mark.parametrize("condition", enums.ClusterizationConditionsEnum)
+    def test_get_services_clusterization(self, client, city, service_types, condition):
         url = self.URL + "/get_clusters_polygons"
         data = {
             "city": city,
-            "param": {
-                "service_types": service_types,
-            }
+            "service_types": self.RANDOM_SERVICE_TYPES,
+            "condition": condition,
         }
 
         resp = client.post(url, json=data)
