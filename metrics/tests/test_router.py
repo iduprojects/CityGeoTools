@@ -4,6 +4,24 @@ from tests.conf import testing_settings
 from tests.geojson_example import CitiesPolygonForTrafficsCalculation, SAINT_PETERSBURG_VORONOI_GEOJSON
 from metrics.app import schemas, enums
 
+MUNICIPALITIES = [
+    (enums.CitiesEnum.SAINT_PETERSBURG, enums.TerritorialEnum.MUNICIPALITY, 95),
+    (enums.CitiesEnum.KRASNODAR, enums.TerritorialEnum.MUNICIPALITY, 113),
+    (enums.CitiesEnum.SEVASTOPOL, enums.TerritorialEnum.MUNICIPALITY, 126),
+]
+
+BLOCKS = [
+    (enums.CitiesEnum.SAINT_PETERSBURG, enums.TerritorialEnum.BLOCK, 2703),
+    (enums.CitiesEnum.KRASNODAR, enums.TerritorialEnum.BLOCK, 7034),
+    (enums.CitiesEnum.SEVASTOPOL, enums.TerritorialEnum.BLOCK, 15020),
+]
+
+ADMINISTRATIVE_UNITS = [
+    (enums.CitiesEnum.SAINT_PETERSBURG, enums.TerritorialEnum.ADMINISTRATIVE_UNIT, 59),
+    (enums.CitiesEnum.KRASNODAR, enums.TerritorialEnum.ADMINISTRATIVE_UNIT, 69),
+    (enums.CitiesEnum.SEVASTOPOL, enums.TerritorialEnum.ADMINISTRATIVE_UNIT, 137),
+]
+
 
 class TestTrafficsCalculation:
     URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/pedastrian_walk_traffics"
@@ -155,7 +173,7 @@ class TestServicesClusterization:
 
     @pytest.mark.parametrize("city, area_type, area_id", MUNICIPALITIES)
     @pytest.mark.parametrize("condition", enums.ClusterizationConditionsEnum.DISTANCE)
-    def test_get_services_clusterization(self, client, city, area_type, area_id, condition):
+    def test_get_services_clusterization_area_type_and_id(self, client, city, area_type, area_id, condition):
         url = self.URL + "/get_clusters_polygons"
         data = {
             "city": city,
@@ -187,7 +205,6 @@ class TestServicesClusterization:
         assert error_msg in resp.text
 
 
-
 class TestSpacematrix:
     URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/spacematrix"
 
@@ -216,6 +233,18 @@ class TestSpacematrix:
         }
 
         url = self.URL + "/get_indices"
+        resp = client.post(url, json=data)
+        assert resp.status_code == 200
+
+    @pytest.mark.xfail(reason="Не работает Севастополь и кварталы")
+    @pytest.mark.parametrize("city, area_type, area_id", [*ADMINISTRATIVE_UNITS, *MUNICIPALITIES, *BLOCKS])
+    def test_get_spacematrix_indices_with_area_type_and_id(self, client, city, area_type, area_id):
+        url = self.URL + "/get_indices"
+        data = {
+            "city": city,
+            "area_type": area_type,
+            "area_id": area_id
+        }
         resp = client.post(url, json=data)
         assert resp.status_code == 200
 
