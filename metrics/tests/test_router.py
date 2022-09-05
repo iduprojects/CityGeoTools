@@ -256,11 +256,10 @@ class TestMobilityAnalysisIsochrones:
         (enums.CitiesEnum.SEVASTOPOL, 44.5888300, 33.5224000)
     ]
 
-    @pytest.mark.parametrize("travel_type", [
-        enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT,
-    ])
+    @pytest.mark.parametrize("travel_type", enums.MobilityAnalysisIsochronesTravelTypeEnum)
     @pytest.mark.parametrize("weight_type, weight_value", [
-        (enums.MobilityAnalysisIsochronesWeightTypeEnum.TIME, 1)
+        (enums.MobilityAnalysisIsochronesWeightTypeEnum.TIME, 1),
+        (enums.MobilityAnalysisIsochronesWeightTypeEnum.METER, 100)
     ])
     @pytest.mark.parametrize("city, x_from, y_from", CITIES_FROM_POINTS)
     def test_public_transport_travel_type(
