@@ -644,7 +644,7 @@ class Diversity(BaseMethod):
 
         travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
         dist_matrix = self.get_distance_matrix(houses_in_block, services, graph, limit_value)
-        houses = self.calculate_diversity(houses_in_block,np.transpose(dist_matrix))
+        houses_in_block = self.calculate_diversity(houses_in_block, np.transpose(dist_matrix))
 
         return json.loads(houses_in_block.to_crs(4326).to_json())
 
