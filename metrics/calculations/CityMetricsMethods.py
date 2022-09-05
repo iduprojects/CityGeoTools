@@ -367,6 +367,7 @@ class ServicesClusterization(BaseMethod):
                 cluster_service = cluster_service.unstack(level=1, fill_value=0)
             df_clusters_outlier = cluster_service.join(services_outlier.set_index("cluster")["geometry"])
         else:
+            services_outlier = None
             df_clusters_outlier = None
 
         df_clusters = pd.concat([df_clusters_normal, df_clusters_outlier]).fillna(0).set_geometry("geometry")
