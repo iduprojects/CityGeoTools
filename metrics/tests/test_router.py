@@ -262,10 +262,10 @@ class TestMobilityAnalysisIsochrones:
         (enums.MobilityAnalysisIsochronesWeightTypeEnum.METER, 100)
     ])
     @pytest.mark.parametrize("city, x_from, y_from", CITIES_FROM_POINTS)
-    def test_public_transport_travel_type(
+    def test_mobility_analysis_isochrones(
             self, client, city, x_from, y_from, weight_type, weight_value, travel_type
     ):
-        """ Проверка вычисления изохрон для общественного транспорта. """
+        """ Проверка вычисления изохрон для всех типов транспорта. """
         params = dict(
             city=city,
             travel_type=travel_type,
@@ -279,6 +279,36 @@ class TestMobilityAnalysisIsochrones:
 
         resp = client.get(url, params=params)
         assert resp.status_code == 200
+
+    @pytest.mark.xfail(reason="Не отдает routers для PUBLIC_TRANSPORT")
+    @pytest.mark.parametrize("travel_type, expected_code", [
+        (enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT, 200),
+        (enums.MobilityAnalysisIsochronesTravelTypeEnum.WALK, 422),
+        (enums.MobilityAnalysisIsochronesTravelTypeEnum.DRIVE, 422),
+    ])
+    @pytest.mark.parametrize("weight_type, weight_value", [
+        (enums.MobilityAnalysisIsochronesWeightTypeEnum.TIME, 1),
+        (enums.MobilityAnalysisIsochronesWeightTypeEnum.METER, 100)
+    ])
+    @pytest.mark.parametrize("city, x_from, y_from", CITIES_FROM_POINTS)
+    def test_mobility_analysis_isochrones_is_not_support_routers(
+            self, client, city, x_from, y_from, weight_type, weight_value, travel_type, expected_code
+    ):
+        """ Проверка получения routers для изохрон """
+        params = dict(
+            city=city,
+            travel_type=travel_type,
+            weight_type=weight_type,
+            weight_value=weight_value,
+            x_from=x_from,
+            y_from=y_from,
+            routes=True,  # получить маршруты изохрон
+        )
+
+        url = self.URL
+
+        resp = client.get(url, params=params)
+        assert resp.status_code == expected_code
 
 
 class TestDiversity:
