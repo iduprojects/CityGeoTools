@@ -97,8 +97,9 @@ async def get_blocks_clusterization_dendrogram(query_params: schemas.BlocksClust
     return StreamingResponse(content=result, media_type="image/png")
 
 
-@router.post("/services_clusterization/get_clusters_polygons",
-            response_model=schemas.ServicesClusterizationGetClustersPolygonsOut, tags=[Tags.spacematrix])  # todo 5
+@router.post(
+    "/services_clusterization/get_clusters_polygons",
+    response_model=schemas.ServicesClusterizationGetClustersPolygonsOut, tags=[Tags.services_clusterization])
 async def get_services_clusterization(query_params: schemas.ServicesClusterizationGetClustersPolygonsIn):
     city_model = cities_model[query_params.city]
     result = ServicesClusterization(city_model).get_clusters_polygon(
