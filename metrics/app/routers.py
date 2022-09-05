@@ -82,15 +82,15 @@ async def get_blocks_clusterization(query_params: schemas.BlocksClusterizationGe
         )
 
 
-
-@router.post("/blocks_clusterization/get_dendrogram", # todo 4
-             responses={
-              200: {
-                  "content": {"image/png": {}}
-              }
-          },
-             response_class=StreamingResponse,
-             tags=[Tags.blocks_clusterization])
+@router.post(
+    "/blocks_clusterization/get_dendrogram",
+    responses={
+        200: {
+            "content": {"image/png": {}}
+        }
+    },
+    response_class=StreamingResponse, tags=[Tags.blocks_clusterization]
+)
 async def get_blocks_clusterization_dendrogram(query_params: schemas.BlocksClusterizationGetBlocks):
     city_model = cities_model[query_params.city]
     result = BlocksClusterization(city_model).get_dendrogram(query_params.service_types)

@@ -93,7 +93,6 @@ class TestBlocksClusterization:
         resp = client.post(url, json=data)
         assert resp.status_code == 200
 
-    @pytest.mark.xfail(reason="В API вызывается метод не с получением дендрограммы")
     @pytest.mark.parametrize("city, geojson", [
         (enums.CitiesEnum.SAINT_PETERSBURG, CitiesPolygonForTrafficsCalculation.SAINT_PETERSBURG_INSIDE_GEOJSON),
     ])
