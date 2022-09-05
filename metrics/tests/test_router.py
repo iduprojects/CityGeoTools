@@ -125,37 +125,6 @@ class TestServicesClusterization:
         (enums.CitiesEnum.SEVASTOPOL, "mo", 126),
     ]
 
-    @pytest.mark.parametrize("city", enums.CitiesEnum)
-    @pytest.mark.parametrize("service_types, expected_status_code", [
-        (RANDOM_SERVICE_TYPES, 200),
-        ([], 422),
-    ])
-    def test_get_services_without_area(self, client, city, service_types, expected_status_code):
-        url = self.URL + "/get_services"
-        data = {
-            "city": city,
-            "param": {
-                "service_types": service_types,
-            }
-        }
-
-        resp = client.post(url, json=data)
-        assert resp.status_code == expected_status_code
-
-    @pytest.mark.parametrize("city, area_type, area_id", [*DISTRICTS, *MUNICIPALITIES])
-    def test_get_services(self, client, city, area_type, area_id):
-        url = self.URL + "/get_services"
-        data = {
-            "city": city,
-            "param":
-                {
-                    "area": {area_type: area_id},
-                }
-        }
-
-        resp = client.post(url, json=data)
-        assert resp.status_code == 200
-
     @pytest.mark.parametrize("city, area_type, area_id", [*DISTRICTS, *MUNICIPALITIES])
     @pytest.mark.parametrize("condition", [
         {"default": "default"},
