@@ -59,11 +59,11 @@
             },
             "administrative_unit_id": {
               "description": "The identifier of district where a block is located",
-              "type": ["number", "null"]
+              "type": "integer"
             },
             "municipality_id": {
               "description": "The identifier of municipality where a block is located",
-              "type": ["number", "null"]
+              "type": "integer"
             }
             }
           },

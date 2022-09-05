@@ -40,13 +40,13 @@ def convert_nx2nk(G_nx, idmap=None, weight=None):
                     for d_ in d.values():
                             v__ = G_nk.addNodes(2)
                             u__ = v__ - 1
-                            w = d_[weight] if weight in d_ else 1
+                            w = round(d_[weight], 1) if weight in d_ else 1
                             G_nk.addEdge(u, v, w)
                             G_nk.addEdge(u_, u__, 0)
                             G_nk.addEdge(v_, v__, 0)
                 else:
                     d_ = list(d.values())[0]
-                    w = d_[weight] if weight in d_ else 1
+                    w = round(d_[weight], 1) if weight in d_ else 1
                     G_nk.addEdge(u, v, w)
     else:
         G_nk = nk.Graph(n, directed=G_nx.is_directed())

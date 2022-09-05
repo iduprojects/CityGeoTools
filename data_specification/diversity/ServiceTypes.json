@@ -1,0 +1,33 @@
+{
+    "id": "https://json.schemastore.org/base.json",
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "title": "Service types",
+    "description": "Types of services within city boundary",
+    "type": "array",
+    "required": [
+      "id",
+      "code",
+      "public_transport_time_normative",
+      "walking_radius_normative"
+    ],
+    "properties": {
+      "id": {
+        "description": "The unique identifier for a service type",
+        "type": "integer"
+      },
+      "code": {
+        "description": "The name of a service type in English",
+        "type": "string"
+      },
+      "public_transport_time_normative": {
+        "description": "Normative time of access of a service from this type, in minutes",
+        "type": "number",
+        "minimum": 0
+      },
+      "walking_radius_normative": {
+        "description": "The length of a radius of pedestrian accessibility, in meters",
+        "type": "number",
+        "minimum": 0
+      }
+    }
+  }

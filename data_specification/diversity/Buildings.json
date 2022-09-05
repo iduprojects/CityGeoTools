@@ -46,10 +46,22 @@
         },
         "properties": {
           "type": "object",
-          "required": ["id", "is_living"],
+          "required": ["id", "is_living", "block_id", "municipality_id"],
           "properties": {
             "id": {
               "description": "The unique identifier for a building",
+              "type": "integer"
+            },
+            "is_living": {
+              "description": "Attribute describes weather a building is residential or not",
+              "type": "boolean"
+            },
+            "municipality_id": {
+              "description": "The identifier of municipality where a service is located",
+              "type": "integer"
+            },
+            "block_id": {
+              "description": "The identifier of block where a service is located",
               "type": "integer"
             }
           }
