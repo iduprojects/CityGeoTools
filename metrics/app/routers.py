@@ -116,8 +116,10 @@ async def get_services_clusterization(query_params: schemas.ServicesClusterizati
     return result
 
 
-@router.post("/spacematrix/get_indices", response_model=FeatureCollection,  # todo 6
-            tags=[Tags.spacematrix])
+@router.post(
+    "/spacematrix/get_indices",
+    response_model=FeatureCollection, tags=[Tags.spacematrix]
+)
 async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
     city_model = cities_model[query_params.city]
     return Spacematrix(city_model).get_spacematrix_morph_types(
