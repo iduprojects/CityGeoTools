@@ -160,17 +160,16 @@ class TestServicesClusterization:
         assert resp.status_code == 200
 
     @pytest.mark.parametrize("city", enums.CitiesEnum)
-    @pytest.mark.parametrize("service_types", [
-        ["does_not_exists_service"],
-    ])
-    def test_get_services_clusterization_without_objects_to_cluster(self, client, city, service_types):
+    @pytest.mark.parametrize("condition", enums.ClusterizationConditionsEnum)
+    def test_get_services_clusterization_without_objects_to_cluster(self, client, city, condition):
         """ Тестирование случаев, когда нет сервисов для кластеризации. """
         url = self.URL + "/get_clusters_polygons"
+
+        service_types = ["does_not_exists_service"]
         data = {
             "city": city,
-            "param": {
-                "service_types": service_types,
-            }
+            "service_types": service_types,
+            "condition": condition,
         }
 
         resp = client.post(url, json=data)
