@@ -120,20 +120,6 @@ class TestServicesClusterization:
         (enums.CitiesEnum.SEVASTOPOL, enums.TerritorialEnum.MUNICIPALITY, 126),
     ]
 
-    @pytest.mark.parametrize("city, area_type, area_id", MUNICIPALITIES)
-    @pytest.mark.parametrize("condition", enums.ClusterizationConditionsEnum.DISTANCE)
-    def test_get_services_clusterization(self, client, city, area_type, area_id, condition):
-        url = self.URL + "/get_clusters_polygons"
-        data = {
-            "city": city,
-            "service_types": self.RANDOM_SERVICE_TYPES,
-            "condition": condition,
-            "area_type": area_type,
-            "area_id": area_id
-        }
-        resp = client.post(url, json=data)
-        assert resp.status_code == 200
-
     @pytest.mark.parametrize("city", enums.CitiesEnum)
     @pytest.mark.parametrize("condition", enums.ClusterizationConditionsEnum)
     def test_get_services_clusterization(self, client, city, condition):
@@ -145,6 +131,20 @@ class TestServicesClusterization:
             "condition": condition,
         }
 
+        resp = client.post(url, json=data)
+        assert resp.status_code == 200
+
+    @pytest.mark.parametrize("city, area_type, area_id", MUNICIPALITIES)
+    @pytest.mark.parametrize("condition", enums.ClusterizationConditionsEnum.DISTANCE)
+    def test_get_services_clusterization(self, client, city, area_type, area_id, condition):
+        url = self.URL + "/get_clusters_polygons"
+        data = {
+            "city": city,
+            "service_types": self.RANDOM_SERVICE_TYPES,
+            "condition": condition,
+            "area_type": area_type,
+            "area_id": area_id
+        }
         resp = client.post(url, json=data)
         assert resp.status_code == 200
 
