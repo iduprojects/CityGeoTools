@@ -179,9 +179,20 @@ class TestServicesClusterization:
         assert error_msg in resp.text
 
 
-@pytest.mark.skip(reason="Not implemented test")
-def test_spacematrix_objects():
-    ...
+class TestSpacematrix:
+    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/spacematrix"
+
+    @pytest.mark.xfail(reason="Тест падает только для Севастополя")
+    @pytest.mark.parametrize("city", enums.CitiesEnum)
+    def test_get_spacematrix_indices(self, client, city):
+        """Запрос со значениями по умолчанию. """
+        data = {
+            "city": city,
+        }
+
+        url = self.URL + "/get_indices"
+        resp = client.post(url, json=data)
+        assert resp.status_code == 200
 
 
 class TestMobilityAnalysisIsochrones:
