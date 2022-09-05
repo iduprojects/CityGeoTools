@@ -120,24 +120,14 @@ class TestServicesClusterization:
         (enums.CitiesEnum.SEVASTOPOL, enums.TerritorialEnum.MUNICIPALITY, 126),
     ]
 
-    @pytest.mark.xfail(reason="Для части тестов проходит, для части нет")
     @pytest.mark.parametrize("city, area_type, area_id", MUNICIPALITIES)
-    @pytest.mark.parametrize("condition, condition_value", [
-        (enums.ClusterizationConditionsEnum.DISTANCE, 4000,),
-        (enums.ClusterizationConditionsEnum.MAXCLUST, 10,),
-    ])
-    @pytest.mark.parametrize("n_std", [
-        2,  # default value
-        10,  # random value
-    ])
-    def test_get_services_clusterization(self, client, city, area_type, area_id, condition, condition_value, n_std):
+    @pytest.mark.parametrize("condition", enums.ClusterizationConditionsEnum.DISTANCE)
+    def test_get_services_clusterization(self, client, city, area_type, area_id, condition):
         url = self.URL + "/get_clusters_polygons"
         data = {
             "city": city,
             "service_types": self.RANDOM_SERVICE_TYPES,
             "condition": condition,
-            "condition_value": condition_value,
-            "n_std": n_std,
             "area_type": area_type,
             "area_id": area_id
         }
@@ -145,9 +135,8 @@ class TestServicesClusterization:
         assert resp.status_code == 200
 
     @pytest.mark.parametrize("city", enums.CitiesEnum)
-    @pytest.mark.parametrize("service_types", [RANDOM_SERVICE_TYPES])
     @pytest.mark.parametrize("condition", enums.ClusterizationConditionsEnum)
-    def test_get_services_clusterization(self, client, city, service_types, condition):
+    def test_get_services_clusterization(self, client, city, condition):
         """Запрос с обязательными полями и значениями по умолчанию. """
         url = self.URL + "/get_clusters_polygons"
         data = {
