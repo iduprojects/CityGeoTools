@@ -280,56 +280,6 @@ class TestMobilityAnalysisIsochrones:
         resp = client.get(url, params=params)
         assert resp.status_code == 200
 
-    @pytest.mark.parametrize("travel_type", [
-        enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT,
-    ])
-    @pytest.mark.parametrize("weight_type, weight_value", [
-        (enums.MobilityAnalysisIsochronesWeightTypeEnum.METER, 100)
-    ])
-    @pytest.mark.parametrize("city, x_from, y_from", CITIES_FROM_POINTS)
-    def test_not_implemented_public_transport_travel_type_with_meter(self, client, city, x_from, y_from,
-                                                                     weight_type, weight_value, travel_type):
-        """ Проверка вычисления изохрон для общественного транспорта c нереализованным типом весов графа - метры. """
-        params = dict(
-            city=city,
-            travel_type=travel_type,
-            weight_type=weight_type,
-            weight_value=weight_value,
-            x_from=x_from,
-            y_from=y_from,
-        )
-
-        url = self.URL
-
-        resp = client.get(url, params=params)
-        assert resp.status_code == 422
-
-    @pytest.mark.parametrize("travel_type", [
-        enums.MobilityAnalysisIsochronesTravelTypeEnum.DRIVE,
-        enums.MobilityAnalysisIsochronesTravelTypeEnum.WALK,
-    ])
-    @pytest.mark.parametrize("weight_type, weight_value", [
-        (enums.MobilityAnalysisIsochronesWeightTypeEnum.TIME, 10),
-        (enums.MobilityAnalysisIsochronesWeightTypeEnum.METER, 100),  # todo check linestring
-        (enums.MobilityAnalysisIsochronesWeightTypeEnum.METER, 250)
-    ])
-    @pytest.mark.parametrize("city, x_from, y_from", CITIES_FROM_POINTS)
-    def test_drive_and_walk_travel_type(self, client, city, x_from, y_from, weight_type, weight_value, travel_type):
-        """ Проверка вычисления изохрон для личного транспорта. """
-        params = dict(
-            city=city,
-            travel_type=travel_type,
-            weight_type=weight_type,
-            weight_value=weight_value,
-            x_from=x_from,
-            y_from=y_from,
-        )
-
-        url = self.URL
-
-        resp = client.get(url, params=params)
-        assert resp.status_code == 200
-
 
 class TestDiversity:
     URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/diversity"
