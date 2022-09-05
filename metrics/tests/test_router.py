@@ -148,6 +148,7 @@ class TestServicesClusterization:
     @pytest.mark.parametrize("service_types", [RANDOM_SERVICE_TYPES])
     @pytest.mark.parametrize("condition", enums.ClusterizationConditionsEnum)
     def test_get_services_clusterization(self, client, city, service_types, condition):
+        """Запрос с обязательными полями и значениями по умолчанию. """
         url = self.URL + "/get_clusters_polygons"
         data = {
             "city": city,
@@ -185,7 +186,7 @@ class TestSpacematrix:
     @pytest.mark.xfail(reason="Тест падает только для Севастополя")
     @pytest.mark.parametrize("city", enums.CitiesEnum)
     def test_get_spacematrix_indices(self, client, city):
-        """Запрос со значениями по умолчанию. """
+        """Запрос с обязательными полями и значениями по умолчанию. """
         data = {
             "city": city,
         }
