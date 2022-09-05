@@ -245,7 +245,6 @@ class DiversityQueryParams:
 
 
 class DiversityOut(BaseModel):
-    buildings: FeatureCollection
     municipalities: FeatureCollection
     blocks: FeatureCollection
 
@@ -264,6 +263,17 @@ class DiversityGetInfoOut(BaseModel):
     house: FeatureCollection
     services: FeatureCollection
     isochrone: FeatureCollection
+
+
+class DiversityGetBuildingsQueryParams:
+    def __init__(self,
+                 city: enums.CitiesEnum,
+                 block_id: int = Query(..., example=488),
+                 service_type: str = Query(..., example="cafes")
+                 ):
+        self.city = city
+        self.block_id = block_id
+        self.service_type = service_type
 
 
 class ProvisionInBase(BaseModel):

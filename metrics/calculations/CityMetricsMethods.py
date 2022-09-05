@@ -632,10 +632,21 @@ class Diversity(BaseMethod):
             houses.groupby(["municipality_id"])["diversity"].mean().round(2), on="id"
             )
         return {
-            "buildings": json.loads(houses.to_crs(4326).fillna("None").to_json()),
             "municipalities": json.loads(municipalities.to_crs(4326).fillna("None").to_json()),
             "blocks": json.loads(blocks.to_crs(4326).fillna("None").to_json())
                     }
+
+    def get_houses(self, block_id, service_type):
+
+        services = self.services[self.services["service_code"] == service_type]
+        houses = self.buildings[self.buildings['is_living'] == True]
+        houses_in_block = self.buildings[self.buildings['block_id'] == block_id].reset_index(drop=True)
+
+        travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
+        dist_matrix = self.get_distance_matrix(houses_in_block, services, graph, limit_value)
+        houses = self.calculate_diversity(houses_in_block,np.transpose(dist_matrix))
+
+        return json.loads(houses_in_block.to_crs(4326).to_json())
 
     def get_info(self, house_id, service_type):
 

@@ -141,6 +141,13 @@ async def get_diversity(query_params: schemas.DiversityQueryParams = Depends()):
     city_model = cities_model[query_params.city]
     result = Diversity(city_model).get_diversity(query_params.service_type)
     return result
+    
+@router.get("/diversity/get_buildings", response_model=FeatureCollection,
+            tags=[Tags.diversity])
+async def get_diversity(query_params: schemas.DiversityGetBuildingsQueryParams = Depends()):
+    city_model = cities_model[query_params.city]
+    result = Diversity(city_model).get_houses(query_params.block_id, query_params.service_type)
+    return result
 
 @router.get("/diversity/get_info", response_model=schemas.DiversityGetInfoOut,
             tags=[Tags.diversity])
