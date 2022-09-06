@@ -315,6 +315,7 @@ class TestDiversity:
     URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/diversity"
     RANDOM_SERVICE_TYPES = ["garbage_containers", "bakeries"]
 
+    @pytest.mark.skip(reason="Очень долго выполняется тест")
     @pytest.mark.parametrize("service_type", RANDOM_SERVICE_TYPES)
     def test_get_diversity(self, client, service_type):
         url = self.URL + "/diversity"
