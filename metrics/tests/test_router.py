@@ -341,8 +341,23 @@ class TestDiversity:
         resp = client.get(url, params=params)
         assert resp.status_code == 200
 
-    def test_get_diversity_get_info(self):
-        ...
+    @pytest.mark.parametrize("service_type", [RANDOM_SERVICE_TYPE])
+    @pytest.mark.parametrize("city, house_id", [
+        (enums.CitiesEnum.SAINT_PETERSBURG, 914),
+        (enums.CitiesEnum.KRASNODAR, 137701),
+        (enums.CitiesEnum.SEVASTOPOL, 819244),
+    ])
+    def test_get_diversity_get_info(self, client, city, house_id, service_type):
+        url = self.URL + "/get_info"
+        params = {
+            "city": city,
+            "house_id": house_id,
+            "service_type": service_type,
+        }
+
+        resp = client.get(url, params=params)
+        assert resp.status_code == 200
+
 
 @pytest.mark.skip(reason="Not implemented test")
 def test_get_provision():
