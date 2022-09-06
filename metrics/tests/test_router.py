@@ -326,15 +326,19 @@ class TestDiversity:
         resp = client.get(url, params=params)
         assert resp.status_code == 200
 
-    @pytest.mark.xfail(reason="500 ошибка если указать некорректный сервис. Сделать валидацию сервисов")
-    def test_get_diversity_does_not_exists_service_type(self, client):
-        url = self.URL + "/diversity"
+    @pytest.mark.xfail(reason="Ошибка на некоторых сервисах...")
+    @pytest.mark.parametrize("service_type", ["cafes", "bakeries"])
+    @pytest.mark.parametrize("city, _, block_id", BLOCKS)
+    def test_get_diversity_get_buildings(self, client, city, _, block_id, service_type):
+        url = self.URL + "/get_buildings"
         params = {
-            "service_type": "cafe",
+            "city": city,
+            "block_id": block_id,
+            "service_type": service_type,
         }
 
         resp = client.get(url, params=params)
-        assert resp.status_code == 422
+        assert resp.status_code == 200
 
 
 @pytest.mark.skip(reason="Not implemented test")
