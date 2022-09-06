@@ -313,14 +313,15 @@ class TestMobilityAnalysisIsochrones:
 
 class TestDiversity:
     URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/diversity"
-    RANDOM_SERVICE_TYPES = ["garbage_containers", "bakeries"]
+    RANDOM_SERVICE_TYPE = "universities"
 
-    @pytest.mark.skip(reason="Очень долго выполняется тест")
-    @pytest.mark.parametrize("service_type", RANDOM_SERVICE_TYPES)
-    def test_get_diversity(self, client, service_type):
+    @pytest.mark.parametrize("service_type", [RANDOM_SERVICE_TYPE])
+    @pytest.mark.parametrize("city", enums.CitiesEnum)
+    def test_get_diversity(self, client, city, service_type):
         url = self.URL + "/diversity"
         params = {
-            "service_type": service_type,
+            "city": city,
+            "service_type": service_type
         }
 
         resp = client.get(url, params=params)
@@ -340,6 +341,8 @@ class TestDiversity:
         resp = client.get(url, params=params)
         assert resp.status_code == 200
 
+    def test_get_diversity_get_info(self):
+        ...
 
 @pytest.mark.skip(reason="Not implemented test")
 def test_get_provision():
