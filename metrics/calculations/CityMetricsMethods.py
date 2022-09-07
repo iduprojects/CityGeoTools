@@ -16,6 +16,7 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from matplotlib import pyplot as plt
 from scipy import spatial
+from itertools import product
 
 class BaseMethod():
 
@@ -226,14 +227,14 @@ class BlocksClusterization(BaseMethod):
         self.services = self.city_model.Services.copy()
         self.blocks = self.city_model.Blocks.copy()
     
-    def clusterize(self, service_types):
+    def clusterize(self, service_type_codes):
 
         service_in_blocks = self.services.groupby(["block_id", "service_code"])["id"].count().unstack(fill_value=0)
         without_services = self.blocks["id"][~self.blocks["id"].isin(service_in_blocks.index)].values
         without_services = pd.DataFrame(columns=service_in_blocks.columns, index=without_services).fillna(0)
         service_in_blocks = pd.concat([without_services, service_in_blocks])
 
-        service_in_blocks = service_in_blocks[service_types]
+        service_in_blocks = service_in_blocks[service_type_codes]
         clusterization = linkage(service_in_blocks, method="ward")
 
         return clusterization, service_in_blocks
@@ -252,9 +253,9 @@ class BlocksClusterization(BaseMethod):
 
         return clusters_number
 
-    def get_blocks(self, service_types, clusters_number=None, area_type=None, area_id=None, geojson=None):
+    def get_blocks(self, service_type_codes, clusters_number=None, area_type=None, area_id=None, geojson=None):
 
-        clusterization, service_in_blocks = self.clusterize(service_types)
+        clusterization, service_in_blocks = self.clusterize(service_type_codes)
         
         # If user doesn't specified the number of clusters, use default value.
         # The default value is determined with the rate of change in the distance between clusters
@@ -263,9 +264,9 @@ class BlocksClusterization(BaseMethod):
 
         service_in_blocks["cluster_labels"] = fcluster(clusterization, t=int(clusters_number), criterion="maxclust")
         blocks = self.blocks.join(service_in_blocks, on="id")
-        mean_services_number = service_in_blocks.groupby("cluster_labels")[service_types].mean().round()
+        mean_services_number = service_in_blocks.groupby("cluster_labels")[service_type_codes].mean().round()
         mean_services_number = service_in_blocks[["cluster_labels"]].join(mean_services_number, on="cluster_labels")
-        deviations_services_number = service_in_blocks[service_types] - mean_services_number[service_types]
+        deviations_services_number = service_in_blocks[service_type_codes] - mean_services_number[service_type_codes]
         blocks = blocks.join(deviations_services_number, on="id", rsuffix="_deviation")
 
         if area_type and area_id:
@@ -275,9 +276,9 @@ class BlocksClusterization(BaseMethod):
 
         return json.loads(blocks.to_crs(4326).to_json())
 
-    def get_dendrogram(self, service_types):
+    def get_dendrogram(self, service_type_codes):
             
-            clusterization, service_in_blocks = self.clusterize(service_types)
+            clusterization, service_in_blocks = self.clusterize(service_type_codes)
 
             img = io.BytesIO()
             plt.figure(figsize=(20, 10))
@@ -321,10 +322,10 @@ class ServicesClusterization(BaseMethod):
         services_count = loc.groupby("service_code")["id"].count()
         return (services_count / all_services).round(2)
 
-    def get_clusters_polygon(self, service_types, area_type = None, area_id = None, geojson = None, 
+    def get_clusters_polygon(self, service_type_codes, area_type = None, area_id = None, geojson = None, 
                             condition="distance", condition_value=4000, n_std = 2):
 
-        services_select = self.services[self.services["service_code"].isin(service_types)]
+        services_select = self.services[self.services["service_code"].isin(service_type_codes)]
         if area_type and area_id:
             services_select = self.get_territorial_select(area_type, area_id, services_select)[0]
         elif geojson:
@@ -548,8 +549,69 @@ class AccessibilityIsochrones(BaseMethod):
 
         return json.loads(routes.to_crs(4326).to_json()), json.loads(stops.to_crs(4326).to_json())
 
+# ######################################### Collocation Matrix #################################################
 
+class CollocationMatrix(BaseMethod):
+    def _init_(self, city_model):
+        BaseMethod.__init__(self, city_model)
+        super().validation("services_clusterization")
+        self.services = self.city_model.Services.copy()
 
+    def get_collocation_matrix(self, services):
+        services = services.dropna().reset_index(drop=True)[['city_service_type_code','block_id']].sort_values('city_service_type_code')
+        services['count'] = 0
+        
+        collocation_matrix = self.get_numerator(services) / self.get_denominator(services)
+
+        return json.loads(collocation_matrix.to_json())
+
+    def get_numerator(self, services):
+        services_numerator = services.pivot_table(index='block_id', columns='city_service_type_code', values='count')
+
+        pairs_services_numerator = [(a, b) for idx, a in enumerate(services_numerator) for b in services_numerator[idx + 1:]]
+        pairs_services_numerator = dict.fromkeys(pairs_services_numerator, 0)
+
+        res_numerator = {}
+        n_col = len(services_numerator.columns)
+        for i in range(n_col):
+            for j in range(i + 1, n_col):
+                col1 = services_numerator.columns[i]
+                col2 = services_numerator.columns[j]
+                res_numerator[col1, col2] = sum(services_numerator[col1] == services_numerator[col2])
+                res_numerator[col2, col1] = sum(services_numerator[col2] == services_numerator[col1])
+        pairs_services_numerator.update(res_numerator)
+
+        numerator = pd.Series(pairs_services_numerator).reset_index(drop=False).set_index(['level_0','level_1']).rename(columns={0:'count'})
+        numerator = numerator.pivot_table(index='level_0', columns='level_1', values='count')
+
+        return numerator
+
+    def get_denominator(self, services):
+        count_type_block = services.groupby('city_service_type_code')['block_id'].nunique().reset_index(drop=False)
+
+        pairs_services_denominator = []
+        for i in product(count_type_block['city_service_type_code'], repeat=2):
+            pairs_services_denominator.append(i)
+
+        types_blocks_sum = []
+        for i,j in pairs_services_denominator:
+            if [i]==[j]:
+                    types_blocks_sum.append(0)
+            else:
+                    num1 = count_type_block.loc[count_type_block['city_service_type_code'] == i, 'block_id'].iloc[0]
+                    num2 = count_type_block.loc[count_type_block['city_service_type_code'] == j, 'block_id'].iloc[0]
+                    types_blocks_sum.append(num1+num2)
+
+        res_denominator = {}
+        for row in range(len(pairs_services_denominator)):
+            res_denominator[pairs_services_denominator[row]] = types_blocks_sum[row]
+
+        sum_res_denominator = pd.Series(res_denominator).reset_index(drop=False).set_index(['level_0','level_1']).rename(columns={0:'count'})
+        sum_res_denominator = sum_res_denominator.pivot_table(index='level_0', columns='level_1', values='count')
+
+        denominator = sum_res_denominator - self.get_numerator(services)
+
+        return denominator
 
 
 
