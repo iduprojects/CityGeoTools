@@ -19,6 +19,7 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from matplotlib import pyplot as plt
 from scipy import spatial
+from itertools import product
 
 class BaseMethod():
 
@@ -686,7 +687,68 @@ class Diversity(BaseMethod):
             "services": json.loads(selected_services.to_crs(4326).to_json()),
             "isochrone": isochrone["isochrone"]
         }
+        
 
+# ######################################### Collocation Matrix #################################################
 
+class CollocationMatrix(BaseMethod):
+    def _init_(self, city_model):
+        BaseMethod.__init__(self, city_model)
+        super().validation("services_clusterization")
+        self.services = self.city_model.Services.copy()
 
-                        
+    def get_collocation_matrix(self, services):
+        services = services.dropna().reset_index(drop=True)[['city_service_type_code','block_id']].sort_values('city_service_type_code')
+        services['count'] = 0
+        
+        collocation_matrix = self.get_numerator(services) / self.get_denominator(services)
+
+        return json.loads(collocation_matrix.to_json())
+
+    def get_numerator(self, services):
+        services_numerator = services.pivot_table(index='block_id', columns='city_service_type_code', values='count')
+
+        pairs_services_numerator = [(a, b) for idx, a in enumerate(services_numerator) for b in services_numerator[idx + 1:]]
+        pairs_services_numerator = dict.fromkeys(pairs_services_numerator, 0)
+
+        res_numerator = {}
+        n_col = len(services_numerator.columns)
+        for i in range(n_col):
+            for j in range(i + 1, n_col):
+                col1 = services_numerator.columns[i]
+                col2 = services_numerator.columns[j]
+                res_numerator[col1, col2] = sum(services_numerator[col1] == services_numerator[col2])
+                res_numerator[col2, col1] = sum(services_numerator[col2] == services_numerator[col1])
+        pairs_services_numerator.update(res_numerator)
+
+        numerator = pd.Series(pairs_services_numerator).reset_index(drop=False).set_index(['level_0','level_1']).rename(columns={0:'count'})
+        numerator = numerator.pivot_table(index='level_0', columns='level_1', values='count')
+
+        return numerator
+
+    def get_denominator(self, services):
+        count_type_block = services.groupby('city_service_type_code')['block_id'].nunique().reset_index(drop=False)
+
+        pairs_services_denominator = []
+        for i in product(count_type_block['city_service_type_code'], repeat=2):
+            pairs_services_denominator.append(i)
+
+        types_blocks_sum = []
+        for i,j in pairs_services_denominator:
+            if [i]==[j]:
+                    types_blocks_sum.append(0)
+            else:
+                    num1 = count_type_block.loc[count_type_block['city_service_type_code'] == i, 'block_id'].iloc[0]
+                    num2 = count_type_block.loc[count_type_block['city_service_type_code'] == j, 'block_id'].iloc[0]
+                    types_blocks_sum.append(num1+num2)
+
+        res_denominator = {}
+        for row in range(len(pairs_services_denominator)):
+            res_denominator[pairs_services_denominator[row]] = types_blocks_sum[row]
+
+        sum_res_denominator = pd.Series(res_denominator).reset_index(drop=False).set_index(['level_0','level_1']).rename(columns={0:'count'})
+        sum_res_denominator = sum_res_denominator.pivot_table(index='level_0', columns='level_1', values='count')
+
+        denominator = sum_res_denominator - self.get_numerator(services)
+
+        return denominator
