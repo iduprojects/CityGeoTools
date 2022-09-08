@@ -49,8 +49,9 @@ def pedastrian_walk_traffics_calculation(query_params: schemas.PedastrianWalkTra
 @router.get("/mobility_analysis/isochrones", response_model=schemas.MobilityAnalysisIsochronesOut,
             tags=[Tags.mobility_analysis])
 async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIsochronesQueryParams = Depends()):
-    if (query_params.travel_type != enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT) and \
-        (query_params.routes == True):
+    if (query_params.travel_type != enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT) \
+        and (query_params.weight_type == enums.MobilityAnalysisIsochronesWeightTypeEnum.METER) \
+        and (query_params.routes == True):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Getting routes isn't supported for walk and car isochrones."
@@ -104,12 +105,12 @@ async def get_blocks_clusterization(query_params: schemas.BlocksClusterizationGe
              tags=[Tags.blocks_clusterization])
 async def get_blocks_clusterization_dendrogram(query_params: schemas.BlocksClusterizationGetBlocks):
     city_model = cities_model[query_params.city]
-    result = BlocksClusterization(city_model).get_blocks(query_params.service_types, query_params.clusters_number)
+    result = BlocksClusterization(city_model).get_dendrogram(query_params.service_types)
     return StreamingResponse(content=result, media_type="image/png")
 
 
 @router.post("/services_clusterization/get_clusters_polygons", 
-            response_model=schemas.ServicesClusterizationGetClustersPolygonsOut, tags=[Tags.spacematrix])
+            response_model=schemas.ServicesClusterizationGetClustersPolygonsOut, tags=[Tags.services_clusterization])
 async def get_services_clusterization(query_params: schemas.ServicesClusterizationGetClustersPolygonsIn):
     city_model = cities_model[query_params.city]
     result = ServicesClusterization(city_model).get_clusters_polygon(
@@ -127,24 +128,45 @@ async def get_services_clusterization(query_params: schemas.ServicesClusterizati
 
 
 @router.post("/spacematrix/get_indices", response_model=FeatureCollection,
-            tags=[Tags.visibility_analysis])
+            tags=[Tags.spacematrix])
 async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
     city_model = cities_model[query_params.city]
+    geojson = query_params.geojson.dict() if query_params.geojson else None
     return Spacematrix(city_model).get_spacematrix_morph_types(
-        query_params.clusters_number, query_params.area_type, query_params.area_id, query_params.geojson
+        query_params.clusters_number, query_params.area_type, query_params.area_id, geojson
         )
 
 
-# @router.get("/diversity/diversity", response_model=schemas.DiversityDiversityOut,
-#             tags=[Tags.diversity])
-# async def get_diversity(query_params: schemas.DiversityDiversityQueryParams = Depends()):  # todo validate service_type?
-#     """
-#     In user request:
-#     :param: service_type -> str
-#     :return: polygons of blocks/municipalities -> geojson
-#     """
-#     result = BCAM.Get_Diversity(query_params.service_type)
-#     return result
+@router.get("/diversity/diversity", response_model=schemas.DiversityOut,
+            tags=[Tags.diversity])
+async def get_diversity(query_params: schemas.DiversityQueryParams = Depends()):  # todo validate service_type?
+    city_model = cities_model[query_params.city]
+    result = Diversity(city_model).get_diversity(query_params.service_type)
+    return result
+    
+@router.get("/diversity/get_buildings", response_model=FeatureCollection,
+            tags=[Tags.diversity])
+async def get_buildings_diversity(query_params: schemas.DiversityGetBuildingsQueryParams = Depends()):
+    city_model = cities_model[query_params.city]
+    result = Diversity(city_model).get_houses(query_params.block_id, query_params.service_type)
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The objects (houses and services) with given parametrs are absent"
+        )
+    return result
+
+@router.get("/diversity/get_info", response_model=schemas.DiversityGetInfoOut,
+            tags=[Tags.diversity])
+async def get_diversity_info(query_params: schemas.DiversityGetInfoQueryParams = Depends()):
+    city_model = cities_model[query_params.city]
+    result = Diversity(city_model).get_info(query_params.house_id, query_params.service_type)
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The objects (houses and services) with given parametrs are absent"
+        )
+    return result
 
 
 # @router.post("/provision/get_provision", response_model=schemas.ProvisionGetProvisionOut,

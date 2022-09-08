@@ -1,3 +1,4 @@
+from multiprocessing.sharedctypes import Value
 import geopandas as gpd
 import shapely
 import pandas as pd
@@ -8,6 +9,8 @@ import shapely.wkt
 import io
 import pca
 import networkx as nx
+import networkit as nk
+import pandas.core.indexes as pd_index
 
 from jsonschema.exceptions import ValidationError
 from .utils import nk_routes_between_two_points
@@ -366,6 +369,7 @@ class ServicesClusterization(BaseMethod):
                 cluster_service = cluster_service.unstack(level=1, fill_value=0)
             df_clusters_outlier = cluster_service.join(services_outlier.set_index("cluster")["geometry"])
         else:
+            services_outlier = None
             df_clusters_outlier = None
 
         df_clusters = pd.concat([df_clusters_normal, df_clusters_outlier]).fillna(0).set_geometry("geometry")
@@ -398,9 +402,13 @@ class Spacematrix(BaseMethod):
         buildings.loc[bad_living_area, "living_area"] = None
 
         living_grouper = buildings.groupby(["is_living"])
-        buildings["living_area"] = living_grouper.apply(
+        living_area = living_grouper.apply(
             lambda x: x.living_area.fillna(x.building_area * 0.8) if x.name else x.living_area.fillna(0)
-            ).droplevel(0).round(2)
+            )
+        if type(living_area.index) == pd_index.multi.MultiIndex:
+             buildings["living_area"] = living_area.droplevel(0).round(2)
+        else:
+            buildings["living_area"] = living_area.values[0].round(2)
 
         blocks_area_nans = blocks[blocks["area"].isna()].index
         blocks.loc[blocks_area_nans, "area"] = blocks["geometry"].loc[blocks_area_nans].area
@@ -457,11 +465,14 @@ class Spacematrix(BaseMethod):
         blocks = blocks.join(named_clusters.rename("spacematrix_morphotype"), on="spacematrix_cluster")
 
         if area_type and area_id:
-            blocks = self.get_territorial_select(area_type, area_id, blocks)[0]
+            if area_type == "block":  
+                blocks = blocks.loc[[area_id]]
+            else:
+                blocks = self.get_territorial_select(area_type, area_id, blocks)[0]
         elif geojson:
             blocks = self.get_custom_polygon_select(geojson, self.city_crs, blocks)[0]
 
-        return json.loads(blocks.to_crs(4326).to_json())
+        return json.loads(blocks.reset_index().to_crs(4326).to_json())
 
 # ######################################### Accessibility isochrones #################################################
 class AccessibilityIsochrones(BaseMethod):
@@ -494,22 +505,22 @@ class AccessibilityIsochrones(BaseMethod):
         distance, start_node = spatial.KDTree(nodes_data[["x", "y"]]).query([x_from, y_from])
         start_node = nodes_data.iloc[start_node].name
         margin_weight = distance / self.walk_speed if weight_type == "time_min" else distance
-        weight_value = weight_value - margin_weight
+        weight_value_remain = weight_value - margin_weight
 
         weights_sum = nx.single_source_dijkstra_path_length(
-            mobility_graph, start_node, cutoff=weight_value, weight=weight_type)
+            mobility_graph, start_node, cutoff=weight_value_remain, weight=weight_type)
         nodes_data = nodes_data.loc[list(weights_sum.keys())].reset_index()
         nodes_data = gpd.GeoDataFrame(nodes_data, crs=self.city_crs)
 
         if travel_type == "public_transport" and weight_type == "time_min":
             # 0.8 is routes curvature coefficient 
-            distance = dict((k, (weight_value - v) * self.walk_speed * 0.8) for k, v in weights_sum.items())
+            distance = dict((k, (weight_value_remain - v) * self.walk_speed * 0.8) for k, v in weights_sum.items())
             nodes_data["left_distance"] = distance.values()
             isochrone_geom = nodes_data["geometry"].buffer(nodes_data["left_distance"])
             isochrone_geom = isochrone_geom.unary_union
         
         else:
-            distance = dict((k, (weight_value - v)) for k, v in weights_sum.items())
+            distance = dict((k, (weight_value_remain - v)) for k, v in weights_sum.items())
             nodes_data["left_distance"] = distance.values()
             isochrone_geom = shapely.geometry.MultiPoint(nodes_data["geometry"].tolist()).convex_hull
 
@@ -517,12 +528,11 @@ class AccessibilityIsochrones(BaseMethod):
                 {"travel_type": [self.travel_names[travel_type]], "weight_type": [weight_type], 
                 "weight_value": [weight_value], "geometry": [isochrone_geom]}).set_crs(self.city_crs).to_crs(4326)
  
-        routes, stops = self.get_routes(nodes_data, travel_type) if routes else (None, None)
-        print(type(stops))
+        routes, stops = self.get_routes(nodes_data, travel_type, weight_type) if routes else (None, None)
         return {"isochrone": json.loads(isochrone.to_json()), "routes": routes, "stops": stops}
 
 
-    def get_routes(self, selected_nodes, travel_type):
+    def get_routes(self, selected_nodes, travel_type, weight_type):
 
         nodes = selected_nodes[["index", "x", "y", "stop", "desc", "geometry"]]
         subgraph = self.mobility_graph.subgraph(selected_nodes["index"].tolist())
@@ -530,13 +540,15 @@ class AccessibilityIsochrones(BaseMethod):
             e[-1] for e in subgraph.edges(data=True, keys=True)
             ]).reset_index(drop=True)
 
-        if travel_type == "public_transport":
+        if travel_type == "public_transport" and weight_type == "time_min":
             stops = nodes[nodes["stop"] == "True"]
-            stops = stops[["index", "x", "y", "geometry", "desc"]]
-            stop_types = stops["desc"].apply(
-                lambda x: pd.Series({t: True for t in x.split(", ")}
-                ), type).fillna(False)
-            stops = stops.join(stop_types)
+
+            if len(stops) > 0:
+                stops = stops[["index", "x", "y", "geometry", "desc"]]
+                stop_types = stops["desc"].apply(
+                    lambda x: pd.Series({t: True for t in x.split(", ")}
+                    ), type).fillna(False)
+                stops = stops.join(stop_types)
 
             routes = routes[routes["type"].isin(self.edge_types[travel_type][:-1])]
         
@@ -548,6 +560,134 @@ class AccessibilityIsochrones(BaseMethod):
         routes = gpd.GeoDataFrame(routes, crs=self.city_crs)
 
         return json.loads(routes.to_crs(4326).to_json()), json.loads(stops.to_crs(4326).to_json())
+
+
+# ################################################ Diversity ######################################################
+class Diversity(BaseMethod):
+    def __init__(self, city_model):
+        BaseMethod.__init__(self, city_model)
+        super().validation("diversity")
+        self.mobility_graph_length = self.city_model.graph_nk_length
+        self.mobility_graph_time = self.city_model.graph_nk_time
+        self.graph_attrs = self.city_model.nk_attrs.copy()
+        self.buildings = self.city_model.Buildings.copy()
+        self.services = self.city_model.Services.copy()
+        self.service_types = self.city_model.ServiceTypes.copy()
+        self.municipalities = self.city_model.Municipalities.copy()
+        self.blocks = self.city_model.Blocks.copy()
+
+    def define_service_normative(self, service_type):
+
+        service_type_info = self.service_types[self.service_types["code"] == service_type]
+
+        if service_type_info["walking_radius_normative"].notna().values:
+            travel_type = "walk"
+            weigth = "length_meter"
+            limit_value = service_type_info["walking_radius_normative"].values[0]
+            graph = self.mobility_graph_length
+        elif service_type_info["public_transport_time_normative"].notna().values:
+            travel_type = "public_transport"
+            weigth = "time_min"
+            limit_value = service_type_info["public_transport_time_normative"].values[0]
+            graph = self.mobility_graph_time
+        else:
+            raise ValueError("Any service type normative is None.")
+
+        return travel_type, weigth, limit_value, graph
+        
+    def get_distance_matrix(self, houses, services, graph, limit_value):
+
+        nodes_data = pd.DataFrame(self.graph_attrs.values(), index=self.graph_attrs.keys())
+        houses_distance, houses_nodes = spatial.cKDTree(nodes_data).query([houses[["x", "y"]]])
+        services_distance, services_nodes = spatial.cKDTree(nodes_data).query([services[["x", "y"]]])
+
+        if len(services_nodes[0]) < len(houses_nodes[0]):
+            source, target = services_nodes, houses_nodes
+            source_dist, target_dist = services_distance, houses_distance
+        else:
+            source, target = houses_nodes, services_nodes
+            source_dist, target_dist = houses_distance, services_distance
+
+        dijkstra = nk.distance.SPSP(graph, source[0])
+        dijkstra = dijkstra.run()
+        dist_matrix = dijkstra.getDistances(asarray=True)
+        dist_matrix = dist_matrix[:, target[0]] + target_dist[0] + np.vstack(np.array(source_dist[0]))
+        dist_matrix = np.where(dist_matrix > limit_value, dist_matrix, 1)
+        dist_matrix = np.where(dist_matrix <= limit_value, dist_matrix, 0)
+
+        return dist_matrix
+
+    @staticmethod
+    def calculate_diversity(houses, dist_matrix):
+        
+        print(dist_matrix.shape)
+        count_services = dist_matrix.sum(axis=0)
+        diversity_estim = {1:0.2, 2:0.4, 3:0.6, 4:0.8, 5:1}
+        for count, estim in diversity_estim.items():
+            count_services[count_services == count] = estim
+        count_services = np.where(count_services < 5, count_services, 1)
+        houses_diversity = pd.Series(count_services, index=houses["id"]).rename("diversity")
+        houses = houses.join(houses_diversity, on="id")
+        return houses
+
+    def get_diversity(self, service_type):
+
+        services = self.services[self.services["service_code"] == service_type]
+        houses = self.buildings[self.buildings['is_living'] == True].reset_index(drop=True)
+
+        travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
+        dist_matrix = self.get_distance_matrix(houses, services, graph, limit_value)
+        houses = self.calculate_diversity(houses, dist_matrix)
+
+        blocks = self.blocks.dropna(subset=["municipality_id"]) # TEMPORARY
+        blocks = self.blocks.join(houses.groupby(["block_id"])["diversity"].mean().round(2), on="id")
+        municipalities = self.municipalities.join(
+            houses.groupby(["municipality_id"])["diversity"].mean().round(2), on="id"
+            )
+        return {
+            "municipalities": json.loads(municipalities.to_crs(4326).fillna("None").to_json()),
+            "blocks": json.loads(blocks.to_crs(4326).fillna("None").to_json())
+                    }
+
+    def get_houses(self, block_id, service_type):
+
+        services = self.services[self.services["service_code"] == service_type]
+        houses = self.buildings[self.buildings['is_living'] == True]
+        houses_in_block = self.buildings[self.buildings['block_id'] == block_id].reset_index(drop=True)
+        if len(houses_in_block) == 0 and len(services):
+            return None
+
+        travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
+        dist_matrix = self.get_distance_matrix(houses_in_block, services, graph, limit_value)
+        dist_matrix = np.transpose(dist_matrix) if len(houses_in_block) <= len(services) else dist_matrix
+        houses_in_block = self.calculate_diversity(houses_in_block, dist_matrix)
+
+        return json.loads(houses_in_block.to_crs(4326).to_json())
+
+    def get_info(self, house_id, service_type):
+
+        services = self.services[self.services["service_code"] == service_type]
+        house = self.buildings[self.buildings['id'] == house_id].reset_index(drop=True)
+
+        if len(house) == 0 and len(services):
+            return None
+            
+        house_x, house_y = house[["x", "y"]].values[0]
+
+        travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
+        dist_matrix = self.get_distance_matrix(house, services, graph, limit_value)
+        house = self.calculate_diversity(house, np.vstack(dist_matrix[0]))
+
+        selected_services = services[dist_matrix[0] == 1]
+        isochrone = AccessibilityIsochrones(self.city_model).get_accessibility_isochrone(
+            travel_type, house_x, house_y, limit_value, weigth
+        )
+        return {
+            "house": json.loads(house.to_crs(4326).to_json()),
+            "services": json.loads(selected_services.to_crs(4326).to_json()),
+            "isochrone": isochrone["isochrone"]
+        }
+        
 
 # ######################################### Collocation Matrix #################################################
 
@@ -612,6 +752,3 @@ class CollocationMatrix(BaseMethod):
         denominator = sum_res_denominator - self.get_numerator(services)
 
         return denominator
-
-
-

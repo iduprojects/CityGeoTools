@@ -1,4 +1,4 @@
-from ctypes import util
+from distutils import extension
 import pandas as pd
 import os
 import pickle
@@ -25,7 +25,7 @@ class CityInformationModel:
         self.city_id = cities_db_id
         self.mode = mode
 
-        self.attr_names = ['MobilityGraph', 'Buildings', 'Services', 'PublicTransportStops',
+        self.attr_names = ['MobilityGraph', 'Buildings', 'Services', 'PublicTransportStops', 'ServiceTypes',
                             'Blocks', 'Municipalities','AdministrativeUnits']
         self.set_city_layers()
         self.methods = DataValidation() if self.mode == "user_mode" else None
@@ -78,7 +78,9 @@ class CityInformationModel:
         if attr_name not in self.get_all_attributes():
             raise ValueError("Invalid attribute name.")
 
-        if  attr_name == "MobilityGraph":
+        path, ext = os.path.splitext(file_name)
+
+        if ext == ".graphml":
             graph = nx.read_graphml(file_name, node_type=int)
             graph = load_graph_geometry(graph)
             self.methods.check_methods(attr_name, graph, "validate_graph_layers")
@@ -88,12 +90,22 @@ class CityInformationModel:
             self.graph_nk_length = convert_nx2nk(graph, weight="length_meter")
             self.graph_nk_time = convert_nx2nk(graph, weight="time_min")
 
-        else: 
+        elif ext == ".geojson":
             with open(file_name) as f:
                 geojson = json.load(f)
             self.methods.check_methods(attr_name,  geojson, "validate_json_layers")
             gdf = gpd.GeoDataFrame.from_features(geojson).set_crs(4326).to_crs(self.city_crs)
             setattr(self, attr_name, gdf)
+
+        elif ext == ".json":
+            with open(file_name) as f:
+                json_file = json.load(f)
+                df = pd.DataFrame(json_file)
+            self.methods.check_methods(attr_name,  json_file, "validate_json_layers")
+            setattr(self, attr_name, df)
+        
+        else:
+            raise TypeError("Unrecognizable file format.")
         
 
         print(f"{attr_name} layer loaded successfully!")

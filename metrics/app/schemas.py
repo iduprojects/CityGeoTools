@@ -234,16 +234,46 @@ class SpacematrixIn(BaseModel):
                 }
             }
 
-class DiversityDiversityQueryParams:
+
+class DiversityQueryParams:
     def __init__(self,
+                 city: enums.CitiesEnum,
                  service_type: str = Query(..., example="cafes")
                  ):
+        self.city = city
         self.service_type = service_type
 
 
-class DiversityDiversityOut(BaseModel):
+class DiversityOut(BaseModel):
     municipalities: FeatureCollection
-    blocks: Dict[int, FeatureCollection]
+    blocks: FeatureCollection
+
+
+class DiversityGetInfoQueryParams:
+    def __init__(self,
+                 city: enums.CitiesEnum,
+                 house_id: int = Query(..., example=45793),
+                 service_type: str = Query(..., example="cafes")
+                 ):
+        self.city = city
+        self.house_id = house_id
+        self.service_type = service_type
+
+class DiversityGetInfoOut(BaseModel):
+    house: FeatureCollection
+    services: FeatureCollection
+    isochrone: FeatureCollection
+
+
+class DiversityGetBuildingsQueryParams:
+    def __init__(self,
+                 city: enums.CitiesEnum,
+                 block_id: int = Query(..., example=488),
+                 service_type: str = Query(..., example="cafes")
+                 ):
+        self.city = city
+        self.block_id = block_id
+        self.service_type = service_type
 
 
 class ProvisionInBase(BaseModel):
