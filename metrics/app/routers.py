@@ -49,12 +49,12 @@ def pedastrian_walk_traffics_calculation(query_params: schemas.PedastrianWalkTra
 @router.get("/mobility_analysis/isochrones", response_model=schemas.MobilityAnalysisIsochronesOut,
             tags=[Tags.mobility_analysis])
 async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIsochronesQueryParams = Depends()):
-    if (query_params.travel_type != enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT) \
-        and (query_params.weight_type == enums.MobilityAnalysisIsochronesWeightTypeEnum.METER) \
+    if not (query_params.travel_type == enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT \
+        and query_params.weight_type == enums.MobilityAnalysisIsochronesWeightTypeEnum.TIME) \
         and (query_params.routes == True):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Getting routes isn't supported for walk and car isochrones."
+            detail="Not implementet yet."
         )
     
     city_model = cities_model[query_params.city]

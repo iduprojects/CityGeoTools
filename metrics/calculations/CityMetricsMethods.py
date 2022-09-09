@@ -19,6 +19,7 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from matplotlib import pyplot as plt
 from scipy import spatial
+from .errors import TerritorialSelectError, SelectedValueError, ImplementationError
 
 class BaseMethod():
 
@@ -68,7 +69,7 @@ class TrafficCalculator(BaseMethod):
         selected_buildings = self.get_custom_polygon_select(request_area_geojson, self.city_crs, living_buildings)[0]
 
         if len(selected_buildings) == 0:
-            return None
+            raise TerritorialSelectError("living buildings")
         
         stops = self.stops.set_index("id")
         selected_buildings['nearest_stop_id'] = selected_buildings.apply(
@@ -228,17 +229,17 @@ class BlocksClusterization(BaseMethod):
         super().validation("blocks_clusterization")
         self.services = self.city_model.Services.copy()
         self.blocks = self.city_model.Blocks.copy()
-    
+
     def clusterize(self, service_types):
+
+        if sum(self.services["service_code"].isin(service_types)) == 0:
+            raise SelectedValueError("services", service_types, "service_code")
 
         service_in_blocks = self.services.groupby(["block_id", "service_code"])["id"].count().unstack(fill_value=0)
         without_services = self.blocks["id"][~self.blocks["id"].isin(service_in_blocks.index)].values
         without_services = pd.DataFrame(columns=service_in_blocks.columns, index=without_services).fillna(0)
         service_in_blocks = pd.concat([without_services, service_in_blocks])
-
-        service_in_blocks = service_in_blocks[service_types]
         clusterization = linkage(service_in_blocks, method="ward")
-
         return clusterization, service_in_blocks
 
     @staticmethod
@@ -328,12 +329,14 @@ class ServicesClusterization(BaseMethod):
                             condition="distance", condition_value=4000, n_std = 2):
 
         services_select = self.services[self.services["service_code"].isin(service_types)]
+
         if area_type and area_id:
             services_select = self.get_territorial_select(area_type, area_id, services_select)[0]
         elif geojson:
             services_select = self.get_custom_polygon_select(geojson, self.city_crs, services_select)[0]
+
         if len(services_select) <= 1:
-            return None
+            raise TerritorialSelectError("services")
 
         services_select = self.get_service_cluster(services_select, condition, condition_value)
 
@@ -464,7 +467,7 @@ class Spacematrix(BaseMethod):
         blocks = blocks.join(named_clusters.rename("spacematrix_morphotype"), on="spacematrix_cluster")
 
         if area_type and area_id:
-            if area_type == "block":  
+            if area_type == "block": 
                 blocks = blocks.loc[[area_id]]
             else:
                 blocks = self.get_territorial_select(area_type, area_id, blocks)[0]
@@ -552,7 +555,9 @@ class AccessibilityIsochrones(BaseMethod):
             routes = routes[routes["type"].isin(self.edge_types[travel_type][:-1])]
         
         else:
-            raise ValidationError("Not implementet yet.")
+            raise ImplementationError(
+                "Route output implemented only with params travel_type='public_transport' and weight_type='time_min'"
+                )
         
         routes["geometry"] = routes["geometry"].apply(lambda x: shapely.wkt.loads(x))
         routes = routes[["type", "time_min", "length_meter", "geometry"]]
@@ -569,11 +574,15 @@ class Diversity(BaseMethod):
         self.mobility_graph_length = self.city_model.graph_nk_length
         self.mobility_graph_time = self.city_model.graph_nk_time
         self.graph_attrs = self.city_model.nk_attrs.copy()
-        self.buildings = self.city_model.Buildings.copy()
         self.services = self.city_model.Services.copy()
         self.service_types = self.city_model.ServiceTypes.copy()
         self.municipalities = self.city_model.Municipalities.copy()
         self.blocks = self.city_model.Blocks.copy()
+
+        self.buildings = self.city_model.Buildings.copy()
+        self.living_buildings = self.buildings[self.buildings['is_living'] == True].reset_index(drop=True)
+        if len(self.living_buildings) == 0:
+            raise TerritorialSelectError("living buildings")
 
     def define_service_normative(self, service_type):
 
@@ -632,7 +641,7 @@ class Diversity(BaseMethod):
     def get_diversity(self, service_type):
 
         services = self.services[self.services["service_code"] == service_type]
-        houses = self.buildings[self.buildings['is_living'] == True].reset_index(drop=True)
+        houses = self.living_buildings
 
         travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
         dist_matrix = self.get_distance_matrix(houses, services, graph, limit_value)
@@ -651,10 +660,12 @@ class Diversity(BaseMethod):
     def get_houses(self, block_id, service_type):
 
         services = self.services[self.services["service_code"] == service_type]
-        houses = self.buildings[self.buildings['is_living'] == True]
-        houses_in_block = self.buildings[self.buildings['block_id'] == block_id].reset_index(drop=True)
-        if len(houses_in_block) == 0 and len(services):
-            return None
+        if len(services) == 0:
+            raise SelectedValueError("services", service_type, "service_code")
+
+        houses_in_block = self.living_buildings[self.living_buildings['block_id'] == block_id].reset_index(drop=True)
+        if len(houses_in_block) == 0:
+            raise TerritorialSelectError("living buildings")
 
         travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
         dist_matrix = self.get_distance_matrix(houses_in_block, services, graph, limit_value)
@@ -666,17 +677,17 @@ class Diversity(BaseMethod):
     def get_info(self, house_id, service_type):
 
         services = self.services[self.services["service_code"] == service_type]
-        house = self.buildings[self.buildings['id'] == house_id].reset_index(drop=True)
+        if len(services) == 0:
+            raise SelectedValueError("services", service_type, "service_code")
 
-        if len(house) == 0 and len(services):
-            return None
+        house = self.living_buildings[self.living_buildings['id'] == house_id].reset_index(drop=True)
+        if len(house) == 0:
+            raise SelectedValueError("living building", house_id, "id")
             
         house_x, house_y = house[["x", "y"]].values[0]
-
         travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
         dist_matrix = self.get_distance_matrix(house, services, graph, limit_value)
         house = self.calculate_diversity(house, np.vstack(dist_matrix[0]))
-
         selected_services = services[dist_matrix[0] == 1]
         isochrone = AccessibilityIsochrones(self.city_model).get_accessibility_isochrone(
             travel_type, house_x, house_y, limit_value, weigth
