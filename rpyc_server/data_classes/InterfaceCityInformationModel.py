@@ -29,8 +29,8 @@ class DataQueryInterface(QueryInterface):
 
         # Buildings
         buildings_columns = ["building_id as id", "building_area as basement_area", "is_living", "living_area", 
-                            "population_balanced as population", "storeys_count", "administrative_unit_id", 
-                            "municipality_id", "block_id", "geometry"]
+                            "population_balanced as population", "storeys_count", "functional_object_id", "address",
+                             "administrative_unit_id", "municipality_id", "block_id", "geometry"]
 
         self.Buildings = self.get_buildings(buildings_columns, place_slice).to_crs(self.city_crs)
         self.Buildings = self.Buildings[
