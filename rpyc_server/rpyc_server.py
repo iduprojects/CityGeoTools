@@ -1,19 +1,13 @@
-from asyncio.log import logger
-from dataclasses import dataclass
 import rpyc
-from rpyc.utils.server import ThreadedServer
-
-from data_classes.InterfaceCityInformationModel import InterfaceCityInformationModel
-from data_classes.Cities_dictionary import cities_model, cities_crs, cities_metrics, cities_name
-
-import pickle
-
 import datetime
+
+from rpyc.utils.server import ThreadedServer
+from data_classes.cities_dictionary import cities_model
 
 
 class MyService(rpyc.Service):
 
-    def get_city_model_attr(self, city_name,atr_name):
+    def get_city_model_attr(self, city_name, atr_name):
         print(city_name, datetime.datetime.now(), atr_name)
         return getattr(cities_model[city_name], atr_name)
     

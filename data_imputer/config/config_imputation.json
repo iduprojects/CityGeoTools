@@ -1,0 +1,13 @@
+{ 
+  "epsg_projection": 32636,
+  "categorical_features": ["gascentral", "hotwater", "electricity"],
+  
+  "num_iteration": 3,
+  "num_imputation": 1,
+  "initial_imputation_type": "mean",
+  "sort_column_type": "suffering",
+
+  "num_neighbors": 3,
+  "neighbors_radius": 500,
+  "search_method": "nearest_from_point"
+}
