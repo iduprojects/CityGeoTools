@@ -22,18 +22,18 @@ class DataValidation:
         self.diversity = DiversityData()
         self.collocation_matrix = CollocationMatrixData()
 
-    def check_methods(self, layer_name, validate_object, validation_func):
+    def check_methods(self, layer_name, validate_object, validation_func, cwd):
 
         print(f"Validation of {layer_name} layer...")
         for method_name in data_dictionary[layer_name]:
             method_class = getattr(self, method_name)
             validation_func_obj = getattr(method_class, validation_func)
-            validation_func_obj(layer_name, validate_object)
+            validation_func_obj(layer_name, validate_object, cwd)
     
-    def validate_json_layers(self, layer_name, layer):
+    def validate_json_layers(self, layer_name, layer, cwd):
 
         file = layer_name + ".json"
-        with open(os.path.join(self.specification_folder, file)) as schema:
+        with open(os.path.join(cwd, self.specification_folder, file)) as schema:
             schema = json.load(schema)
 
         try:
@@ -45,9 +45,10 @@ class DataValidation:
             setattr(self, layer_name, False)
             self.message[layer_name] = error.message
     
-    def validate_graph_layers(self, layer_name, G):
+    def validate_graph_layers(self, layer_name, G, cwd):
 
-        path = self.specification_folder.replace("/", ".")
+        path = os.path.join(self.specification_folder)
+        path = path.replace("/", ".")
         mod = importlib.import_module(".mobility_graph", path)
         node_validity, edge_validity = mod.validate_graph(G)
         graph_size = len(G.edges()) > 1
