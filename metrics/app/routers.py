@@ -8,7 +8,7 @@ from geojson_pydantic import FeatureCollection
 from app import enums, schemas
 from calculations.utils import request_points_project
 from calculations.CityMetricsMethods import *
-from data.cities_dictionary import cities_model
+from data.cities_dictionary import cities_model, cities_name
 
 router = APIRouter()
 
@@ -32,6 +32,9 @@ class Tags(str, enums.AutoName):
 async def read_root():
     return {"Hello": "World"}
 
+@router.get("/cities")
+async def get_cities_names():
+    return cities_name
 
 @router.post('/pedastrian_walk_traffics/pedastrian_walk_traffics_calculation', 
             response_model=schemas.PedastrianWalkTrafficsCalculationOut, tags=[Tags.trafics_calculation])
