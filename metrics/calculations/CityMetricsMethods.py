@@ -605,9 +605,8 @@ class Diversity(BaseMethod):
         
     def get_distance_matrix(self, houses, services, graph, limit_value):
 
-        nodes_data = pd.DataFrame(self.graph_attrs.values(), index=self.graph_attrs.keys())
-        houses_distance, houses_nodes = spatial.cKDTree(nodes_data).query([houses[["x", "y"]]])
-        services_distance, services_nodes = spatial.cKDTree(nodes_data).query([services[["x", "y"]]])
+        houses_distance, houses_nodes = spatial.cKDTree(self.graph_attrs).query([houses[["x", "y"]]])
+        services_distance, services_nodes = spatial.cKDTree(self.graph_attrs).query([services[["x", "y"]]])
 
         if len(services_nodes[0]) < len(houses_nodes[0]):
             source, target = services_nodes, houses_nodes
@@ -628,7 +627,6 @@ class Diversity(BaseMethod):
     @staticmethod
     def calculate_diversity(houses, dist_matrix):
         
-        print(dist_matrix.shape)
         count_services = dist_matrix.sum(axis=0)
         diversity_estim = {1:0.2, 2:0.4, 3:0.6, 4:0.8, 5:1}
         for count, estim in diversity_estim.items():

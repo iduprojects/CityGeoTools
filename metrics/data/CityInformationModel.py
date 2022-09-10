@@ -9,7 +9,7 @@ import networkx as nx
 
 from sqlalchemy import create_engine
 from .DataValidation import DataValidation
-from .data_transform import load_graph_geometry, convert_nx2nk, get_nx2_nk_idmap, get_nk_attrs
+from .data_transform import load_graph_geometry, convert_nx2nk, get_nx2nk_idmap, get_nk_attrs, get_subgraph
 
 # TODO: SQL queries as a separate class
 # TODO provisions lengths from rpyc method
@@ -39,6 +39,7 @@ class CityInformationModel:
 
         if self.mode == "general_mode":
             self.get_city_layers_from_db()
+            self.get_supplementary_graphs()
         else:
             self.set_none_layers()
         del self.attr_names
@@ -57,13 +58,16 @@ class CityInformationModel:
             print(self.city_name, attr_name)
             setattr(self, attr_name, pickle.loads(
                 rpyc_connect.root.get_city_model_attr(self.city_name, attr_name)))
+        
+    def get_supplementary_graphs(self):
 
-        self.nk_idmap = get_nx2_nk_idmap(self.MobilityGraph)
-        self.nk_attrs = get_nk_attrs(self.MobilityGraph)
-        self.graph_nk_length = convert_nx2nk(self.MobilityGraph, idmap=self.nk_idmap, weight="length_meter")
-        self.graph_nk_time = convert_nx2nk(self.MobilityGraph, idmap=self.nk_idmap, weight="time_min")
-        self.MobilityGraph = load_graph_geometry(self.MobilityGraph)
-
+        sub_edges = ["subway", "bus", "tram", "trolleybus", "walk"] # exclude drive
+        MobilitySubGraph = get_subgraph(self.MobilityGraph, "type", sub_edges)
+        self.nk_idmap = get_nx2nk_idmap(MobilitySubGraph)
+        self.nk_attrs = get_nk_attrs(MobilitySubGraph)
+        self.graph_nk_length = convert_nx2nk(MobilitySubGraph, idmap=self.nk_idmap, weight="length_meter")
+        self.graph_nk_time = convert_nx2nk(MobilitySubGraph, idmap=self.nk_idmap, weight="time_min")
+        self.MobilityGraph = load_graph_geometry(MobilitySubGraph)
 
     def set_none_layers(self):
         for attr_name in self.attr_names:
@@ -86,10 +90,7 @@ class CityInformationModel:
             graph = load_graph_geometry(graph)
             self.methods.check_methods(attr_name, graph, "validate_graph_layers", self.cwd)
             setattr(self, attr_name, graph)
-            self.nk_idmap = get_nx2_nk_idmap(graph)
-            self.nk_attrs = get_nk_attrs(graph)
-            self.graph_nk_length = convert_nx2nk(graph, weight="length_meter")
-            self.graph_nk_time = convert_nx2nk(graph, weight="time_min")
+            self.get_supplementary_graphs()
 
         elif ext == ".geojson":
             with open(file_name) as f:
