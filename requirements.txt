@@ -25,3 +25,4 @@ Shapely==1.7.1
 SQLAlchemy==1.4.25
 tqdm==4.61.2
 xgboost==1.6.1
+pulp 

@@ -10,6 +10,8 @@ import pca
 import networkx as nx
 import networkit as nk
 import pandas.core.indexes as pd_index
+import pulp
+from sqlalchemy import create_engine
 
 from jsonschema.exceptions import ValidationError
 from .utils import nk_routes_between_two_points
@@ -762,3 +764,218 @@ class CollocationMatrix(BaseMethod):
         denominator = sum_res_denominator - self.get_numerator(services)
 
         return denominator
+
+# ######################################### New Provisions #################################################
+class City_Provisions(BaseMethod): 
+
+    def __init__(self, city_model, service_type, valuation_type, year, **user_provision_data, ):
+        BaseMethod.__init__(self, city_model)
+
+        self.service_type = service_type
+        self.valuation_type = valuation_type
+        self.year = year
+        self.city = city_model.city_name
+        service_types_normatives = city_model.ServiceTypes['code']
+        self.engine = create_engine("postgresql://postgres:postgres@10.32.1.107/city_db_final")
+        pd.read_sql(f"""SELECT * 
+                        FROM public.city_service_types 
+                        WHERE code = '{service_type}'
+                        """, con = self.engine).dropna(axis = 1)
+
+        if 'walking_radius_normative' in service_types_normatives.columns:  
+            self.normative_distance = service_types_normatives['walking_radius_normative'].iloc[0]
+            self.nk_graph = self.city_model.graph_nk_length
+        else:
+            self.normative_distance = service_types_normatives['public_transport_time_normative'].iloc[0]
+            self.nk_graph = self.city_model.graph_nk_time
+                                                 
+        self.buildings = self.city_model.Buildings.copy()
+        self.buildings.index = self.buildings['functional_object_id']
+        self.services = self.city_model.Services.copy()
+        self.services.index = self.services['id']
+        self.nx_graph = self.city_model.MobilityGraph
+
+        if user_provision_data:
+            self.user_changes_buildings = gpd.GeoDataFrame.from_features(user_provision_data['user_changes_buildings']['features'], crs = 4326).to_crs(city_model.city_crs)
+            self.user_changes_services = gpd.GeoDataFrame.from_features(user_provision_data['user_changes_services']['features'], crs = 4326).to_crs(city_model.city_crs)
+            self.user_provisions  = pd.DataFrame(0, buildings =  self.buildings.index.values,
+                                                    index =  self.services.index.values)
+
+            self.user_provisions = self.user_provisions + self.restore_user_provisions(user_provision_data['user_provisions'])
+
+
+
+    def get_provisions(self, **user_provision_data):
+
+        demands = pd.read_sql(f'''SELECT functional_object_id, {self.service_type}_service_demand_value_{self.valuation_type} 
+                                  FROM social_stats.buildings_load_future
+                                  WHERE year = {self.year}
+                                  ''', con = self.engine)
+
+        self.buildings = self.buildings.merge(demands, on = 'functional_object_id', how = 'right').dropna()
+        self.buildings = self.buildings.rename(columns = {f'{self.service_type}_service_demand_value_{self.valuation_type}': "demand"})
+                
+        self.buildings['demand_left'] = self.buildings['demand']
+        self.services['capacity_left'] = self.services['capacity']
+
+        try:
+            Provisions = pd.read_sql(f'''SELECT * 
+                                         FROM provisions.{self.city}_{self.service_type}_{self.valuation_type}_{self.year}_provisions
+                                         ''', con = self.engine)
+            Matrix = pd.read_sql(f'''SELECT * 
+                                     FROM provisions.{self.city}_{self.service_type}_{self.valuation_type}_{self.year}_matrix
+                                     ''', con = self.engine)
+        except:  
+            df = pd.DataFrame.from_dict(dict(self.nx_graph.nodes(data=True)), orient='index')
+            self.graph_gdf = gpd.GeoDataFrame(df, geometry = df.apply(lambda x: shapely.geometry.Point(x['x'],x['y']), axis = 1), crs = 32636)
+            from_houses = self.graph_gdf['geometry'].sindex.nearest(self.buildings['geometry'], return_distance = True)
+            to_services = self.graph_gdf['geometry'].sindex.nearest(self.services['geometry'], return_distance = True)
+
+            Matrix = pd.DataFrame(0, index = to_services[0][1], 
+                                     columns = from_houses[0][1])
+            
+            nk_dists = nk.distance.SPSP(G = self.nk_graph, sources = Matrix.index.values).run()
+
+            Matrix =  Matrix.progress_apply(lambda x: self.get_nk_distances(nk_dists,
+                                                                            x), axis =1)
+            Matrix.index = self.services.index
+            Matrix.columns = self.buildings.index
+            Provisions = pd.DataFrame(0, index = Matrix.index, columns = Matrix.columns)
+            Provisions = self.provision_loop(self.buildings, 
+                                             self.services, 
+                                             Matrix, 
+                                             self.normative_distance, 
+                                             Provisions, )
+
+        self.buildings, self.services, Provisions = self.additional_options(Matrix,
+                                                                            Provisions)  
+        return 
+
+    def restore_user_provisions(self, user_provisions):
+        restored_user_provisions = pd.DataFrame(user_provisions)
+        restored_user_provisions = pd.DataFrame(user_provisions, columns = ['service_id','house_id','demand']).groupby(['service_id','house_id']).first().unstack()
+        restored_user_provisions = restored_user_provisions.droplevel(level = 0, axis = 1)
+        restored_user_provisions.index.name = None
+        restored_user_provisions.columns.name = None
+        restored_user_provisions = restored_user_provisions.fillna(0)
+
+        return restored_user_provisions
+
+    def provision_matrix_transform(self, Provisions):
+        provisions_transformed = []
+        for service_id in Provisions.index:
+            loc = Provisions.loc[service_id]
+            loc = loc[loc > 0].to_dict().items()
+            provisions_transformed.extend({'house_id': k, 
+                                           'demand': v,
+                                           'service_id': service_id} for k,v in loc)
+        return provisions_transformed
+
+
+    def recalculate_provisions():
+
+        return None
+
+    def additional_options(self, Matrix, Provisions): 
+        self.buildings['demand_left'] = self.buildings['demand'] 
+        self.services['capacity_left'] = self.services['capacity']
+        self.buildings['supplyed_demands_within'] = 0
+        self.buildings['supplyed_demands_without'] = 0
+        self.services['carried_capacity_within'] = 0
+        self.services['carried_capacity_without'] = 0
+        for i in range(len(Provisions)):
+            loc = Provisions.iloc[i]
+            s = Matrix.loc[loc.name] <= self.normative_distance
+            within = loc[s]
+            without = loc[~s]
+            within = within[within > 0]
+            without = without[without > 0]
+
+            self.buildings['demand_left'] = self.buildings['demand_left'].sub(within.add(without, fill_value= 0), fill_value = 0)
+            self.buildings['supplyed_demands_within'] = self.buildings['supplyed_demands_within'].add(within, fill_value = 0)
+            self.buildings['supplyed_demands_without'] = self.buildings['supplyed_demands_without'].add(without, fill_value = 0)
+            self.services.at[loc.name,'capacity_left'] = self.services.at[loc.name,'capacity_left'] - within.add(without, fill_value= 0).sum()
+            self.services.at[loc.name,'carried_capacity_within'] = self.services.at[loc.name,'carried_capacity_within'] + within.sum()
+            self.services.at[loc.name,'carried_capacity_without'] = self.services.at[loc.name,'carried_capacity_without'] + without.sum()
+
+        return self.buildings, self.services, Provisions 
+
+    def get_nk_distances(self, nk_dists, loc):
+
+        target_nodes = loc.index
+        source_node = loc.name
+
+        distances = [nk_dists.getDistance(source_node, node) for node in target_nodes]
+
+        return pd.Series(data = distances, index = target_nodes)
+    
+    def declare_varables(self, loc):
+        index = loc.index
+        name = loc.name
+        return pd.Series(index = index, data = [pulp.LpVariable(name = f"route_{name}_{I}", lowBound=0, cat = "Integer") for I in index.astype(str)], name = name)
+
+    def provision_loop(self, houses_table, services_table, distance_matrix, selection_range, Provisions, ): 
+
+        select = distance_matrix[distance_matrix.iloc[:] <= selection_range]
+        select = select.apply(lambda x: 1/(x+1), axis = 1)
+        variables = select.apply(lambda x: self.declare_varables(x.dropna()), axis = 1)
+        print('vars')
+        variables = variables.join(pd.DataFrame(np.NaN, 
+                                                columns = list(set(select.columns) - set(select.columns)), 
+                                                index = select.index))
+        prob = pulp.LpProblem("problem", pulp.LpMaximize)
+        for col in variables.columns:
+            t = variables[col].dropna().values
+            if len(t) > 0: 
+                prob +=(pulp.lpSum(t) <= houses_table['demand_left'][col],
+                        f"sum_of_capacities_{col}")
+            else: pass
+
+        for index in variables.index:
+            t = variables.loc[index].dropna().values
+            if len(t) > 0:
+                prob +=(pulp.lpSum(t) <= services_table['capacity_left'][index],
+                        f"sum_of_demands_{index}")
+            else:pass
+        costs = []
+        for index in variables.index:
+            t = variables.loc[index].dropna()
+            t = t * select.loc[index].dropna()
+            costs.extend(t)
+        prob +=(pulp.lpSum(costs),
+                "Sum_of_Transporting_Costs" )
+        prob.solve(pulp.PULP_CBC_CMD(msg=False))
+        print('solved')
+        to_df = {}
+        print('vars = ', len(prob.variables()))
+        for var in prob.variables():
+            t = var.name.split('_')
+            try:
+                to_df[int(t[1])].update({int(t[2]): var.value()})
+            except ValueError: 
+                print(t)
+                pass
+            except:
+                to_df[int(t[1])] = {int(t[2]): var.value()}
+                
+        result = pd.DataFrame(to_df).transpose()
+        result = result.join(pd.DataFrame(0,
+                                          columns = list(set(set(Provisions.columns) - set(result.columns))),
+                                          index = Provisions.index), how = 'outer')
+        result = result.fillna(0)
+        Provisions = Provisions + result
+        axis_1 = Provisions.sum(axis = 1)
+        axis_0 = Provisions.sum(axis = 0)
+        services_table['capacity_left'] = services_table['capacity'].subtract(axis_1,fill_value = 0)
+        houses_table['demand_left'] = houses_table['demand'].subtract(axis_0,fill_value = 0)
+
+        distance_matrix = distance_matrix.drop(index = services_table[services_table['capacity_left'] == 0].index.values,
+                                        columns = houses_table[houses_table['demand_left'] == 0].index.values,
+                                        errors = 'ignore')
+        print(len(distance_matrix.columns), len(distance_matrix.index), selection_range)
+        print(houses_table['demand_left'].sum(), services_table['capacity_left'].sum())
+        selection_range += selection_range
+        if len(distance_matrix.columns) > 0 and len(distance_matrix.index) > 0:
+            return self.provision_loop(houses_table, services_table, distance_matrix, selection_range+selection_range, Provisions, )
+        else: 
+            return Provisions
