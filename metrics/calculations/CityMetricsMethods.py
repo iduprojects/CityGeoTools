@@ -790,14 +790,16 @@ class City_Provisions(BaseMethod):
             self.nk_graph = self.city_model.graph_nk_time
                                                  
         self.buildings = self.city_model.Buildings.copy()
-        self.buildings.index = self.buildings['functional_object_id']
+        self.buildings.index = self.buildings['functional_object_id'].values
         self.services = self.city_model.Services.copy()
-        self.services.index = self.services['id']
+        self.services.index = self.services['id'].values
         self.nx_graph = self.city_model.MobilityGraph
 
         if user_provision_data:
             self.user_changes_buildings = gpd.GeoDataFrame.from_features(user_provision_data['user_changes_buildings']['features'], crs = 4326).to_crs(city_model.city_crs)
+            self.user_changes_buildings.index = self.user_changes_buildings['functional_object_id'].values
             self.user_changes_services = gpd.GeoDataFrame.from_features(user_provision_data['user_changes_services']['features'], crs = 4326).to_crs(city_model.city_crs)
+            self.user_changes_services.index = self.user_changes_services['id'].values
             self.user_provisions  = pd.DataFrame(0, buildings =  self.buildings.index.values,
                                                     index =  self.services.index.values)
 
@@ -805,7 +807,7 @@ class City_Provisions(BaseMethod):
 
 
 
-    def get_provisions(self, **user_provision_data):
+    def get_provisions(self, ):
 
         demands = pd.read_sql(f'''SELECT functional_object_id, {self.service_type}_service_demand_value_{self.valuation_type} 
                                   FROM social_stats.buildings_load_future
@@ -826,31 +828,40 @@ class City_Provisions(BaseMethod):
                                      FROM provisions.{self.city}_{self.service_type}_{self.valuation_type}_{self.year}_matrix
                                      ''', con = self.engine)
         except:  
-            df = pd.DataFrame.from_dict(dict(self.nx_graph.nodes(data=True)), orient='index')
-            self.graph_gdf = gpd.GeoDataFrame(df, geometry = df.apply(lambda x: shapely.geometry.Point(x['x'],x['y']), axis = 1), crs = 32636)
-            from_houses = self.graph_gdf['geometry'].sindex.nearest(self.buildings['geometry'], return_distance = True)
-            to_services = self.graph_gdf['geometry'].sindex.nearest(self.services['geometry'], return_distance = True)
+            Matrix, Provisions = self.calculate_provisions(self, self.buildings, self.services)
 
-            Matrix = pd.DataFrame(0, index = to_services[0][1], 
-                                     columns = from_houses[0][1])
-            
-            nk_dists = nk.distance.SPSP(G = self.nk_graph, sources = Matrix.index.values).run()
+        self.buildings, self.services = self.additional_options(Matrix,
+                                                                Provisions,
+                                                                self.normative_distance)  
+        return {"houses": eval(self.buildings.to_json()), 
+                "services": eval(self.services.to_json()), 
+                "provisions": self.provision_matrix_transform(Provisions)}
 
-            Matrix =  Matrix.progress_apply(lambda x: self.get_nk_distances(nk_dists,
-                                                                            x), axis =1)
-            Matrix.index = self.services.index
-            Matrix.columns = self.buildings.index
-            Provisions = pd.DataFrame(0, index = Matrix.index, columns = Matrix.columns)
-            Provisions = self.provision_loop(self.buildings, 
-                                             self.services, 
-                                             Matrix, 
-                                             self.normative_distance, 
-                                             Provisions, )
+    def calculate_provisions(self, buildings, services):
+        df = pd.DataFrame.from_dict(dict(self.nx_graph.nodes(data=True)), orient='index')
+        self.graph_gdf = gpd.GeoDataFrame(df, geometry = df.apply(lambda x: shapely.geometry.Point(x['x'],x['y']), axis = 1), crs = 32636)
+        from_houses = self.graph_gdf['geometry'].sindex.nearest(buildings['geometry'], return_distance = True)
+        to_services = self.graph_gdf['geometry'].sindex.nearest(services['geometry'], return_distance = True)
 
-        self.buildings, self.services, Provisions = self.additional_options(Matrix,
-                                                                            Provisions)  
-        return 
+        Matrix = pd.DataFrame(0, index = to_services[0][1], 
+                                 columns = from_houses[0][1])
+        
+        nk_dists = nk.distance.SPSP(G = self.nk_graph, sources = Matrix.index.values).run()
 
+        Matrix =  Matrix.progress_apply(lambda x: self.get_nk_distances(nk_dists,
+                                                                        x), axis =1)
+        Matrix.index = services.index
+        Matrix.columns = buildings.index
+        Provisions = pd.DataFrame(0, index = Matrix.index, columns = Matrix.columns)
+        Provisions = self.provision_loop(buildings, 
+                                         services, 
+                                         Matrix, 
+                                         self.normative_distance, 
+                                         Provisions, )
+
+
+        return Matrix, Provisions        
+    
     def restore_user_provisions(self, user_provisions):
         restored_user_provisions = pd.DataFrame(user_provisions)
         restored_user_provisions = pd.DataFrame(user_provisions, columns = ['service_id','house_id','demand']).groupby(['service_id','house_id']).first().unstack()
@@ -872,33 +883,75 @@ class City_Provisions(BaseMethod):
         return provisions_transformed
 
 
-    def recalculate_provisions():
+    def recalculate_provisions(self, ):
 
-        return None
+        new_buildings = self.buildings.combine_first(self.user_changes_buildings)
+        new_services = self.buildings.set_index(self.user_changes_services)
+        
+        new_Matrix, new_Provisions = self.calculate_provisions(self, new_buildings, new_services)
 
-    def additional_options(self, Matrix, Provisions): 
-        self.buildings['demand_left'] = self.buildings['demand'] 
-        self.services['capacity_left'] = self.services['capacity']
-        self.buildings['supplyed_demands_within'] = 0
-        self.buildings['supplyed_demands_without'] = 0
-        self.services['carried_capacity_within'] = 0
-        self.services['carried_capacity_without'] = 0
+        new_buildings, new_services = self.additional_options(new_Matrix,
+                                                              new_Provisions,
+                                                              self.normative_distance)
+
+        self.buildings, self.services = self.additional_options(new_Matrix,
+                                                                self.user_provisions,
+                                                                self.normative_distance) 
+
+        new_buildings, new_services = self.get_provisions_delta(new_buildings, new_services, )
+
+        return {"houses": eval(new_buildings.to_json()), 
+                "services": eval(new_services.to_json()), 
+                "provisions": self.provision_matrix_transform(new_Provisions)}
+
+    def get_provisions_delta(self, new_buildings, new_services):
+
+        #bad performance 
+        #bad code
+        #rewrite to df[[for col.split()[0] in ***]].sub(other[col])
+        services_delta_cols = ['capacity_delta', 'capacity_left_delta', 'carried_capacity_within_delta', 'carried_capacity_without_delta']
+        buildsing_delta_cols = ['demand_delta', 'demand_left_delta', 'supplyed_demands_within_delta', 'supplyed_demands_without_delta']
+        for col in buildsing_delta_cols:
+            new_buildings[col] = self.buildings[col.split('_delta')[0]].sub(new_buildings[col.split('_delta')[0]]) 
+        for col in services_delta_cols:
+            new_services[col] = self.services[col.split('_delta')[0]].sub(new_services[col.split('_delta')[0]]) 
+
+        return new_buildings, new_services
+
+
+
+    @staticmethod
+    def additional_options(buildings, services, Matrix, Provisions, normative_distance): 
+        #clear matrix same size as buildings and services if user sent sth new
+        cols_to_drop = list(set(set(Matrix.columns.values) - set(buildings.index.values)))
+        rows_to_drop = list(set(set(Matrix.columns.values) - set(services.index.values)))
+        Matrix = Matrix.drop(index=rows_to_drop, 
+                             columns=cols_to_drop)
+        #bad performance 
+        #bad code
+        #rewrite to vector operations [for col in ****]
+        buildings['demand_left'] = buildings['demand'] 
+        services['capacity_left'] = services['capacity']
+        buildings['supplyed_demands_within'] = 0
+        buildings['supplyed_demands_without'] = 0
+        services['carried_capacity_within'] = 0
+        services['carried_capacity_without'] = 0
         for i in range(len(Provisions)):
             loc = Provisions.iloc[i]
-            s = Matrix.loc[loc.name] <= self.normative_distance
+            s = Matrix.loc[loc.name] <= normative_distance
             within = loc[s]
             without = loc[~s]
             within = within[within > 0]
             without = without[without > 0]
 
-            self.buildings['demand_left'] = self.buildings['demand_left'].sub(within.add(without, fill_value= 0), fill_value = 0)
-            self.buildings['supplyed_demands_within'] = self.buildings['supplyed_demands_within'].add(within, fill_value = 0)
-            self.buildings['supplyed_demands_without'] = self.buildings['supplyed_demands_without'].add(without, fill_value = 0)
-            self.services.at[loc.name,'capacity_left'] = self.services.at[loc.name,'capacity_left'] - within.add(without, fill_value= 0).sum()
-            self.services.at[loc.name,'carried_capacity_within'] = self.services.at[loc.name,'carried_capacity_within'] + within.sum()
-            self.services.at[loc.name,'carried_capacity_without'] = self.services.at[loc.name,'carried_capacity_without'] + without.sum()
+            buildings['demand_left'] = buildings['demand_left'].sub(within.add(without, fill_value= 0), fill_value = 0)
+            buildings['supplyed_demands_within'] = buildings['supplyed_demands_within'].add(within, fill_value = 0)
+            buildings['supplyed_demands_without'] = buildings['supplyed_demands_without'].add(without, fill_value = 0)
+            services.at[loc.name,'capacity_left'] = services.at[loc.name,'capacity_left'] - within.add(without, fill_value= 0).sum()
+            services.at[loc.name,'carried_capacity_within'] = services.at[loc.name,'carried_capacity_within'] + within.sum()
+            services.at[loc.name,'carried_capacity_without'] = services.at[loc.name,'carried_capacity_without'] + without.sum()
 
-        return self.buildings, self.services, Provisions 
+        return buildings, services 
 
     def get_nk_distances(self, nk_dists, loc):
 
