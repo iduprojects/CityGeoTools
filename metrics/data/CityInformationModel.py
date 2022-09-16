@@ -47,8 +47,10 @@ class CityInformationModel:
     def get_city_layers_from_db(self):
 
         self.engine = create_engine("postgresql://" + os.environ["POSTGRES"])
+        rpyc_server = os.environ["RPYC_SERVER"]
+        address, port = rpyc_server.split(":") if ":" in rpyc_server else (rpyc_server, 18861)
         rpyc_connect = rpyc.connect(
-            os.environ["RPYC_SERVER"], 18861,
+            address, port,
             config={'allow_public_attrs': True, 
                     "allow_pickle": True}
                     )
