@@ -912,9 +912,9 @@ class City_Provisions(BaseMethod):
         services_delta_cols = ['capacity_delta', 'capacity_left_delta', 'carried_capacity_within_delta', 'carried_capacity_without_delta']
         buildsing_delta_cols = ['demand_delta', 'demand_left_delta', 'supplyed_demands_within_delta', 'supplyed_demands_without_delta']
         for col in buildsing_delta_cols:
-            new_buildings[col] = self.buildings[col.split('_delta')[0]].sub(new_buildings[col.split('_delta')[0]]) 
+            new_buildings[col] = self.buildings[col.split('_delta')[0]].sub(new_buildings[col.split('_delta')[0]], fill_value = 0) 
         for col in services_delta_cols:
-            new_services[col] = self.services[col.split('_delta')[0]].sub(new_services[col.split('_delta')[0]]) 
+            new_services[col] = self.services[col.split('_delta')[0]].sub(new_services[col.split('_delta')[0]], fill_value = 0) 
 
         return new_buildings, new_services
 
