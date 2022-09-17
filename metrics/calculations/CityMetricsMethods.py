@@ -765,7 +765,7 @@ class CollocationMatrix(BaseMethod):
 
 
 # #############################################  Spacematrix_V2  #######################################################
-class Spacematrix(BaseMethod):
+class Spacematrix_v2(BaseMethod):
     def __init__(self, city_model):
         BaseMethod.__init__(self, city_model)
         super().validation("spacematrix_v2")
