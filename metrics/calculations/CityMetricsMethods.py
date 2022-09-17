@@ -704,7 +704,7 @@ class Diversity(BaseMethod):
 class CollocationMatrix(BaseMethod):
     def _init_(self, city_model):
         BaseMethod.__init__(self, city_model)
-        super().validation("services_clusterization")
+        super().validation("collocation_matrix")
         self.services = self.city_model.Services.copy()
 
     def get_collocation_matrix(self, services):
@@ -762,3 +762,87 @@ class CollocationMatrix(BaseMethod):
         denominator = sum_res_denominator - self.get_numerator(services)
 
         return denominator
+
+
+# #############################################  Spacematrix_V2  #######################################################
+class Spacematrix(BaseMethod):
+    def __init__(self, city_model):
+        BaseMethod.__init__(self, city_model)
+        super().validation("spacematrix_v2")
+        self.buildings = self.city_model.Buildings.copy()
+        self.blocks = self.city_model.Blocks.copy().set_index("id")
+
+    @staticmethod
+    def simple_preprocess_data(buildings, blocks):
+
+        # temporary filters. since there are a few bugs in buildings table from DB
+        buildings = buildings[buildings["block_id"].notna()]
+        buildings = buildings[buildings["storeys_count"].notna()]
+        buildings["is_living"] = buildings["is_living"].fillna(False)
+
+        buildings["building_area"] = buildings["basement_area"] * buildings["storeys_count"]
+        bad_living_area = buildings[buildings["living_area"] > buildings["building_area"]].index
+        buildings.loc[bad_living_area, "living_area"] = None
+
+        living_grouper = buildings.groupby(["is_living"])
+        living_area = living_grouper.apply(
+            lambda x: x.living_area.fillna(x.building_area * 0.8) if x.name else x.living_area.fillna(0)
+            )
+        if type(living_area.index) == pd_index.multi.MultiIndex:
+             buildings["living_area"] = living_area.droplevel(0).round(2)
+        else:
+            buildings["living_area"] = living_area.values[0].round(2)
+
+        return buildings, blocks
+
+    @staticmethod
+    def calculate_block_indices(buildings, blocks):
+
+        sum_grouper = buildings.groupby(["block_id"]).sum()
+        blocks["FSI"] = sum_grouper["building_area"] / blocks["area"]
+        blocks["GSI"] = sum_grouper["basement_area"] / blocks["area"]
+        blocks["MXI"] = (sum_grouper["living_area"] / sum_grouper["building_area"]).round(2)
+        blocks["L"] =( blocks["FSI"] / blocks["GSI"]).round()
+        blocks["OSR"] = ((1 - blocks["GSI"]) / blocks["FSI"]).round(2)
+        blocks[["FSI", "GSI"]] = blocks[["FSI", "GSI"]].round(2)
+
+        return blocks
+
+    @staticmethod
+    def name_spacematrix_morph_types(blocks):
+
+        ranges = [
+            blocks['L'].between(0, 2) & blocks['FSI'].between(0, 2) & blocks['MXI'].between(0, 0.09),
+            blocks['L'].between(3, 4) & blocks['FSI'].between(0, 8) & blocks['MXI'].between(0.07, 0.25),
+            blocks['L'].between(5, 6) & blocks['FSI'].between(1, 9) & blocks['MXI'].between(0.1, 0.3),
+            blocks['L'].between(7, 8) & blocks['FSI'].between(1, 15) & blocks['MXI'].between(0.1, 0.4),
+            blocks['L'].between(8, 14) & blocks['FSI'].between(1, 20) & blocks['MXI'].between(0.2, 0.8),
+            blocks['L'].between(13, max(blocks['L'])) & blocks['FSI'].between(1, max(blocks['FSI'])) & blocks['MXI'].between(0.75, 0.85),
+        #   blocks['L'].between(6, 10) & blocks['FSI'].between(7, 13) & blocks['MXI'].between(0.25, 0.35),
+        #   blocks['L'].between(7, max(blocks['L'])) & blocks['FSI'].between(30, max(blocks['FSI'])) & blocks['MXI'].between(0.3, max(blocks['MXI'])),
+        #   blocks['L'].between(3, 7) & blocks['FSI'].between(9, 13) & blocks['MXI'].between(0.32, 0.36)
+        ]
+
+        labels = [
+            "Индивидуальное жилищное строительство",
+            "Малоэтажный", 
+            "Среднеэтажный микрорайонная застройка", 
+            "Среднеэтажный", 
+            "Многоэтажная микрорайонная советская застройка", 
+            "Многоэтажная микрорайонная современная застройка" 
+        #   "Советская периметральная застройка",
+        #   "Центральная квартальная застройка", 
+        #   "Историческая смешанная застройка"
+            ]
+
+        spacematrix_morphotype = np.select(ranges, labels, default=0)
+
+        return spacematrix_morphotype
+
+    def get_spacematrix_morph_types(self, buildings, blocks):
+
+        buildings, blocks = self.simple_preprocess_data(self.buildings, self.blocks)
+        blocks = self.calculate_block_indices(buildings, blocks)
+        blocks['spacematrix_morphotype'] = self.name_spacematrix_morph_types()
+
+        return json.loads(blocks.reset_index().to_crs(4326).to_json())
