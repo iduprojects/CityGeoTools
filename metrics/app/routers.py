@@ -172,17 +172,15 @@ async def get_diversity_info(query_params: schemas.DiversityGetInfoQueryParams =
     return result
 
 
-# @router.post("/provision/get_provision", response_model=schemas.ProvisionGetProvisionOut,
-#              tags=[Tags.provision])
-# async def get_provision(user_request: schemas.ProvisionGetProvisionIn):
-#     """
-#     In user request:
-#     required params: service_type, area, provision_type
-#     optional params: city, without_services_options, load_options, provision_option
-#     :return: dict of FeatureCollections houses and services
-#     """
-#     result = BCAM.get_provision(**user_request.dict())
-#     return result
+@router.post("/provision/get_provision", response_model=schemas.ProvisionGetProvisionOut,
+             tags=[Tags.provision])
+async def get_provision(user_request: schemas.ProvisionGetProvisionIn):
+    city_model = cities_model[user_request.city]
+    result = City_Provisions(
+        city_model, user_request.service_type,
+        user_request.valuation_type, user_request.year
+    ).get_provisions()
+    return result
 
 
 # @router.post("/provision/get_info", response_model=schemas.ProvisionGetInfoOut,
