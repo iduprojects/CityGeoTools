@@ -8,12 +8,12 @@
 4.   Service clusterization (based on services location)
 5.   Spacematrix clusterization (based on [research](https://elibrary.ru/item.asp?id=45845752))
 6. Availability isochrone (based on [research]())
-7.  Diversity analysis (based on available services)
+7.  Diversity analysis (based on available services) - in progress for user mode
 8.  Provision population with services - in progress for user mode
 9.  Wellbeing (based on provision with services needed in living situations) - in progress for user mode
 
 ## How to use CityGeoTools
-More detailed descriptions and examples of how to use the methods are provided as *jupyter notebooks* in [examples](). In order to use these methods, it is not necessary to have a deep knowledge of python programming and machine learning. Simply follow the steps shown in the figure below. Two ways of using the presented methods are implemented - **general mode** and **user mode**.
+More detailed descriptions and examples of how to use the methods are provided as *jupyter notebooks* in [examples](https://github.com/iduprojects/CityGeoTools/tree/metrics-refactor/notebook_examples). In order to use these methods, it is not necessary to have a deep knowledge of python programming and machine learning. Simply follow the steps shown in the figure below. Two ways of using the presented methods are implemented - **general mode** and **user mode**.
   
 ![Image](https://github.com/iduprojects/CityGeoTools/blob/metrics-refactor/img/plot.png?raw=true)
 
@@ -23,17 +23,17 @@ git clone https://github.com/iduprojects/CityGeoTools
 ```
 
 ## Data preparation
-We leave the responsibility for collecting and preparing data to the user. In the absence of reliable sources of information about the urban environment, it is recommended to use OpenStreetMap and [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) to get datasetes. Transport graphs needed for some methods are an exception. We provide the code for building a walk graph, a car travelling graph and a public transport graph separately as well as an intermodal graph (that includes walk routes, road infrastructure for car travelling and public transport routes) in the file [get_graphs.py](https://github.com/iduprojects/CityGeoTools/tree/metrics-refactor/data_collecting).
+We leave the responsibility for collecting and preparing data to the user. In the absence of reliable sources of information about the urban environment, it is recommended to use OpenStreetMap and [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) to get datasetes. Transport graphs needed for some methods are an exception. We provide the code for building a walk graph, a car travelling graph and a public transport graph separately as well as an intermodal graph (that includes walk routes, driveways and public transport routes) in the file [get_graphs.py](https://github.com/iduprojects/CityGeoTools/tree/metrics-refactor/data_collecting).
 
  To use implemented methods, the collected datasets **MUST** match specifications presented in the folder  [data_specification](https://github.com/iduprojects/CityGeoTools/tree/metrics-refactor/data_specification) regardless of the selected mode (general or user mode).
   
  ## Data imputation
-The biggest problem in data collection is the incompleteness of information about the urban environment  — the datasets often contain missing values. Before using the presented methods, it is necessary to deal with the missing values to obtain reliable results. Instead of deletion or filling the missing data with any point statistics, we suggest using our data imputer based on geospatial component of urban data. The data imputation algorithm and information about the accuracy of the imputed data are presented in the [paper](https://link.springer.com/chapter/10.1007/978-3-031-08757-8_21).
+The biggest problem in data preparation is the incompleteness of information about the urban environment  — the datasets often contain missing values. Before using the presented methods, it is necessary to deal with the missing values to obtain reliable results. Instead of deletion or filling the missing data with any point statistics, we suggest using our data imputer based on geospatial component of urban data. The data imputation algorithm and information about the accuracy of the imputed data are presented in the [paper](https://link.springer.com/chapter/10.1007/978-3-031-08757-8_21).
   
 The figure below shows comparison of the accuracy of the imputed values obtained with the developed method (green line), a method from scikit-learn package (black line) and mean imputation (gray line) in building features such as number of storeys and population.  
 ![Image](https://github.com/iduprojects/CityGeoTools/blob/metrics-refactor/img/imputer.jpg?raw=true)  
   
-Imputation options are set in three configuration files (more information about customizing options in the [examples]()).
+Imputation options are set in three configuration files (more information about customizing options in the [examples](https://github.com/iduprojects/CityGeoTools/tree/metrics-refactor/notebook_examples)).
 + *config_imputation.json* contains general options (such as number of iterations over dataset features, number of imputations, initial imputation strategy and neighbors search parameters). 
 + *config_learning.json* sets a pipeline of data preprocessing and a grid of hyperparameters for certain machine learning methods that are going to be optimized inside the HalvingGridSearch algorithm.
 + *config_prediction.json* contains a path to earlier fitted models that can be used to predict missing values.
@@ -86,12 +86,33 @@ params = {
 response = requests.get('http://localhost:5000/api/v2/visibility_analysis/visibility_analysis', params=params)
 ```
 ### Docker
-The most hands-off way to start working with City GeoTools in general mode is using docker. Put environment variables POSTGRES and MONGO into .env file and run the commands:
+The most hands-off way to start working with CityGeoTools in general mode is using docker. Put environment variables POSTGRES and MONGO into .env file and run the commands:
 ```shell
 docker-compose build
 docker-compose up
 ```
-  
+
 ## User mode  
   
-  
+User mode is useful in case you are not interested in a full-scale solution and want to use only the certain methods for your city. To make this process simpler and faster:  
+1. manually declare own City Information Model;  
+2. load the data that is required by specification for the certain method;  
+3. check if loaded data matches specification;  
+4. call the method and get the result as a geojson file.
+```python
+from metrics.data import CityInformationModel as BaseModel
+from metrics.calculations import CityMetricsMethods as CityMetrics
+
+city_model = BaseModel.CityInformationModel(city_name="Saint-Petersburg", city_crs=32636, cwd="./CityGeoTools")
+city_model.update_layer("MobilityGraph", "./data/graph.geojson")
+
+if city_model.methods.if_method_available("accessibility_isochrones"):
+	isochrone_calculator = CityMetrics.AccessibilityIsochrones(city_model)
+	isochrone = isochrone_calculator.get_accessibility_isochrone(
+    		travel_type="public_transport", 
+    		x_from=349946.36, y_from=6647996.95, 
+    		weight_type="time_min",
+    		weight_value=15
+    	)
+```
+See detailed information about declaring CityInformationModel and methods call in [examples](https://github.com/iduprojects/CityGeoTools/tree/metrics-refactor/notebook_examples).

@@ -17,14 +17,3 @@ cities_crs = {"Saint_Petersburg": 32636,
 
 cities_model = {name: CityInformationModel(name, cities_crs[name], cities_db_id[name], mode="general_mode") 
                 for name in cities_name}
-
-cities_metrics = {"Saint_Petersburg": ["connectivity_calculations", "pedastrian_walk_traffics",
-                                       "mobility_analysis", "Visibility_analysis", "voronoi",
-                                       "instagram_concentration", "house_location",
-                                       "blocks_clusterization", "services_clusterization", "diversity"
-                                       "house_selection", "service_location", "spacematrix", "provision"],
-
-                  "Krasnodar": ["mobility_analysis", "Visibility_analysis", "voronoi",
-                                "blocks_clusterization", "services_clusterization"],
-                  "Sevastopol": ["mobility_analysis", "Visibility_analysis", "voronoi",
-                                 "blocks_clusterization"]}

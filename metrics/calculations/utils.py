@@ -19,9 +19,8 @@ def geojson_projection_management(geojson, set_crs, to_crs):
     gdf = gdf.set_crs(set_crs).to_crs(to_crs)
     return json.loads(gdf.to_json())
 
-def nk_routes_between_two_points(G_nk, attrs, p1, p2, exact_geometry=False):
+def nk_routes_between_two_points(G_nk, nodes_data, p1, p2, exact_geometry=False):
     
-    nodes_data = pd.DataFrame(attrs.values(), index=attrs.keys())
     distance, p_ = spatial.cKDTree(nodes_data).query([p1, p2])
     p1_ = nodes_data.iloc[p_[0]].name
     p2_ = nodes_data.iloc[p_[1]].name

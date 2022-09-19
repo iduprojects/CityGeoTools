@@ -1,19 +1,28 @@
 import shapely
 import networkit as nk
+import pandas as pd
+import geopandas as gpd
 
-
-def load_graph_geometry(graph, node=True, edge=False):
+def load_graph_geometry(G_nx, node=True, edge=False):
 
     if edge:
-        for u, v, data in graph.edges(data=True):
+        for u, v, data in G_nx.edges(data=True):
             data["geometry"] = shapely.wkt.loads(data["geometry"])
     if node:
-        for u, data in graph.nodes(data=True):
+        for u, data in G_nx.nodes(data=True):
             data["geometry"] = shapely.geometry.Point([data["x"], data["y"]])
 
-    return graph
+    return G_nx
 
-def get_nx2_nk_idmap(G_nx):
+def get_subgraph(G_nx, attr, value, by="edge"):
+
+    if by == "edge":
+        sub_G_nx = G_nx.edge_subgraph(
+            [(u, v, k) for u, v, k, d in G_nx.edges(data=True, keys=True) if d[attr] in value]
+                )
+    return sub_G_nx
+
+def get_nx2nk_idmap(G_nx):
     idmap = dict((id, u) for (id, u) in zip(G_nx.nodes(), range(G_nx.number_of_nodes())))
     return idmap
 
@@ -22,12 +31,12 @@ def get_nk_attrs(G_nx):
         (u, {"x": d[-1]["x"], "y": d[-1]["y"]}) 
         for (d, u) in zip(G_nx.nodes(data=True), range(G_nx.number_of_nodes()))
         )
-    return attrs
+    return pd.DataFrame(attrs.values(), index=attrs.keys())
 
 def convert_nx2nk(G_nx, idmap=None, weight=None):
 
     if not idmap:
-        idmap = get_nx2_nk_idmap(G_nx)
+        idmap = get_nx2nk_idmap(G_nx)
     n = max(idmap.values()) + 1
     edges = list(G_nx.edges())
 

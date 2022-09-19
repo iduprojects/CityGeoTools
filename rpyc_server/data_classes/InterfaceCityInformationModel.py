@@ -29,8 +29,8 @@ class DataQueryInterface(QueryInterface):
 
         # Buildings
         buildings_columns = ["building_id as id", "building_area as basement_area", "is_living", "living_area", 
-                            "population_balanced as population", "storeys_count", "administrative_unit_id", 
-                            "municipality_id", "block_id", "geometry"]
+                            "population_balanced as population", "storeys_count", "functional_object_id", "address",
+                             "administrative_unit_id", "municipality_id", "block_id", "geometry"]
 
         self.Buildings = self.get_buildings(buildings_columns, place_slice).to_crs(self.city_crs)
         self.Buildings = self.Buildings[
@@ -46,7 +46,7 @@ class DataQueryInterface(QueryInterface):
         # Services
         service_columns = ["building_id", "functional_object_id as id", "city_service_type", "center",
                             "city_service_type_id", "city_service_type_code as service_code", "service_name",
-                            "block_id", "administrative_unit_id", "municipality_id"]
+                            "address", "capacity", "block_id", "administrative_unit_id", "municipality_id"]
                             
         self.Services = self.get_services(service_columns, add_normative=True, place_slice=place_slice)
         self.Services[["x", "y"]] = self.Services.geometry.apply(

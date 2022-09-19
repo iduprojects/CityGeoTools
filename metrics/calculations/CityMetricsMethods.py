@@ -1,4 +1,3 @@
-from multiprocessing.sharedctypes import Value
 import geopandas as gpd
 import shapely
 import pandas as pd
@@ -10,6 +9,7 @@ import io
 import pca
 import networkx as nx
 import networkit as nk
+import pandas.core.indexes as pd_index
 
 from jsonschema.exceptions import ValidationError
 from .utils import nk_routes_between_two_points
@@ -18,6 +18,8 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from matplotlib import pyplot as plt
 from scipy import spatial
+from .errors import TerritorialSelectError, SelectedValueError, ImplementationError
+from itertools import product
 
 from app.schemas import FeatureCollectionWithCRS
 
@@ -70,7 +72,7 @@ class TrafficCalculator(BaseMethod):
         selected_buildings = self.get_custom_polygon_select(request_area_geojson, self.city_crs, living_buildings)[0]
 
         if len(selected_buildings) == 0:
-            return None
+            raise TerritorialSelectError("living buildings")
         
         stops = self.stops.set_index("id")
         selected_buildings['nearest_stop_id'] = selected_buildings.apply(
@@ -230,17 +232,17 @@ class BlocksClusterization(BaseMethod):
         super().validation("blocks_clusterization")
         self.services = self.city_model.Services.copy()
         self.blocks = self.city_model.Blocks.copy()
-    
+
     def clusterize(self, service_types):
+
+        if sum(self.services["service_code"].isin(service_types)) == 0:
+            raise SelectedValueError("services", service_types, "service_code")
 
         service_in_blocks = self.services.groupby(["block_id", "service_code"])["id"].count().unstack(fill_value=0)
         without_services = self.blocks["id"][~self.blocks["id"].isin(service_in_blocks.index)].values
         without_services = pd.DataFrame(columns=service_in_blocks.columns, index=without_services).fillna(0)
         service_in_blocks = pd.concat([without_services, service_in_blocks])
-
-        service_in_blocks = service_in_blocks[service_types]
         clusterization = linkage(service_in_blocks, method="ward")
-
         return clusterization, service_in_blocks
 
     @staticmethod
@@ -330,12 +332,14 @@ class ServicesClusterization(BaseMethod):
                             condition="distance", condition_value=4000, n_std = 2):
 
         services_select = self.services[self.services["service_code"].isin(service_types)]
+
         if area_type and area_id:
             services_select = self.get_territorial_select(area_type, area_id, services_select)[0]
         elif geojson:
             services_select = self.get_custom_polygon_select(geojson, self.city_crs, services_select)[0]
+
         if len(services_select) <= 1:
-            return None
+            raise TerritorialSelectError("services")
 
         services_select = self.get_service_cluster(services_select, condition, condition_value)
 
@@ -403,9 +407,13 @@ class Spacematrix(BaseMethod):
         buildings.loc[bad_living_area, "living_area"] = None
 
         living_grouper = buildings.groupby(["is_living"])
-        buildings["living_area"] = living_grouper.apply(
+        living_area = living_grouper.apply(
             lambda x: x.living_area.fillna(x.building_area * 0.8) if x.name else x.living_area.fillna(0)
-            ).droplevel(0).round(2)
+            )
+        if type(living_area.index) == pd_index.multi.MultiIndex:
+             buildings["living_area"] = living_area.droplevel(0).round(2)
+        else:
+            buildings["living_area"] = living_area.values[0].round(2)
 
         blocks_area_nans = blocks[blocks["area"].isna()].index
         blocks.loc[blocks_area_nans, "area"] = blocks["geometry"].loc[blocks_area_nans].area
@@ -462,11 +470,14 @@ class Spacematrix(BaseMethod):
         blocks = blocks.join(named_clusters.rename("spacematrix_morphotype"), on="spacematrix_cluster")
 
         if area_type and area_id:
-            blocks = self.get_territorial_select(area_type, area_id, blocks)[0]
+            if area_type == "block": 
+                blocks = blocks.loc[[area_id]]
+            else:
+                blocks = self.get_territorial_select(area_type, area_id, blocks)[0]
         elif geojson:
             blocks = self.get_custom_polygon_select(geojson, self.city_crs, blocks)[0]
 
-        return json.loads(blocks.to_crs(4326).to_json())
+        return json.loads(blocks.reset_index().to_crs(4326).to_json())
 
 # ######################################### Accessibility isochrones #################################################
 class AccessibilityIsochrones(BaseMethod):
@@ -522,11 +533,11 @@ class AccessibilityIsochrones(BaseMethod):
                 {"travel_type": [self.travel_names[travel_type]], "weight_type": [weight_type], 
                 "weight_value": [weight_value], "geometry": [isochrone_geom]}).set_crs(self.city_crs).to_crs(4326)
  
-        routes, stops = self.get_routes(nodes_data, travel_type) if routes else (None, None)
+        routes, stops = self.get_routes(nodes_data, travel_type, weight_type) if routes else (None, None)
         return {"isochrone": json.loads(isochrone.to_json()), "routes": routes, "stops": stops}
 
 
-    def get_routes(self, selected_nodes, travel_type):
+    def get_routes(self, selected_nodes, travel_type, weight_type):
 
         nodes = selected_nodes[["index", "x", "y", "stop", "desc", "geometry"]]
         subgraph = self.mobility_graph.subgraph(selected_nodes["index"].tolist())
@@ -534,18 +545,22 @@ class AccessibilityIsochrones(BaseMethod):
             e[-1] for e in subgraph.edges(data=True, keys=True)
             ]).reset_index(drop=True)
 
-        if travel_type == "public_transport":
+        if travel_type == "public_transport" and weight_type == "time_min":
             stops = nodes[nodes["stop"] == "True"]
-            stops = stops[["index", "x", "y", "geometry", "desc"]]
-            stop_types = stops["desc"].apply(
-                lambda x: pd.Series({t: True for t in x.split(", ")}
-                ), type).fillna(False)
-            stops = stops.join(stop_types)
+
+            if len(stops) > 0:
+                stops = stops[["index", "x", "y", "geometry", "desc"]]
+                stop_types = stops["desc"].apply(
+                    lambda x: pd.Series({t: True for t in x.split(", ")}
+                    ), type).fillna(False)
+                stops = stops.join(stop_types)
 
             routes = routes[routes["type"].isin(self.edge_types[travel_type][:-1])]
         
         else:
-            raise ValidationError("Not implementet yet.")
+            raise ImplementationError(
+                "Route output implemented only with params travel_type='public_transport' and weight_type='time_min'"
+                )
         
         routes["geometry"] = routes["geometry"].apply(lambda x: shapely.wkt.loads(x))
         routes = routes[["type", "time_min", "length_meter", "geometry"]]
@@ -562,11 +577,15 @@ class Diversity(BaseMethod):
         self.mobility_graph_length = self.city_model.graph_nk_length
         self.mobility_graph_time = self.city_model.graph_nk_time
         self.graph_attrs = self.city_model.nk_attrs.copy()
-        self.buildings = self.city_model.Buildings.copy()
         self.services = self.city_model.Services.copy()
         self.service_types = self.city_model.ServiceTypes.copy()
         self.municipalities = self.city_model.Municipalities.copy()
         self.blocks = self.city_model.Blocks.copy()
+
+        self.buildings = self.city_model.Buildings.copy()
+        self.living_buildings = self.buildings[self.buildings['is_living'] == True].reset_index(drop=True)
+        if len(self.living_buildings) == 0:
+            raise TerritorialSelectError("living buildings")
 
     def define_service_normative(self, service_type):
 
@@ -589,9 +608,8 @@ class Diversity(BaseMethod):
         
     def get_distance_matrix(self, houses, services, graph, limit_value):
 
-        nodes_data = pd.DataFrame(self.graph_attrs.values(), index=self.graph_attrs.keys())
-        houses_distance, houses_nodes = spatial.cKDTree(nodes_data).query([houses[["x", "y"]]])
-        services_distance, services_nodes = spatial.cKDTree(nodes_data).query([services[["x", "y"]]])
+        houses_distance, houses_nodes = spatial.cKDTree(self.graph_attrs).query([houses[["x", "y"]]])
+        services_distance, services_nodes = spatial.cKDTree(self.graph_attrs).query([services[["x", "y"]]])
 
         if len(services_nodes[0]) < len(houses_nodes[0]):
             source, target = services_nodes, houses_nodes
@@ -611,7 +629,7 @@ class Diversity(BaseMethod):
 
     @staticmethod
     def calculate_diversity(houses, dist_matrix):
-
+        
         count_services = dist_matrix.sum(axis=0)
         diversity_estim = {1:0.2, 2:0.4, 3:0.6, 4:0.8, 5:1}
         for count, estim in diversity_estim.items():
@@ -624,7 +642,9 @@ class Diversity(BaseMethod):
     def get_diversity(self, service_type):
 
         services = self.services[self.services["service_code"] == service_type]
-        houses = self.buildings[self.buildings['is_living'] == True].reset_index(drop=True)
+        if len(services) == 0:
+            raise SelectedValueError("services", service_type, "service_code")
+        houses = self.living_buildings
 
         travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
         dist_matrix = self.get_distance_matrix(houses, services, graph, limit_value)
@@ -643,25 +663,34 @@ class Diversity(BaseMethod):
     def get_houses(self, block_id, service_type):
 
         services = self.services[self.services["service_code"] == service_type]
-        houses = self.buildings[self.buildings['is_living'] == True]
-        houses_in_block = self.buildings[self.buildings['block_id'] == block_id].reset_index(drop=True)
+        if len(services) == 0:
+            raise SelectedValueError("services", service_type, "service_code")
+
+        houses_in_block = self.living_buildings[self.living_buildings['block_id'] == block_id].reset_index(drop=True)
+        if len(houses_in_block) == 0:
+            raise TerritorialSelectError("living buildings")
 
         travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
         dist_matrix = self.get_distance_matrix(houses_in_block, services, graph, limit_value)
-        houses_in_block = self.calculate_diversity(houses_in_block, np.transpose(dist_matrix))
+        dist_matrix = np.transpose(dist_matrix) if len(houses_in_block) <= len(services) else dist_matrix
+        houses_in_block = self.calculate_diversity(houses_in_block, dist_matrix)
 
         return json.loads(houses_in_block.to_crs(4326).to_json())
 
     def get_info(self, house_id, service_type):
 
         services = self.services[self.services["service_code"] == service_type]
-        house = self.buildings[self.buildings['id'] == house_id].reset_index(drop=True)
-        house_x, house_y = house[["x", "y"]].values[0]
+        if len(services) == 0:
+            raise SelectedValueError("services", service_type, "service_code")
 
+        house = self.living_buildings[self.living_buildings['id'] == house_id].reset_index(drop=True)
+        if len(house) == 0:
+            raise SelectedValueError("living building", house_id, "id")
+            
+        house_x, house_y = house[["x", "y"]].values[0]
         travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
         dist_matrix = self.get_distance_matrix(house, services, graph, limit_value)
         house = self.calculate_diversity(house, np.vstack(dist_matrix[0]))
-
         selected_services = services[dist_matrix[0] == 1]
         isochrone = AccessibilityIsochrones(self.city_model).get_accessibility_isochrone(
             travel_type, house_x, house_y, limit_value, weigth
@@ -671,7 +700,68 @@ class Diversity(BaseMethod):
             "services": json.loads(selected_services.to_crs(4326).to_json()),
             "isochrone": isochrone["isochrone"]
         }
+        
 
+# ######################################### Collocation Matrix #################################################
 
+class CollocationMatrix(BaseMethod):
+    def _init_(self, city_model):
+        BaseMethod.__init__(self, city_model)
+        super().validation("services_clusterization")
+        self.services = self.city_model.Services.copy()
 
-                        
+    def get_collocation_matrix(self, services):
+        services = services.dropna().reset_index(drop=True)[['city_service_type_code','block_id']].sort_values('city_service_type_code')
+        services['count'] = 0
+        
+        collocation_matrix = self.get_numerator(services) / self.get_denominator(services)
+
+        return json.loads(collocation_matrix.to_json())
+
+    def get_numerator(self, services):
+        services_numerator = services.pivot_table(index='block_id', columns='city_service_type_code', values='count')
+
+        pairs_services_numerator = [(a, b) for idx, a in enumerate(services_numerator) for b in services_numerator[idx + 1:]]
+        pairs_services_numerator = dict.fromkeys(pairs_services_numerator, 0)
+
+        res_numerator = {}
+        n_col = len(services_numerator.columns)
+        for i in range(n_col):
+            for j in range(i + 1, n_col):
+                col1 = services_numerator.columns[i]
+                col2 = services_numerator.columns[j]
+                res_numerator[col1, col2] = sum(services_numerator[col1] == services_numerator[col2])
+                res_numerator[col2, col1] = sum(services_numerator[col2] == services_numerator[col1])
+        pairs_services_numerator.update(res_numerator)
+
+        numerator = pd.Series(pairs_services_numerator).reset_index(drop=False).set_index(['level_0','level_1']).rename(columns={0:'count'})
+        numerator = numerator.pivot_table(index='level_0', columns='level_1', values='count')
+
+        return numerator
+
+    def get_denominator(self, services):
+        count_type_block = services.groupby('city_service_type_code')['block_id'].nunique().reset_index(drop=False)
+
+        pairs_services_denominator = []
+        for i in product(count_type_block['city_service_type_code'], repeat=2):
+            pairs_services_denominator.append(i)
+
+        types_blocks_sum = []
+        for i,j in pairs_services_denominator:
+            if [i]==[j]:
+                    types_blocks_sum.append(0)
+            else:
+                    num1 = count_type_block.loc[count_type_block['city_service_type_code'] == i, 'block_id'].iloc[0]
+                    num2 = count_type_block.loc[count_type_block['city_service_type_code'] == j, 'block_id'].iloc[0]
+                    types_blocks_sum.append(num1+num2)
+
+        res_denominator = {}
+        for row in range(len(pairs_services_denominator)):
+            res_denominator[pairs_services_denominator[row]] = types_blocks_sum[row]
+
+        sum_res_denominator = pd.Series(res_denominator).reset_index(drop=False).set_index(['level_0','level_1']).rename(columns={0:'count'})
+        sum_res_denominator = sum_res_denominator.pivot_table(index='level_0', columns='level_1', values='count')
+
+        denominator = sum_res_denominator - self.get_numerator(services)
+
+        return denominator

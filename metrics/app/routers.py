@@ -8,7 +8,7 @@ from geojson_pydantic import FeatureCollection
 from app import enums, schemas
 from calculations.utils import request_points_project
 from calculations.CityMetricsMethods import *
-from data.cities_dictionary import cities_model
+from data.cities_dictionary import cities_model, cities_name
 
 router = APIRouter()
 
@@ -33,6 +33,9 @@ class Tags(str, enums.AutoName):
 async def read_root():
     return {"Hello": "World"}
 
+@router.get("/cities")
+async def get_cities_names():
+    return cities_name
 
 @router.post(
     '/pedastrian_walk_traffics/pedastrian_walk_traffics_calculation',
@@ -122,8 +125,9 @@ async def get_services_clusterization(query_params: schemas.ServicesClusterizati
 )
 async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
     city_model = cities_model[query_params.city]
+    geojson = query_params.geojson.dict() if query_params.geojson else None
     return Spacematrix(city_model).get_spacematrix_morph_types(
-        query_params.clusters_number, query_params.area_type, query_params.area_id, query_params.geojson
+        query_params.clusters_number, query_params.area_type, query_params.area_id, geojson
         )
 
 
@@ -162,16 +166,26 @@ async def get_diversity(query_params: schemas.DiversityQueryParams = Depends()):
 
 @router.get("/diversity/get_buildings", response_model=FeatureCollection,
             tags=[Tags.diversity])
-async def get_diversity(query_params: schemas.DiversityGetBuildingsQueryParams = Depends()):
+async def get_buildings_diversity(query_params: schemas.DiversityGetBuildingsQueryParams = Depends()):
     city_model = cities_model[query_params.city]
     result = Diversity(city_model).get_houses(query_params.block_id, query_params.service_type)
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The objects (houses and services) with given parametrs are absent"
+        )
     return result
 
 @router.get("/diversity/get_info", response_model=schemas.DiversityGetInfoOut,
             tags=[Tags.diversity])
-async def get_diversity(query_params: schemas.DiversityGetInfoQueryParams = Depends()):
+async def get_diversity_info(query_params: schemas.DiversityGetInfoQueryParams = Depends()):
     city_model = cities_model[query_params.city]
     result = Diversity(city_model).get_info(query_params.house_id, query_params.service_type)
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The objects (houses and services) with given parametrs are absent"
+        )
     return result
 
 

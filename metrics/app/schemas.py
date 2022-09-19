@@ -87,6 +87,7 @@ class MobilityAnalysisIsochronesQueryParams:
                     'weight_value': 15,
                     'x_from': 59.8059,
                     'y_from': 30.4267,
+                    'routes': True
                 }
             ]
         }
