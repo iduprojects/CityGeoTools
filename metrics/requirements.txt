@@ -20,3 +20,5 @@ scipy==1.5.4
 Shapely==1.7.1
 SQLAlchemy==1.4.25
 tqdm==4.61.2
+pulp==2.6.0
+rtree==0.9.7

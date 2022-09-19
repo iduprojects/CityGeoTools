@@ -867,8 +867,6 @@ class City_Provisions(BaseMethod):
                                          Matrix, 
                                          self.normative_distance, 
                                          Provisions, )
-
-
         return Matrix, Provisions        
 
     def restore_user_provisions(self, user_provisions):
