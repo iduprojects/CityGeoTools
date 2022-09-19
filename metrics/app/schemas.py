@@ -277,39 +277,19 @@ class DiversityGetBuildingsQueryParams:
         self.service_type = service_type
 
 
-class ProvisionInBase(BaseModel):
-    service_type: Union[list, str]  # todo only list or Union[list, str]?
-    provision_type: enums.ProvisionTypeEnum
-
-    is_weighted: bool = False  # todo is_weighted and service_coef inheritance or Mixin
-    service_coef: Optional[
-        Dict[str, int]]  # todo check sum coef and all service in service_type and only if is_weighted
-
-
-class ProvisionGetProvisionIn(ProvisionInBase):
-    area: Union[dict[str, int], FeatureCollection]
-    city: enums.CitiesEnum = enums.CitiesEnum.SAINT_PETERSBURG
-    without_services_options: bool = False
-    load_option: enums.ProvisionLoadOptionEnum = enums.ProvisionLoadOptionEnum.ALL_SERVICES
-    provision_option: enums.ProvisionOptionEnum = enums.ProvisionOptionEnum.ALL_HOUSES
+class ProvisionGetProvisionIn(BaseModel):
+    city: str
+    service_type: str
+    valuation_type: str
+    year: int
 
     class Config:
         schema_extra = {
             "example": {
-                "service_type": [
-                    "flower_stores",
-                    "jewelry_stores"
-                ],
-                "area": {
-                    "mo": 67
-                },
-                "provision_type": "normative",
-                "is_weighted": "True",
-                "service_coef": {
-                    "flower_stores": 0.6,
-                    "jewelry_stores": 0.4
-                },
-                "provision_option": 0
+                "city": "Saint_Petersburg",
+                "service_type": "kindergartens",
+                "valuation_type": "normative",
+                "year": 2022,
             }
         }
 
@@ -317,13 +297,14 @@ class ProvisionGetProvisionIn(ProvisionInBase):
 class ProvisionOutBase(BaseModel):
     houses: FeatureCollection
     services: FeatureCollection
+    provisions: list
 
 
 class ProvisionGetProvisionOut(ProvisionOutBase):
     ...
 
 
-class ProvisionGetInfoIn(ProvisionInBase):
+class ProvisionGetInfoIn(BaseModel):
     object_type: enums.ProvisionGetInfoObjectTypeEnum
     functional_object_id: int
 
@@ -395,5 +376,3 @@ class WellbeingGetWellbeingInfoIn(WellbeingInBase):
 
 class WellbeingGetWellbeingInfoOut(ProvisionOutBase):
     isochrone: Optional[FeatureCollection]
-
-  
