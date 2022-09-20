@@ -180,7 +180,7 @@ class TestServicesClusterization:
         resp = client.post(url, json=data)
         expected_status_codes = [
             200,  # OK
-            400,  # Not enough objects to cluster
+            400,  # There is no services whithin a given territory
         ]
         assert resp.status_code in expected_status_codes
 
@@ -200,8 +200,8 @@ class TestServicesClusterization:
         resp = client.post(url, json=data)
         assert resp.status_code == 400
 
-        error_msg = "Not enough objects to cluster"
-        assert error_msg in resp.text
+        error_detail = {"detail": "There is no services whithin a given territory."}
+        assert error_detail == resp.json()
 
 
 class TestSpacematrix:
