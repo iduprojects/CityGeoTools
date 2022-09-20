@@ -207,7 +207,6 @@ class TestServicesClusterization:
 class TestSpacematrix:
     URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/spacematrix"
 
-    @pytest.mark.xfail(reason="Тест падает только для Севастополя")
     @pytest.mark.parametrize("city", enums.CitiesEnum)
     def test_get_spacematrix_indices(self, client, city):
         """Запрос с обязательными полями и значениями по умолчанию. """
@@ -222,7 +221,7 @@ class TestSpacematrix:
     @pytest.mark.parametrize("city, geojson", [
         (enums.CitiesEnum.SAINT_PETERSBURG, CitiesPolygonForTrafficsCalculation.SAINT_PETERSBURG_INSIDE_GEOJSON,),
         (enums.CitiesEnum.KRASNODAR, CitiesPolygonForTrafficsCalculation.KRASNODAR_INSIDE_GEOJSON, ),
-        pytest.param(enums.CitiesEnum.SEVASTOPOL, CitiesPolygonForTrafficsCalculation.SEVASTOPOL_INSIDE_GEOJSON, marks=pytest.mark.xfail(reason="Тест падает только для Севастополя")),
+        pytest.param(enums.CitiesEnum.SEVASTOPOL, CitiesPolygonForTrafficsCalculation.SEVASTOPOL_INSIDE_GEOJSON),
     ])
     def test_get_spacematrix_indices_geojson(self, client, city, geojson):
         """ Запрос со передачей geojson геометрии. """
@@ -235,7 +234,6 @@ class TestSpacematrix:
         resp = client.post(url, json=data)
         assert resp.status_code == 200
 
-    @pytest.mark.xfail(reason="Не работает Севастополь и кварталы")
     @pytest.mark.parametrize("city, area_type, area_id", [*ADMINISTRATIVE_UNITS, *MUNICIPALITIES, *BLOCKS])
     def test_get_spacematrix_indices_with_area_type_and_id(self, client, city, area_type, area_id):
         url = self.URL + "/get_indices"
