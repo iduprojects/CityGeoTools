@@ -52,7 +52,7 @@ class BaseMethod():
 
     # TODO: add method for slicing object's dataframe with specifed parameter
 
-# ########################################  Trafiics calculation  ####################################################
+#########################################  Trafiics calculation  ####################################################
 class TrafficCalculator(BaseMethod):
 
     def __init__(self, city_model):
@@ -768,9 +768,13 @@ class CollocationMatrix(BaseMethod):
 # ######################################### New Provisions #################################################
 class City_Provisions(BaseMethod): 
 
-    def __init__(self, city_model, service_type, valuation_type, year, **user_provision_data, ):
+    def __init__(self, city_model : any, service_type : str, valuation_type : str, year: int, **user_provision_data:dict, ): 
+        '''
+        >>> City_Provisions(city_model,service_type = "kindergartens", valuation_type = "normative", year = 2022).get_provisons()
+        >>>
+        >>>
+        '''
         BaseMethod.__init__(self, city_model)
-
         self.engine = city_model.engine
         self.service_type = service_type
         self.valuation_type = valuation_type
@@ -792,9 +796,9 @@ class City_Provisions(BaseMethod):
         self.nx_graph =  city_model.MobilityGraph
 
         self.demands = pd.read_sql(f'''SELECT functional_object_id, {self.service_type}_service_demand_value_{self.valuation_type} 
-                            FROM social_stats.buildings_load_future
-                            WHERE year = {self.year}
-                            ''', con = self.engine)
+                                       FROM social_stats.buildings_load_future
+                                       WHERE year = {self.year}
+                                       ''', con = self.engine)
         if user_provision_data:
             #Bad interface , raise error must be 
             if user_provision_data['user_changes_buildings']:
@@ -846,11 +850,15 @@ class City_Provisions(BaseMethod):
                 "services": eval(self.services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
                 "provisions": self.provision_matrix_transform(Provisions)}
 
-    def calculate_provisions(self, buildings_, services_):
+    def _calculate_provisions(self, buildings_, services_):
         df = pd.DataFrame.from_dict(dict(self.nx_graph.nodes(data=True)), orient='index')
         self.graph_gdf = gpd.GeoDataFrame(df, geometry = df['geometry'], crs = self.city_crs)
-        from_houses = self.graph_gdf['geometry'].sindex.nearest(buildings_['geometry'], return_distance = True, return_all = False)
-        to_services = self.graph_gdf['geometry'].sindex.nearest(services_['geometry'], return_distance = True, return_all = False)
+        from_houses = self.graph_gdf['geometry'].sindex.nearest(buildings_['geometry'], 
+                                                                return_distance = True, 
+                                                                return_all = False) 
+        to_services = self.graph_gdf['geometry'].sindex.nearest(services_['geometry'], 
+                                                                return_distance = True, 
+                                                                return_all = False)
 
         Matrix = pd.DataFrame(0, index = to_services[0][1], 
                                  columns = from_houses[0][1])
@@ -869,7 +877,7 @@ class City_Provisions(BaseMethod):
                                          Provisions, )
         return Matrix, Provisions        
 
-    def restore_user_provisions(self, user_provisions):
+    def _restore_user_provisions(self, user_provisions):
         restored_user_provisions = pd.DataFrame(user_provisions)
         restored_user_provisions = pd.DataFrame(user_provisions, columns = ['service_id','house_id','demand']).groupby(['service_id','house_id']).first().unstack()
         restored_user_provisions = restored_user_provisions.droplevel(level = 0, axis = 1)
@@ -879,7 +887,7 @@ class City_Provisions(BaseMethod):
 
         return restored_user_provisions
 
-    def provision_matrix_transform(self, Provisions):
+    def _provision_matrix_transform(self, Provisions):
         provisions_transformed = []
         for service_id in Provisions.index:
             loc = Provisions.loc[service_id]
@@ -911,7 +919,7 @@ class City_Provisions(BaseMethod):
                 "services": eval(new_services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
                 "provisions": self.provision_matrix_transform(new_Provisions)}
 
-    def get_provisions_delta(self, new_buildings, new_services):
+    def _get_provisions_delta(self, new_buildings, new_services):
 
         #bad performance 
         #bad code
@@ -926,7 +934,7 @@ class City_Provisions(BaseMethod):
         return new_buildings, new_services
 
     @staticmethod
-    def additional_options(buildings, services, Matrix, Provisions, normative_distance): 
+    def _additional_options(buildings, services, Matrix, Provisions, normative_distance): 
         #clear matrix same size as buildings and services if user sent sth new
         cols_to_drop = list(set(set(Matrix.columns.values) - set(buildings.index.values)))
         rows_to_drop = list(set(set(Matrix.index.values) - set(services.index.values)))
@@ -959,19 +967,19 @@ class City_Provisions(BaseMethod):
 
         return buildings, services 
 
-    def get_nk_distances(self, nk_dists, loc):
+    def _get_nk_distances(self, nk_dists, loc):
         target_nodes = loc.index
         source_node = loc.name
         distances = [nk_dists.getDistance(source_node, node) for node in target_nodes]
 
         return pd.Series(data = distances, index = target_nodes)
     
-    def declare_varables(self, loc):
+    def _declare_varables(self, loc):
         index = loc.index
         name = loc.name
         return pd.Series(index = index, data = [pulp.LpVariable(name = f"route_{name}_{I}", lowBound=0, cat = "Integer") for I in index.astype(str)], name = name)
 
-    def provision_loop(self, houses_table, services_table, distance_matrix, selection_range, Provisions, ): 
+    def _provision_loop(self, houses_table, services_table, distance_matrix, selection_range, Provisions, ): 
         
         print('started')
         select = distance_matrix[distance_matrix.iloc[:] <= selection_range]
