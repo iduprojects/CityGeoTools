@@ -140,25 +140,22 @@ async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
     response_model=schemas.MobilityAnalysisIsochronesOut, tags=[Tags.mobility_analysis]
 )
 async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIsochronesQueryParams = Depends()):
-    if (
-            (query_params.travel_type != enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT) and
-            query_params.routes
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Getting routes isn't supported for walk and car isochrones."
-        )
-
     city_model = cities_model[query_params.city]
     request_points = [[query_params.x_from, query_params.y_from]]
     to_crs = cities_model[query_params.city].city_crs
     x_from, y_from = request_points_project(request_points, 4326, to_crs)[0]
-    result = AccessibilityIsochrones(city_model).get_accessibility_isochrone(
-        travel_type=query_params.travel_type, x_from=x_from, y_from=y_from,
-        weight_type=query_params.weight_type, weight_value=query_params.weight_value, routes=query_params.routes
-    )
+    try:
+        result = AccessibilityIsochrones(city_model).get_accessibility_isochrone(
+            travel_type=query_params.travel_type, x_from=x_from, y_from=y_from,
+            weight_type=query_params.weight_type, weight_value=query_params.weight_value, routes=query_params.routes
+        )
 
-    return result
+        return result
+    except errors.ImplementationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
 
 
 @router.get("/diversity/diversity", response_model=schemas.DiversityOut,
