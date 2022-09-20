@@ -11,7 +11,7 @@ MUNICIPALITIES = [
 ]
 
 BLOCKS = [
-    (enums.CitiesEnum.SAINT_PETERSBURG, enums.TerritorialEnum.BLOCK, 2703),
+    (enums.CitiesEnum.SAINT_PETERSBURG, enums.TerritorialEnum.BLOCK, 2800),
     (enums.CitiesEnum.KRASNODAR, enums.TerritorialEnum.BLOCK, 7034),
     (enums.CitiesEnum.SEVASTOPOL, enums.TerritorialEnum.BLOCK, 15020),
 ]
@@ -366,7 +366,7 @@ class TestDiversity:
 
     @pytest.mark.parametrize("service_type", [RANDOM_SERVICE_TYPE])
     @pytest.mark.parametrize("city, house_id", [
-        (enums.CitiesEnum.SAINT_PETERSBURG, 914),
+        (enums.CitiesEnum.SAINT_PETERSBURG, 915),
         (enums.CitiesEnum.KRASNODAR, 137701),
         (enums.CitiesEnum.SEVASTOPOL, 819244),
     ])
