@@ -43,6 +43,7 @@ class TestTrafficsCalculation:
         (enums.CitiesEnum.SEVASTOPOL, CitiesPolygonForTrafficsCalculation.SEVASTOPOL_OUTSIDE_GEOJSON),
     ])
     def test_400_error(self, client, city, geojson):
+        """Проверка территорий, в которые не попадают жилые дома."""
         url = self.URL + "/pedastrian_walk_traffics_calculation"
         resp = client.post(url, json={"city": city, "geojson": geojson})
 

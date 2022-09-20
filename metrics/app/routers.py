@@ -8,6 +8,7 @@ from geojson_pydantic import FeatureCollection
 from app import enums, schemas
 from calculations.utils import request_points_project
 from calculations.CityMetricsMethods import *
+from calculations import errors
 from data.cities_dictionary import cities_model, cities_name
 
 router = APIRouter()
@@ -43,13 +44,14 @@ async def get_cities_names():
 )
 def pedastrian_walk_traffics_calculation(query_params: schemas.PedastrianWalkTrafficsCalculationIn):
     city_model = cities_model[query_params.city]
-    result = TrafficCalculator(city_model).get_trafic_calculation(query_params.geojson.dict())
-    if not result:
+    try:
+        result = TrafficCalculator(city_model).get_trafic_calculation(query_params.geojson.dict())
+        return result
+    except errors.TerritorialSelectError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No living houses in the specified area"
         )
-    return result
 
 
 @router.get(
