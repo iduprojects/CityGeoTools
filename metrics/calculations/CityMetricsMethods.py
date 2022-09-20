@@ -820,7 +820,7 @@ class City_Provisions(BaseMethod):
             self.user_provisions  = pd.DataFrame(0, buildings =  self.buildings.index.values,
                                                     index =  self.services.index.values)
 
-            self.user_provisions = self.user_provisions + self.restore_user_provisions(user_provision_data['user_provisions'])
+            self.user_provisions = self.user_provisions + self._restore_user_provisions(user_provision_data['user_provisions'])
 
     def get_provisions(self, ):
         self.buildings = self.buildings.merge(self.demands, on = 'functional_object_id', how = 'right').dropna()
@@ -838,17 +838,17 @@ class City_Provisions(BaseMethod):
                                      FROM provisions.{self.city}_{self.service_type}_{self.valuation_type}_{self.year}_matrix
                                      ''', con = self.engine)
         except: 
-            Matrix, Provisions = self.calculate_provisions(buildings_ = self.buildings.copy(), 
+            Matrix, Provisions = self._calculate_provisions(buildings_ = self.buildings.copy(), 
                                                            services_ = self.services.copy())
 
-        self.buildings, self.services = self.additional_options(self.buildings, 
+        self.buildings, self.services = self._additional_options(self.buildings, 
                                                                 self.services,
                                                                 Matrix,
                                                                 Provisions,
                                                                 self.normative_distance)  
         return {"houses": eval(self.buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
                 "services": eval(self.services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
-                "provisions": self.provision_matrix_transform(Provisions)}
+                "provisions": self._provision_matrix_transform(Provisions)}
 
     def _calculate_provisions(self, buildings_, services_):
         df = pd.DataFrame.from_dict(dict(self.nx_graph.nodes(data=True)), orient='index')
@@ -865,12 +865,12 @@ class City_Provisions(BaseMethod):
         
         nk_dists = nk.distance.SPSP(G = self.nk_graph, sources = Matrix.index.values).run()
 
-        Matrix =  Matrix.apply(lambda x: self.get_nk_distances(nk_dists,
+        Matrix =  Matrix.apply(lambda x: self._get_nk_distances(nk_dists,
                                                                         x), axis =1)
         Matrix.index = services_.index
         Matrix.columns = buildings_.index
         Provisions = pd.DataFrame(0, index = Matrix.index, columns = Matrix.columns)
-        Provisions = self.provision_loop(buildings_, 
+        Provisions = self._provision_loop(buildings_, 
                                          services_, 
                                          Matrix, 
                                          self.normative_distance, 
@@ -899,25 +899,25 @@ class City_Provisions(BaseMethod):
 
     def recalculate_provisions(self, ):
 
-        new_Matrix, new_Provisions = self.calculate_provisions(self, new_buildings, new_services)
+        new_Matrix, new_Provisions = self._calculate_provisions(self, new_buildings, new_services)
 
-        new_buildings, new_services = self.additional_options(new_buildings,
+        new_buildings, new_services = self._additional_options(new_buildings,
                                                               new_services,
                                                               new_Matrix,
                                                               new_Provisions,
                                                               self.normative_distance)
 
-        self.buildings, self.services = self.additional_options(self.buildings, 
+        self.buildings, self.services = self._additional_options(self.buildings, 
                                                                 self.services,
                                                                 new_Matrix,
                                                                 self.user_provisions,
                                                                 self.normative_distance) 
 
-        new_buildings, new_services = self.get_provisions_delta(new_buildings, new_services, )
+        new_buildings, new_services = self._get_provisions_delta(new_buildings, new_services, )
 
         return {"houses": eval(new_buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
                 "services": eval(new_services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
-                "provisions": self.provision_matrix_transform(new_Provisions)}
+                "provisions": self._provision_matrix_transform(new_Provisions)}
 
     def _get_provisions_delta(self, new_buildings, new_services):
 
@@ -984,7 +984,7 @@ class City_Provisions(BaseMethod):
         print('started')
         select = distance_matrix[distance_matrix.iloc[:] <= selection_range]
         select = select.apply(lambda x: 1/(x+1), axis = 1)
-        variables = select.apply(lambda x: self.declare_varables(x.dropna()), axis = 1)
+        variables = select.apply(lambda x: self._declare_varables(x.dropna()), axis = 1)
         print('vars')
         variables = variables.join(pd.DataFrame(np.NaN, 
                                                 columns = list(set(select.columns) - set(select.columns)), 
@@ -1042,7 +1042,7 @@ class City_Provisions(BaseMethod):
         print(houses_table['demand_left'].sum(), services_table['capacity_left'].sum())
         selection_range += 2 * selection_range
         if len(distance_matrix.columns) > 0 and len(distance_matrix.index) > 0:
-            return self.provision_loop(houses_table, services_table, distance_matrix, selection_range, Provisions, )
+            return self._provision_loop(houses_table, services_table, distance_matrix, selection_range, Provisions, )
         else: 
             return Provisions
 
