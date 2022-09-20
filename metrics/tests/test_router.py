@@ -309,6 +309,34 @@ class TestMobilityAnalysisIsochrones:
         resp = client.get(url, params=params)
         assert resp.status_code == expected_code
 
+    @pytest.mark.parametrize("travel_type", [
+        enums.MobilityAnalysisIsochronesTravelTypeEnum.WALK,
+        enums.MobilityAnalysisIsochronesTravelTypeEnum.DRIVE,
+    ])
+    @pytest.mark.parametrize("weight_type, weight_value", [
+        (enums.MobilityAnalysisIsochronesWeightTypeEnum.TIME, 1),
+        (enums.MobilityAnalysisIsochronesWeightTypeEnum.METER, 100)
+    ])
+    @pytest.mark.parametrize("city, x_from, y_from", CITIES_FROM_POINTS)
+    def test_mobility_analysis_isochrones_is_not_support_routers(
+            self, client, city, x_from, y_from, weight_type, weight_value, travel_type
+    ):
+        """ Проверка ошибки при получении routers для изохрон """
+        params = dict(
+            city=city,
+            travel_type=travel_type,
+            weight_type=weight_type,
+            weight_value=weight_value,
+            x_from=x_from,
+            y_from=y_from,
+            routes=True,  # получить маршруты изохрон
+        )
+
+        url = self.URL
+
+        resp = client.get(url, params=params)
+        assert resp.status_code == 422
+
 
 class TestDiversity:
     URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/diversity"
