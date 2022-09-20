@@ -169,25 +169,28 @@ async def get_diversity(query_params: schemas.DiversityQueryParams = Depends()):
             tags=[Tags.diversity])
 async def get_buildings_diversity(query_params: schemas.DiversityGetBuildingsQueryParams = Depends()):
     city_model = cities_model[query_params.city]
-    result = Diversity(city_model).get_houses(query_params.block_id, query_params.service_type)
-    if not result:
+    try:
+        result = Diversity(city_model).get_houses(query_params.block_id, query_params.service_type)
+        return result
+    except (errors.TerritorialSelectError, errors.SelectedValueError) as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="The objects (houses and services) with given parametrs are absent"
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
         )
-    return result
+
 
 @router.get("/diversity/get_info", response_model=schemas.DiversityGetInfoOut,
             tags=[Tags.diversity])
 async def get_diversity_info(query_params: schemas.DiversityGetInfoQueryParams = Depends()):
     city_model = cities_model[query_params.city]
-    result = Diversity(city_model).get_info(query_params.house_id, query_params.service_type)
-    if not result:
+    try:
+        result = Diversity(city_model).get_info(query_params.house_id, query_params.service_type)
+        return result
+    except (errors.TerritorialSelectError, errors.SelectedValueError) as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="The objects (houses and services) with given parametrs are absent"
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
         )
-    return result
 
 
 # @router.post("/provision/get_provision", response_model=schemas.ProvisionGetProvisionOut,
