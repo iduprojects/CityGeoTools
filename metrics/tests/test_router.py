@@ -350,7 +350,6 @@ class TestDiversity:
         resp = client.get(url, params=params)
         assert resp.status_code == 200
 
-    @pytest.mark.xfail(reason="Ошибка на некоторых сервисах...")
     @pytest.mark.parametrize("service_type", ["cafes", "bakeries"])
     @pytest.mark.parametrize("city, _, block_id", BLOCKS)
     def test_get_diversity_get_buildings(self, client, city, _, block_id, service_type):
