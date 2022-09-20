@@ -109,18 +109,18 @@ async def get_blocks_clusterization_dendrogram(query_params: schemas.BlocksClust
 async def get_services_clusterization(query_params: schemas.ServicesClusterizationGetClustersPolygonsIn):
     city_model = cities_model[query_params.city]
     geojson = query_params.geojson.dict() if query_params.geojson else None
-    result = ServicesClusterization(city_model).get_clusters_polygon(
-        query_params.service_types, query_params.area_type, query_params.area_id, geojson,
-        query_params.condition, query_params.condition_value, query_params.n_std
-        )
 
-    if result is None:
+    try:
+        result = ServicesClusterization(city_model).get_clusters_polygon(
+            query_params.service_types, query_params.area_type, query_params.area_id, geojson,
+            query_params.condition, query_params.condition_value, query_params.n_std
+            )
+        return result
+    except errors.TerritorialSelectError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Not enough objects to cluster"
+            detail=str(e),
         )
-
-    return result
 
 
 @router.post(
