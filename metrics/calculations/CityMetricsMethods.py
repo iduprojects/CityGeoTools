@@ -43,8 +43,7 @@ class BaseMethod():
         return tuple(df[df[area_type + "_id"] == area_id] for df in args)
 
     @staticmethod
-    def get_custom_polygon_select(geojson: FeatureCollectionWithCRS, set_crs, *args):
-        geojson = geojson.dict()  # для обратной совместимости с кодом внутри метода
+    def get_custom_polygon_select(geojson: dict, set_crs, *args):
         geojson_crs = geojson["crs"]["properties"]["name"]
         geojson = gpd.GeoDataFrame.from_features(geojson['features'])
         geojson = geojson.set_crs(geojson_crs).to_crs(set_crs)

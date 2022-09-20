@@ -79,9 +79,10 @@ async def wighted_voronoi_calculation(query_params: schemas.WeightedVoronoiCalcu
 )
 async def get_blocks_clusterization(query_params: schemas.BlocksClusterizationGetBlocks):
     city_model = cities_model[query_params.city]
+    geojson = query_params.geojson.dict() if query_params.geojson else None
     return BlocksClusterization(city_model).get_blocks(
         query_params.service_types, query_params.clusters_number, 
-        query_params.area_type, query_params.area_id, query_params.geojson
+        query_params.area_type, query_params.area_id, geojson
         )
 
 
@@ -105,8 +106,9 @@ async def get_blocks_clusterization_dendrogram(query_params: schemas.BlocksClust
     response_model=schemas.ServicesClusterizationGetClustersPolygonsOut, tags=[Tags.services_clusterization])
 async def get_services_clusterization(query_params: schemas.ServicesClusterizationGetClustersPolygonsIn):
     city_model = cities_model[query_params.city]
+    geojson = query_params.geojson.dict() if query_params.geojson else None
     result = ServicesClusterization(city_model).get_clusters_polygon(
-        query_params.service_types, query_params.area_type, query_params.area_id, query_params.geojson,
+        query_params.service_types, query_params.area_type, query_params.area_id, geojson,
         query_params.condition, query_params.condition_value, query_params.n_std
         )
 
