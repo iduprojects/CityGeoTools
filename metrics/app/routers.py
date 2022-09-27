@@ -175,14 +175,13 @@ async def get_diversity_info(query_params: schemas.DiversityGetInfoQueryParams =
              tags=[Tags.provision])
 async def get_provision(
         user_request: schemas.ProvisionGetProvisionIn,
-        user_selection_zone: Optional[dict] = Body(None)  # todo надо ли добавить в схему?
 ):
     city_model = cities_model[user_request.city]
     result = City_Provisions(
         city_model, user_request.service_type,
         user_request.valuation_type, user_request.year,
         user_changes_buildings=None, user_changes_services=None,
-        user_provisions=None, user_selection_zone=user_selection_zone
+        user_provisions=None, user_selection_zone=user_request.user_selection_zone
     ).get_provisions()
     return result
 
@@ -190,16 +189,14 @@ async def get_provision(
 @router.post("/provision/recalculate_provisions", response_model=schemas.ProvisionGetProvisionOut,
              tags=[Tags.provision])
 async def recalculate_provisions(
-        user_request: schemas.ProvisionGetProvisionIn,
-        user_changes_buildings: Optional[dict] = Body(None), user_changes_services: Optional[dict] = Body(None),
-        user_provisions: Optional[list[dict]] = Body(None), user_selection_zone: Optional[dict] = Body(None),
+        user_request: schemas.ProvisionRecalculateProvisionsIn,
 ):
     city_model = cities_model[user_request.city]
     result = City_Provisions(
         city_model, user_request.service_type,
         user_request.valuation_type, user_request.year,
-        user_changes_buildings=user_changes_buildings, user_changes_services=user_changes_services,
-        user_provisions=user_provisions, user_selection_zone=user_selection_zone
+        user_changes_buildings=user_request.user_changes_buildings, user_changes_services=user_request.user_changes_services,
+        user_provisions=user_request.user_provisions, user_selection_zone=user_request.user_selection_zone
     ).recalculate_provisions()
     return result
 
