@@ -653,6 +653,21 @@ class TestInstagram:
 class TestProvision:
     URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/provision"
 
+    def test_get_provision(self, client):
+        url = self.URL + "/get_provision"
+
+        data = {
+            "user_request": {
+                "city": "Saint_Petersburg",
+                "service_type": "kindergartens",
+                "valuation_type": "normative",
+                "year": 2022
+            },
+        }
+
+        resp = client.post(url, json=data)
+        assert resp.status_code == 200
+
     @pytest.mark.parametrize("user_changes_buildings", [
         None, provision_geojson_examples.provisions_tests_kinders_houses,
     ])
