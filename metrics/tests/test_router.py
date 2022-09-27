@@ -653,20 +653,27 @@ class TestInstagram:
 class TestProvision:
     URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/provision"
 
-    def test_recalculate_provisions(self, client):
+    @pytest.mark.parametrize("user_changes_buildings", [
+        None, provision_geojson_examples.provisions_tests_kinders_houses,
+    ])
+    @pytest.mark.parametrize("user_changes_services", [
+        None, provision_geojson_examples.provisions_tests_kinders,
+    ])
+    def test_recalculate_provisions(self, client, user_changes_buildings, user_changes_services):
         url = self.URL + "/recalculate_provisions"
 
         data = {
-              "user_request": {
-                    "city": "Saint_Petersburg",
-                    "service_type": "kindergartens",
-                    "valuation_type": "normative",
-                    "year": 2022
-              },
-              "user_changes_buildings": provision_geojson_examples.provisions_tests_kinders_houses,
-              "user_provisions": provision_geojson_examples.provisions_tests_kinders_provisions,
-              "user_selection_zone": {}
-            }
+            "user_request": {
+                "city": "Saint_Petersburg",
+                "service_type": "kindergartens",
+                "valuation_type": "normative",
+                "year": 2022
+            },
+            "user_changes_buildings": user_changes_buildings,
+            "user_changes_services": user_changes_services,
+            "user_provisions": provision_geojson_examples.provisions_tests_kinders_provisions,
+            "user_selection_zone": {}
+        }
 
         resp = client.post(url, json=data)
         assert resp.status_code == 200
