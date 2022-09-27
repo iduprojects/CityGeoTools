@@ -1,3 +1,4 @@
+from typing import Any, Optional
 import geopandas as gpd
 import shapely
 import pandas as pd
@@ -769,7 +770,9 @@ class CollocationMatrix(BaseMethod):
            
 class City_Provisions(BaseMethod): 
 
-    def __init__(self, city_model : any, service_type : str, valuation_type : str, year: int, user_provisions: list, user_changes_buildings:dict, user_changes_services:dict, user_selection_zone: dict ): 
+    def __init__(self, city_model: Any, service_type: str, valuation_type: str, year: int,
+                 user_provisions: Optional[list], user_changes_buildings: Optional[dict],
+                 user_changes_services: Optional[dict], user_selection_zone: Optional[dict]):
         '''
         >>> City_Provisions(city_model,service_type = "kindergartens", valuation_type = "normative", year = 2022).get_provisons()
         >>>
