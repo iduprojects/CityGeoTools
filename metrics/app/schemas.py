@@ -2,7 +2,7 @@ from typing import Union, Optional, Dict
 
 from fastapi import Query
 from pydantic import BaseModel, validator, Field, conint, conlist, confloat, root_validator
-from geojson_pydantic import LineString, FeatureCollection
+from geojson_pydantic import LineString, FeatureCollection, Polygon
 from geojson_pydantic.geometries import Geometry
 from geojson_pydantic.features import Props
 
@@ -282,7 +282,7 @@ class ProvisionInBase(BaseModel):
     service_type: str
     valuation_type: str
     year: int
-    user_selection_zone: Optional[dict] = None
+    user_selection_zone: Optional[Polygon] = None
 
 
 class ProvisionGetProvisionIn(ProvisionInBase):
