@@ -1,6 +1,5 @@
 from enum import auto
 
-import geopandas as gpd
 from fastapi import APIRouter, HTTPException, status, Body, Depends
 from fastapi.responses import StreamingResponse
 from geojson_pydantic import FeatureCollection
@@ -174,14 +173,32 @@ async def get_diversity_info(query_params: schemas.DiversityGetInfoQueryParams =
 
 @router.post("/provision/get_provision", response_model=schemas.ProvisionGetProvisionOut,
              tags=[Tags.provision])
-async def get_provision(user_request: schemas.ProvisionGetProvisionIn):
+async def get_provision(
+        user_request: schemas.ProvisionGetProvisionIn,
+):
     city_model = cities_model[user_request.city]
     result = City_Provisions(
         city_model, user_request.service_type,
-        user_request.valuation_type, user_request.year
+        user_request.valuation_type, user_request.year,
+        user_changes_buildings=None, user_changes_services=None,
+        user_provisions=None, user_selection_zone=user_request.user_selection_zone
     ).get_provisions()
     return result
 
+
+@router.post("/provision/recalculate_provisions", response_model=schemas.ProvisionGetProvisionOut,
+             tags=[Tags.provision])
+async def recalculate_provisions(
+        user_request: schemas.ProvisionRecalculateProvisionsIn,
+):
+    city_model = cities_model[user_request.city]
+    result = City_Provisions(
+        city_model, user_request.service_type,
+        user_request.valuation_type, user_request.year,
+        user_changes_buildings=user_request.user_changes_buildings, user_changes_services=user_request.user_changes_services,
+        user_provisions=user_request.user_provisions, user_selection_zone=user_request.user_selection_zone
+    ).recalculate_provisions()
+    return result
 
 # @router.post("/provision/get_info", response_model=schemas.ProvisionGetInfoOut,
 #              tags=[Tags.provision])
