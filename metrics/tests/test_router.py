@@ -3,6 +3,7 @@ import pytest
 from tests.conf import testing_settings
 from tests.geojson_example import CitiesPolygonForTrafficsCalculation, SAINT_PETERSBURG_VORONOI_GEOJSON
 from metrics.app import schemas, enums
+from tests import provision_geojson_examples
 
 MUNICIPALITIES = [
     (enums.CitiesEnum.SAINT_PETERSBURG, enums.TerritorialEnum.MUNICIPALITY, 95),
@@ -394,4 +395,3 @@ def test_get_provision_info():
 @pytest.mark.skip(reason="Not implemented test")
 def test_get_wellbeing():
     ...
-

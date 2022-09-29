@@ -2,7 +2,7 @@ from typing import Union, Optional, Dict
 
 from fastapi import Query
 from pydantic import BaseModel, validator, Field, conint, conlist, confloat, root_validator
-from geojson_pydantic import LineString, FeatureCollection
+from geojson_pydantic import LineString, FeatureCollection, Polygon
 from geojson_pydantic.geometries import Geometry
 from geojson_pydantic.features import Props
 
@@ -278,52 +278,42 @@ class DiversityGetBuildingsQueryParams:
 
 
 class ProvisionInBase(BaseModel):
-    service_type: Union[list, str]  # todo only list or Union[list, str]?
-    provision_type: enums.ProvisionTypeEnum
-
-    is_weighted: bool = False  # todo is_weighted and service_coef inheritance or Mixin
-    service_coef: Optional[
-        Dict[str, int]]  # todo check sum coef and all service in service_type and only if is_weighted
+    city: str
+    service_type: str
+    valuation_type: str
+    year: int
+    user_selection_zone: Optional[Polygon] = None
 
 
 class ProvisionGetProvisionIn(ProvisionInBase):
-    area: Union[dict[str, int], FeatureCollection]
-    city: enums.CitiesEnum = enums.CitiesEnum.SAINT_PETERSBURG
-    without_services_options: bool = False
-    load_option: enums.ProvisionLoadOptionEnum = enums.ProvisionLoadOptionEnum.ALL_SERVICES
-    provision_option: enums.ProvisionOptionEnum = enums.ProvisionOptionEnum.ALL_HOUSES
-
     class Config:
         schema_extra = {
             "example": {
-                "service_type": [
-                    "flower_stores",
-                    "jewelry_stores"
-                ],
-                "area": {
-                    "mo": 67
-                },
-                "provision_type": "normative",
-                "is_weighted": "True",
-                "service_coef": {
-                    "flower_stores": 0.6,
-                    "jewelry_stores": 0.4
-                },
-                "provision_option": 0
+                "city": "Saint_Petersburg",
+                "service_type": "kindergartens",
+                "valuation_type": "normative",
+                "year": 2022,
             }
         }
+
+
+class ProvisionRecalculateProvisionsIn(ProvisionInBase):
+    user_provisions: list[dict]
+    user_changes_buildings: Optional[dict] = None
+    user_changes_services: Optional[dict] = None
 
 
 class ProvisionOutBase(BaseModel):
     houses: FeatureCollection
     services: FeatureCollection
+    provisions: list
 
 
 class ProvisionGetProvisionOut(ProvisionOutBase):
     ...
 
 
-class ProvisionGetInfoIn(ProvisionInBase):
+class ProvisionGetInfoIn(BaseModel):
     object_type: enums.ProvisionGetInfoObjectTypeEnum
     functional_object_id: int
 
@@ -395,5 +385,3 @@ class WellbeingGetWellbeingInfoIn(WellbeingInBase):
 
 class WellbeingGetWellbeingInfoOut(ProvisionOutBase):
     isochrone: Optional[FeatureCollection]
-
-  
