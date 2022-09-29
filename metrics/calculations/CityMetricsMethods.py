@@ -470,8 +470,11 @@ class Spacematrix(BaseMethod):
         blocks = blocks.join(named_clusters.rename("spacematrix_morphotype"), on="spacematrix_cluster")
 
         if area_type and area_id:
-            if area_type == "block": 
-                blocks = blocks.loc[[area_id]]
+            if area_type == "block":
+                try: 
+                    blocks = blocks.loc[[area_id]]
+                except:
+                    raise SelectedValueError("build-up block", "area_id", "id")
             else:
                 blocks = self.get_territorial_select(area_type, area_id, blocks)[0]
         elif geojson:
@@ -548,25 +551,25 @@ class AccessibilityIsochrones(BaseMethod):
         if travel_type == "public_transport" and weight_type == "time_min":
             stops = nodes[nodes["stop"] == "True"]
 
-            if len(stops) > 0:
+            if len(stops) > 0 and len(routes) > 0:
                 stops = stops[["index", "x", "y", "geometry", "desc"]]
                 stop_types = stops["desc"].apply(
                     lambda x: pd.Series({t: True for t in x.split(", ")}
                     ), type).fillna(False)
                 stops = stops.join(stop_types)
 
-            routes = routes[routes["type"].isin(self.edge_types[travel_type][:-1])]
-        
+                routes_select = routes["type"].isin(self.edge_types[travel_type][:-1])
+                routes["geometry"] = routes["geometry"].apply(lambda x: shapely.wkt.loads(x))
+                routes = routes[["type", "time_min", "length_meter", "geometry"]]
+                routes = gpd.GeoDataFrame(routes, crs=self.city_crs)
+                return json.loads(routes.to_crs(4326).to_json()), json.loads(stops.to_crs(4326).to_json())
+            else:
+                return None, None
+
         else:
             raise ImplementationError(
                 "Route output implemented only with params travel_type='public_transport' and weight_type='time_min'"
                 )
-        
-        routes["geometry"] = routes["geometry"].apply(lambda x: shapely.wkt.loads(x))
-        routes = routes[["type", "time_min", "length_meter", "geometry"]]
-        routes = gpd.GeoDataFrame(routes, crs=self.city_crs)
-
-        return json.loads(routes.to_crs(4326).to_json()), json.loads(stops.to_crs(4326).to_json())
 
 
 # ################################################ Diversity ######################################################
