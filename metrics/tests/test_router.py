@@ -2,7 +2,7 @@ import pytest
 
 from tests.conf import testing_settings
 from tests.geojson_example import CitiesPolygonForTrafficsCalculation, SAINT_PETERSBURG_VORONOI_GEOJSON
-from metrics.app import schemas, enums
+from app import enums
 from tests import provision_geojson_examples
 
 MUNICIPALITIES = [
