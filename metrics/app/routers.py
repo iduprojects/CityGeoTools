@@ -129,8 +129,14 @@ async def get_services_clusterization(query_params: schemas.ServicesClusterizati
 async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
     city_model = cities_model[query_params.city]
     geojson = query_params.geojson.dict() if query_params.geojson else None
-    return Spacematrix(city_model).get_spacematrix_morph_types(
-        query_params.clusters_number, query_params.area_type, query_params.area_id, geojson
+    try:
+        return Spacematrix(city_model).get_spacematrix_morph_types(
+            query_params.clusters_number, query_params.area_type, query_params.area_id, geojson
+            )
+    except SelectedValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
         )
 
 
