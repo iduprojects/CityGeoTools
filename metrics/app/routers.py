@@ -7,9 +7,11 @@ from geojson_pydantic import FeatureCollection
 from app import enums, schemas
 from calculations.utils import request_points_project
 from calculations.CityMetricsMethods import *
+from calculations import errors
 from data.cities_dictionary import cities_model, cities_name
 
 router = APIRouter()
+
 
 class Tags(str, enums.AutoName):
     def _generate_next_value_(name, start, count, last_values):
@@ -35,45 +37,27 @@ async def read_root():
 async def get_cities_names():
     return cities_name
 
-@router.post('/pedastrian_walk_traffics/pedastrian_walk_traffics_calculation', 
-            response_model=schemas.PedastrianWalkTrafficsCalculationOut, tags=[Tags.trafics_calculation])
+@router.post(
+    '/pedastrian_walk_traffics/pedastrian_walk_traffics_calculation',
+    response_model=schemas.PedastrianWalkTrafficsCalculationOut, tags=[Tags.trafics_calculation]
+)
 def pedastrian_walk_traffics_calculation(query_params: schemas.PedastrianWalkTrafficsCalculationIn):
     city_model = cities_model[query_params.city]
-    result = TrafficCalculator(city_model).get_trafic_calculation(query_params.geojson.dict())
-    if not result:
+    try:
+        result = TrafficCalculator(city_model).get_trafic_calculation(query_params.geojson.dict())
+        return result
+    except errors.TerritorialSelectError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No living houses in the specified area"
         )
-    return result
 
 
-@router.get("/mobility_analysis/isochrones", response_model=schemas.MobilityAnalysisIsochronesOut,
-            tags=[Tags.mobility_analysis])
-async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIsochronesQueryParams = Depends()):
-    if not (query_params.travel_type == enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT \
-        and query_params.weight_type == enums.MobilityAnalysisIsochronesWeightTypeEnum.TIME) \
-        and (query_params.routes == True):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Not implementet yet."
-        )
-    
-    city_model = cities_model[query_params.city]
-    request_points = [[query_params.x_from, query_params.y_from]]
-    to_crs = cities_model[query_params.city].city_crs
-    x_from, y_from = request_points_project(request_points, 4326, to_crs)[0]
-    result = AccessibilityIsochrones(city_model).get_accessibility_isochrone(
-        travel_type=query_params.travel_type, x_from=x_from, y_from=y_from, 
-        weight_type=query_params.weight_type, weight_value=query_params.weight_value, routes=query_params.routes
-        )
-
-    return result
-
-
-@router.get("/visibility_analysis/visibility_analysis", response_model=FeatureCollection,
-            tags=[Tags.visibility_analysis])
-async def visibility_analisys(query_params: schemas.VisibilityAnalisysQueryParams = Depends()):
+@router.get(
+    "/visibility_analysis/visibility_analysis",
+    response_model=FeatureCollection, tags=[Tags.visibility_analysis]
+)
+async def visibility_analysis(query_params: schemas.VisibilityAnalisysQueryParams = Depends()):
     city_model = cities_model[query_params.city]
     request_points = [[query_params.x_from, query_params.y_from]]
     to_crs = cities_model[query_params.city].city_crs
@@ -81,61 +65,101 @@ async def visibility_analisys(query_params: schemas.VisibilityAnalisysQueryParam
     return VisibilityAnalysis(city_model).get_visibility_result(request_point, query_params.view_distance)
 
 
-@router.post("/voronoi/weighted_voronoi_calculation", response_model=schemas.WeightedVoronoiCalculationOut,
-             tags=[Tags.weighted_voronoi])
+@router.post(
+    "/voronoi/weighted_voronoi_calculation",
+    response_model=schemas.WeightedVoronoiCalculationOut, tags=[Tags.weighted_voronoi]
+)
 async def wighted_voronoi_calculation(query_params: schemas.WeightedVoronoiCalculationIn):
     city_model = cities_model[query_params.city]
     return WeightedVoronoi(city_model).get_weighted_voronoi_result(query_params.geojson.dict())
 
 
-@router.post("/blocks_clusterization/get_blocks", response_model=FeatureCollection,
-             tags=[Tags.blocks_clusterization])
+@router.post(
+    "/blocks_clusterization/get_blocks",
+    response_model=FeatureCollection, tags=[Tags.blocks_clusterization]
+)
 async def get_blocks_clusterization(query_params: schemas.BlocksClusterizationGetBlocks):
     city_model = cities_model[query_params.city]
+    geojson = query_params.geojson.dict() if query_params.geojson else None
     return BlocksClusterization(city_model).get_blocks(
         query_params.service_types, query_params.clusters_number, 
-        query_params.area_type, query_params.area_id, query_params.geojson
+        query_params.area_type, query_params.area_id, geojson
         )
 
-@router.post("/blocks_clusterization/get_dendrogram",
-             responses={
-              200: {
-                  "content": {"image/png": {}}
-              }
-          },
-             response_class=StreamingResponse,
-             tags=[Tags.blocks_clusterization])
+
+@router.post(
+    "/blocks_clusterization/get_dendrogram",
+    responses={
+        200: {
+            "content": {"image/png": {}}
+        }
+    },
+    response_class=StreamingResponse, tags=[Tags.blocks_clusterization]
+)
 async def get_blocks_clusterization_dendrogram(query_params: schemas.BlocksClusterizationGetBlocks):
     city_model = cities_model[query_params.city]
     result = BlocksClusterization(city_model).get_dendrogram(query_params.service_types)
     return StreamingResponse(content=result, media_type="image/png")
 
 
-@router.post("/services_clusterization/get_clusters_polygons", 
-            response_model=schemas.ServicesClusterizationGetClustersPolygonsOut, tags=[Tags.services_clusterization])
+@router.post(
+    "/services_clusterization/get_clusters_polygons",
+    response_model=schemas.ServicesClusterizationGetClustersPolygonsOut, tags=[Tags.services_clusterization])
 async def get_services_clusterization(query_params: schemas.ServicesClusterizationGetClustersPolygonsIn):
     city_model = cities_model[query_params.city]
-    result = ServicesClusterization(city_model).get_clusters_polygon(
-        query_params.service_types, query_params.area_type, query_params.area_id, query_params.geojson,
-        query_params.condition, query_params.condition_value, query_params.n_std
-        )
+    geojson = query_params.geojson.dict() if query_params.geojson else None
 
-    if result is None:
+    try:
+        result = ServicesClusterization(city_model).get_clusters_polygon(
+            query_params.service_types, query_params.area_type, query_params.area_id, geojson,
+            query_params.condition, query_params.condition_value, query_params.n_std
+            )
+        return result
+    except errors.TerritorialSelectError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Not enough objects to cluster"
+            detail=str(e),
         )
 
-    return result
 
-
-@router.post("/spacematrix/get_indices", response_model=FeatureCollection,
-            tags=[Tags.spacematrix])
+@router.post(
+    "/spacematrix/get_indices",
+    response_model=FeatureCollection, tags=[Tags.spacematrix]
+)
 async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
     city_model = cities_model[query_params.city]
     geojson = query_params.geojson.dict() if query_params.geojson else None
-    return Spacematrix(city_model).get_spacematrix_morph_types(
-        query_params.clusters_number, query_params.area_type, query_params.area_id, geojson
+    try:
+        return Spacematrix(city_model).get_spacematrix_morph_types(
+            query_params.clusters_number, query_params.area_type, query_params.area_id, geojson
+            )
+    except SelectedValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
+
+
+@router.get(
+    "/mobility_analysis/isochrones",
+    response_model=schemas.MobilityAnalysisIsochronesOut, tags=[Tags.mobility_analysis]
+)
+async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIsochronesQueryParams = Depends()):
+    city_model = cities_model[query_params.city]
+    request_points = [[query_params.x_from, query_params.y_from]]
+    to_crs = cities_model[query_params.city].city_crs
+    x_from, y_from = request_points_project(request_points, 4326, to_crs)[0]
+    try:
+        result = AccessibilityIsochrones(city_model).get_accessibility_isochrone(
+            travel_type=query_params.travel_type, x_from=x_from, y_from=y_from,
+            weight_type=query_params.weight_type, weight_value=query_params.weight_value, routes=query_params.routes
+        )
+
+        return result
+    except errors.ImplementationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
         )
 
 
@@ -145,30 +169,33 @@ async def get_diversity(query_params: schemas.DiversityQueryParams = Depends()):
     city_model = cities_model[query_params.city]
     result = Diversity(city_model).get_diversity(query_params.service_type)
     return result
-    
+
 @router.get("/diversity/get_buildings", response_model=FeatureCollection,
             tags=[Tags.diversity])
 async def get_buildings_diversity(query_params: schemas.DiversityGetBuildingsQueryParams = Depends()):
     city_model = cities_model[query_params.city]
-    result = Diversity(city_model).get_houses(query_params.block_id, query_params.service_type)
-    if not result:
+    try:
+        result = Diversity(city_model).get_houses(query_params.block_id, query_params.service_type)
+        return result
+    except (errors.TerritorialSelectError, errors.SelectedValueError) as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="The objects (houses and services) with given parametrs are absent"
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
         )
-    return result
+
 
 @router.get("/diversity/get_info", response_model=schemas.DiversityGetInfoOut,
             tags=[Tags.diversity])
 async def get_diversity_info(query_params: schemas.DiversityGetInfoQueryParams = Depends()):
     city_model = cities_model[query_params.city]
-    result = Diversity(city_model).get_info(query_params.house_id, query_params.service_type)
-    if not result:
+    try:
+        result = Diversity(city_model).get_info(query_params.house_id, query_params.service_type)
+        return result
+    except (errors.TerritorialSelectError, errors.SelectedValueError) as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="The objects (houses and services) with given parametrs are absent"
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
         )
-    return result
 
 
 @router.post("/provision/get_provision", response_model=schemas.ProvisionGetProvisionOut,

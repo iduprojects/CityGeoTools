@@ -26,3 +26,6 @@ services:
         condition: service_healthy
     ports:
       - "5000:5000"
+    volumes:
+      - ./metrics/app:/app/app
+      - ./metrics/calculations:/app/calculations
