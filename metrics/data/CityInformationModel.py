@@ -69,7 +69,7 @@ class CityInformationModel:
         self.nk_attrs = get_nk_attrs(MobilitySubGraph)
         self.graph_nk_length = convert_nx2nk(MobilitySubGraph, idmap=self.nk_idmap, weight="length_meter")
         self.graph_nk_time = convert_nx2nk(MobilitySubGraph, idmap=self.nk_idmap, weight="time_min")
-        self.MobilityGraph = load_graph_geometry(MobilitySubGraph)
+        self.MobilitySubGraph = load_graph_geometry(MobilitySubGraph)
 
     def set_none_layers(self):
         for attr_name in self.attr_names:
