@@ -8,9 +8,8 @@
 4.   Service clusterization (based on services location)
 5.   Spacematrix clusterization (based on [research](https://elibrary.ru/item.asp?id=45845752))
 6. Availability isochrone (based on [research]())
-7.  Diversity analysis (based on available services) - in progress for user mode
-8.  Provision population with services - in progress for user mode
-9.  Wellbeing (based on provision with services needed in living situations) - in progress for user mode
+7.  Diversity analysis (based on available services)
+8.  Provision population with services
 
 ## How to use CityGeoTools
 More detailed descriptions and examples of how to use the methods are provided as *jupyter notebooks* in [examples](https://github.com/iduprojects/CityGeoTools/tree/metrics-refactor/notebook_examples). In order to use these methods, it is not necessary to have a deep knowledge of python programming and machine learning. Simply follow the steps shown in the figure below. Two ways of using the presented methods are implemented - **general mode** and **user mode**.
@@ -53,7 +52,7 @@ full_data = imputer.impute_by_saved_models()
 ```
 
 ## General mode
-General mode provides access to all data stored in databases through a data query interface and allows the use of all of the developed methods through API. This mode makes it possible to build an application for urban environment analysis or integrate the methods into existing one. For an example of the use, check out our [Digital Urban Platform]().  
+General mode provides access to all data stored in databases through a data query interface and allows the use of all of the developed methods through API. This mode makes it possible to build an application for urban environment analysis or integrate the methods into existing one. For an example of the use, check out our [Digital Urban Platform](https://dc.idu.actcognitive.org/).  
   
 ![Image](https://github.com/iduprojects/CityGeoTools/blob/metrics-refactor/img/platform_example.png?raw=true)
   
