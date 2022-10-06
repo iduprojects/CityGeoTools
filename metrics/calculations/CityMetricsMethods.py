@@ -781,7 +781,7 @@ class City_Provisions(BaseMethod):
         self.valuation_type = valuation_type
         self.year = year
         self.city = city_model.city_name
-        service_types_normatives = city_model.ServiceTypes[city_model.ServiceTypes['code'] == service_type].dropna(axis = 1)
+        service_types_normatives = city_model.ServiceTypes[city_model.ServiceTypes['code'] == service_type].dropna(axis = 1).copy()
 
         if 'walking_radius_normative' in service_types_normatives.columns:  
             self.normative_distance = service_types_normatives['walking_radius_normative'].iloc[0]
