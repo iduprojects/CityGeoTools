@@ -1,3 +1,4 @@
+from typing import Any, Optional
 import geopandas as gpd
 import shapely
 import pandas as pd
@@ -23,6 +24,9 @@ from scipy import spatial
 from .errors import TerritorialSelectError, SelectedValueError, ImplementationError
 from itertools import product
 
+from app.schemas import FeatureCollectionWithCRS
+
+
 class BaseMethod():
 
     def __init__(self, city_model):
@@ -42,8 +46,7 @@ class BaseMethod():
         return tuple(df[df[area_type + "_id"] == area_id] for df in args)
 
     @staticmethod
-    def get_custom_polygon_select(geojson, set_crs, *args):
-
+    def get_custom_polygon_select(geojson: dict, set_crs, *args):
         geojson_crs = geojson["crs"]["properties"]["name"]
         geojson = gpd.GeoDataFrame.from_features(geojson['features'])
         geojson = geojson.set_crs(geojson_crs).to_crs(set_crs)
@@ -469,8 +472,11 @@ class Spacematrix(BaseMethod):
         blocks = blocks.join(named_clusters.rename("spacematrix_morphotype"), on="spacematrix_cluster")
 
         if area_type and area_id:
-            if area_type == "block": 
-                blocks = blocks.loc[[area_id]]
+            if area_type == "block":
+                try: 
+                    blocks = blocks.loc[[area_id]]
+                except:
+                    raise SelectedValueError("build-up block", "area_id", "id")
             else:
                 blocks = self.get_territorial_select(area_type, area_id, blocks)[0]
         elif geojson:
@@ -547,25 +553,25 @@ class AccessibilityIsochrones(BaseMethod):
         if travel_type == "public_transport" and weight_type == "time_min":
             stops = nodes[nodes["stop"] == "True"]
 
-            if len(stops) > 0:
+            if len(stops) > 0 and len(routes) > 0:
                 stops = stops[["index", "x", "y", "geometry", "desc"]]
                 stop_types = stops["desc"].apply(
                     lambda x: pd.Series({t: True for t in x.split(", ")}
                     ), type).fillna(False)
                 stops = stops.join(stop_types)
 
-            routes = routes[routes["type"].isin(self.edge_types[travel_type][:-1])]
-        
+                routes_select = routes["type"].isin(self.edge_types[travel_type][:-1])
+                routes["geometry"] = routes["geometry"].apply(lambda x: shapely.wkt.loads(x))
+                routes = routes[["type", "time_min", "length_meter", "geometry"]]
+                routes = gpd.GeoDataFrame(routes, crs=self.city_crs)
+                return json.loads(routes.to_crs(4326).to_json()), json.loads(stops.to_crs(4326).to_json())
+            else:
+                return None, None
+
         else:
             raise ImplementationError(
                 "Route output implemented only with params travel_type='public_transport' and weight_type='time_min'"
                 )
-        
-        routes["geometry"] = routes["geometry"].apply(lambda x: shapely.wkt.loads(x))
-        routes = routes[["type", "time_min", "length_meter", "geometry"]]
-        routes = gpd.GeoDataFrame(routes, crs=self.city_crs)
-
-        return json.loads(routes.to_crs(4326).to_json()), json.loads(stops.to_crs(4326).to_json())
 
 
 # ################################################ Diversity ######################################################
@@ -769,7 +775,9 @@ class CollocationMatrix(BaseMethod):
            
 class City_Provisions(BaseMethod): 
 
-    def __init__(self, city_model : any, service_type : str, valuation_type : str, year: int, user_provisions: list, user_changes_buildings:dict, user_changes_services:dict, user_selection_zone: dict ): 
+    def __init__(self, city_model: Any, service_type: str, valuation_type: str, year: int,
+                 user_provisions: Optional[list], user_changes_buildings: Optional[dict],
+                 user_changes_services: Optional[dict], user_selection_zone: Optional[dict]):
         '''
         >>> City_Provisions(city_model,service_type = "kindergartens", valuation_type = "normative", year = 2022).get_provisons()
         >>>

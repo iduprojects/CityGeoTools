@@ -2,7 +2,7 @@ from typing import Union, Optional, Dict
 
 from fastapi import Query
 from pydantic import BaseModel, validator, Field, conint, conlist, confloat, root_validator
-from geojson_pydantic import LineString, FeatureCollection
+from geojson_pydantic import LineString, FeatureCollection, Polygon
 from geojson_pydantic.geometries import Geometry
 from geojson_pydantic.features import Props
 
@@ -277,12 +277,15 @@ class DiversityGetBuildingsQueryParams:
         self.service_type = service_type
 
 
-class ProvisionGetProvisionIn(BaseModel):
+class ProvisionInBase(BaseModel):
     city: str
     service_type: str
     valuation_type: str
     year: int
+    user_selection_zone: Optional[Polygon] = None
 
+
+class ProvisionGetProvisionIn(ProvisionInBase):
     class Config:
         schema_extra = {
             "example": {
@@ -292,6 +295,12 @@ class ProvisionGetProvisionIn(BaseModel):
                 "year": 2022,
             }
         }
+
+
+class ProvisionRecalculateProvisionsIn(ProvisionInBase):
+    user_provisions: list[dict]
+    user_changes_buildings: Optional[dict] = None
+    user_changes_services: Optional[dict] = None
 
 
 class ProvisionOutBase(BaseModel):
