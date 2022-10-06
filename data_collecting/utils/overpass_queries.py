@@ -49,7 +49,7 @@ def overpass_query(func, *args, attempts=5):
         try:
             return func(*args)
         except JSONDecodeError:
-            print("Another attempt...")
+            print("Another attempt to get response from Overpass API...")
             time.sleep(20)
             continue
     
@@ -57,7 +57,7 @@ def overpass_query(func, *args, attempts=5):
     """Something went wrong with Overpass API when JSON was parsed. Check the query and to send it later.""")
 
 
-def parse_overpass_route_response(loc, city_crs):
+def parse_overpass_route_response(loc, city_crs, boundary):
     
     route = pd.DataFrame(loc['members'])
     ways = route[route['type'] == 'way']
@@ -65,10 +65,12 @@ def parse_overpass_route_response(loc, city_crs):
         ways = ways['geometry'].reset_index(drop = True)
         ways = ways.apply(lambda x: pd.DataFrame(x))
         ways = ways.apply(lambda x: LineString(list(zip(x['lon'], x['lat']))))
-        ways = gpd.GeoDataFrame(ways.rename("geometry")).set_crs(4326).to_crs(city_crs)
-        
-        # fix topological errors and then make LineString from MultiLineString
-        ways = get_linestring(ways)
+        ways = gpd.GeoDataFrame(ways.rename("geometry")).set_crs(4326)
+        if ways.within(boundary).all():
+            # fix topological errors and then make LineString from MultiLineString
+            ways = get_linestring(ways.to_crs(city_crs))
+        else:
+            ways = None
     else:
         ways = None
 
