@@ -24,7 +24,7 @@ from scipy import spatial
 from .errors import TerritorialSelectError, SelectedValueError, ImplementationError
 from itertools import product
 
-from app.schemas import FeatureCollectionWithCRS
+#from app.schemas import FeatureCollectionWithCRS
 
 
 class BaseMethod():
@@ -789,7 +789,7 @@ class City_Provisions(BaseMethod):
         self.valuation_type = valuation_type
         self.year = year
         self.city = city_model.city_name
-        service_types_normatives = city_model.ServiceTypes[city_model.ServiceTypes['code'] == service_type].dropna(axis = 1)
+        service_types_normatives = city_model.ServiceTypes[city_model.ServiceTypes['code'] == service_type].dropna(axis = 1).copy()
 
         if 'walking_radius_normative' in service_types_normatives.columns:  
             self.normative_distance = service_types_normatives['walking_radius_normative'].iloc[0]
@@ -859,28 +859,29 @@ class City_Provisions(BaseMethod):
     def get_provisions(self, ):
 
         try:
-            Provisions = pd.read_sql(f'''SELECT * 
+            self.Provisions = pd.read_sql(f'''SELECT * 
                                          FROM provisions.{self.city}_{self.service_type}_{self.valuation_type}_{self.year}_provisions
                                          ''', con = self.engine)
-            Matrix = pd.read_sql(f'''SELECT * 
+            self.Matrix = pd.read_sql(f'''SELECT * 
                                      FROM provisions.{self.city}_{self.service_type}_{self.valuation_type}_{self.year}_matrix
                                      ''', con = self.engine)
         except: 
-            Matrix, Provisions = self._calculate_provisions(buildings_ = self.buildings.copy(), 
-                                                            services_ = self.services.copy())
+            self.Matrix, self.Provisions = self._calculate_provisions(buildings_ = self.buildings.copy(), 
+                                                                      services_ = self.services.copy())
 
         self.buildings, self.services = self._additional_options(self.buildings, 
                                                                  self.services,
-                                                                 Matrix,
-                                                                 Provisions,
+                                                                 self.Matrix,
+                                                                 self.Provisions,
                                                                  self.normative_distance,
                                                                  self.service_type,
                                                                  self.user_selection_zone)  
-        self.buildings = self.buildings.to_crs(4326)
-        self.services = self.services.to_crs(4326)
+        #self.Provisions = Provisions
+        #self.Matrix = Matrix
+
         return {"houses": eval(self.buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
                 "services": eval(self.services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
-                "provisions": self._provision_matrix_transform(Provisions)}
+                "provisions": self._provision_matrix_transform(self.Provisions)}
 
     def _calculate_provisions(self, buildings_, services_):
         df = pd.DataFrame.from_dict(dict(self.nx_graph.nodes(data=True)), orient='index')
@@ -909,7 +910,8 @@ class City_Provisions(BaseMethod):
                                           Provisions, )
         return Matrix, Provisions        
 
-    def _restore_user_provisions(self, user_provisions):
+    @staticmethod
+    def _restore_user_provisions(user_provisions):
         restored_user_provisions = pd.DataFrame(user_provisions)
         restored_user_provisions = pd.DataFrame(user_provisions, columns = ['service_id','house_id','demand']).groupby(['service_id','house_id']).first().unstack()
         restored_user_provisions = restored_user_provisions.droplevel(level = 0, axis = 1)
@@ -918,8 +920,9 @@ class City_Provisions(BaseMethod):
         restored_user_provisions = restored_user_provisions.fillna(0)
 
         return restored_user_provisions
-
-    def _provision_matrix_transform(self, Provisions):
+    
+    @staticmethod
+    def _provision_matrix_transform(Provisions):
         provisions_transformed = []
         for service_id in Provisions.index:
             loc = Provisions.loc[service_id]
@@ -931,20 +934,20 @@ class City_Provisions(BaseMethod):
 
     def recalculate_provisions(self, ):
         
-        new_Matrix, new_Provisions = self._calculate_provisions(buildings_ = self.user_changes_buildings.copy(), 
-                                                                services_ = self.user_changes_services.copy())
+        self.new_Matrix, self.new_Provisions = self._calculate_provisions(buildings_ = self.user_changes_buildings.copy(), 
+                                                                          services_ = self.user_changes_services.copy())
 
         self.user_changes_buildings, self.user_changes_services = self._additional_options(self.user_changes_buildings,
                                                                                            self.user_changes_services,
-                                                                                           new_Matrix,
-                                                                                           new_Provisions,
+                                                                                           self.new_Matrix,
+                                                                                           self.new_Provisions,
                                                                                            self.normative_distance,
                                                                                            self.service_type,
                                                                                            self.user_selection_zone)
 
         self.buildings, self.services = self._additional_options(self.buildings, 
                                                                  self.services,
-                                                                 new_Matrix,
+                                                                 self.new_Matrix,
                                                                  self.user_provisions,
                                                                  self.normative_distance,
                                                                  self.service_type,
@@ -954,7 +957,7 @@ class City_Provisions(BaseMethod):
 
         return {"houses": eval(self.user_changes_buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
                 "services": eval(self.user_changes_services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
-                "provisions": self._provision_matrix_transform(new_Provisions)}
+                "provisions": self._provision_matrix_transform(self.new_Provisions)}
 
     def _get_provisions_delta(self,):
 
@@ -1007,15 +1010,19 @@ class City_Provisions(BaseMethod):
             services.at[loc.name,'carried_capacity_without'] = services.at[loc.name,'carried_capacity_without'] + without.sum()
     
         buildings[f'{service_type}_provison_value'] = buildings[f'{service_type}_supplyed_demands_within'] /  buildings[f'{service_type}_demand']
+        services['service_load'] = services['capacity'] - services['capacity_left']
         if selection_zone:
             buildings['is_shown'] = buildings.within(selection_zone)
-            a = buildings['is_shown']
+            a = buildings['is_shown'].copy()
             t = Provisions[[c for c in Provisions.columns if c in list(a[a].index.values)]]
             t['is_shown'] = t.apply(lambda x: len(x[x > 0])>0, axis = 1)
             services['is_shown'] = t['is_shown']
         else:
             buildings['is_shown'] = True
             services['is_shown'] = True
+
+        buildings = buildings.to_crs(4326)
+        services = services.to_crs(4326)
 
         return buildings, services 
 
