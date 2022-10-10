@@ -102,7 +102,7 @@ class VisibilityAnalysis(BaseMethod):
 
     def __init__(self, city_model):
         BaseMethod.__init__(self, city_model)
-        super().validation("traffic_calculator")
+        super().validation("visibility_analysis")
         self.buildings = self.city_model.Buildings.copy()
 
     def get_visibility_result(self, point, view_distance):
@@ -120,7 +120,7 @@ class VisibilityAnalysis(BaseMethod):
         else:
             splited_lines = buffer_lines_gdf["geometry"]
 
-        splited_lines_gdf = gpd.GeoDataFrame(geometry=splited_lines).explode()
+        splited_lines_gdf = gpd.GeoDataFrame(geometry=splited_lines).explode(index_parts=True)
         splited_lines_list = []
 
         for u, v in splited_lines_gdf.groupby(level=0):
