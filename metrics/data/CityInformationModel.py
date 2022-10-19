@@ -47,8 +47,10 @@ class CityInformationModel:
     def get_city_layers_from_db(self):
 
         self.engine = create_engine("postgresql://" + os.environ["POSTGRES"])
+        rpyc_server = os.environ["RPYC_SERVER"]
+        address, port = rpyc_server.split(":") if ":" in rpyc_server else (rpyc_server, 18861)
         rpyc_connect = rpyc.connect(
-            os.environ["RPYC_SERVER"], 18861,
+            address, port,
             config={'allow_public_attrs': True, 
                     "allow_pickle": True}
                     )
@@ -67,7 +69,7 @@ class CityInformationModel:
         self.nk_attrs = get_nk_attrs(MobilitySubGraph)
         self.graph_nk_length = convert_nx2nk(MobilitySubGraph, idmap=self.nk_idmap, weight="length_meter")
         self.graph_nk_time = convert_nx2nk(MobilitySubGraph, idmap=self.nk_idmap, weight="time_min")
-        self.MobilityGraph = load_graph_geometry(MobilitySubGraph)
+        self.MobilitySubGraph = load_graph_geometry(MobilitySubGraph)
 
     def set_none_layers(self):
         for attr_name in self.attr_names:

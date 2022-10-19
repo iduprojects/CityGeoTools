@@ -5,6 +5,7 @@ __pycache__/
 metrics/Data/**
 !metrics/Data/*.py
 rpyc_server/data_classes/**
+output/
 !rpyc_server/data_classes/*.py
 chache
 cache/

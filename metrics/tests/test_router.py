@@ -1,649 +1,421 @@
 import pytest
 
 from tests.conf import testing_settings
-from app import schemas, enums
-
-
-class TestBCAM:
-    class TestMobilityAnalysisRoutes:
-        """ Проверка метрики доступности. """
-        URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/mobility_analysis/routes"
-        FROM_AND_TO_POINTS = [  # random points in city bbox. latitude, longitude, latitude, longitude
-            (enums.CitiesEnum.SAINT_PETERSBURG, 59.785982, 30.2971539, 60.0863286, 29.4933082),
-            (enums.CitiesEnum.KRASNODAR, 45.0111502, 38.9100388, 45.0796982, 38.9356331),
-            (enums.CitiesEnum.SEVASTOPOL, 44.7775737, 33.4171179, 44.7581441, 33.7148713),
-        ]
-
-        POINTS_WITHOUT_PATH_BETWEEN = [
-            (
-                enums.CitiesEnum.SAINT_PETERSBURG, enums.MobilityAnalysisRoutesTravelTypeEnum.DRIVE,
-                59.6950839, 30.2527172, 60.0936915, 30.653769)
-        ]
-
-        @pytest.mark.parametrize("travel_type", enums.MobilityAnalysisRoutesTravelTypeEnum)
-        @pytest.mark.parametrize("city,  x_from, y_from, x_to, y_to", FROM_AND_TO_POINTS)
-        def test_mobility_analysis_routes(self, client, city, travel_type, x_from, y_from, x_to, y_to):
-            """ Проверка нахождения маршрута между двумя точками для всех видов передвижений. """
-            params = dict(
-                city=city,
-                travel_type=travel_type,
-                x_from=x_from,
-                y_from=y_from,
-                x_to=x_to,
-                y_to=y_to,
-            )
-            url = self.URL
-            resp = client.get(url, params=params)
-            assert resp.status_code == 200
-
-            schemas.MobilityAnalysisRoutesOut(**resp.json())
-
-        @pytest.mark.parametrize("travel_type", [
-            pytest.param("invalid_travel_type", marks=pytest.mark.xfail(reasone="Need input validate scheme"))
-        ])
-        @pytest.mark.parametrize("city,  x_from, y_from, x_to, y_to", [FROM_AND_TO_POINTS[0]])  # only for one city
-        def test_invalid_travel_type(self, client, city, travel_type, x_from, y_from, x_to, y_to):
-            """ Проверка корректности указанного типа перемещения."""
-            url = self.URL
-            params = dict(
-                city=city,
-                travel_type=travel_type,
-                x_from=x_from,
-                y_from=y_from,
-                x_to=x_to,
-                y_to=y_to,
-            )
-            resp = client.get(url, params=params)
-            assert resp.status_code == 422
-
-        @pytest.mark.parametrize("city, travel_type, x_from, y_from, x_to, y_to", POINTS_WITHOUT_PATH_BETWEEN)
-        def test_points_without_path_between(self, client, city, travel_type, x_from, y_from, x_to, y_to):
-            """ Проверка ошибки, если нет пути между двумя указанными точками. """
-            params = dict(
-                city=city,
-                travel_type=travel_type,
-                x_from=x_from,
-                y_from=y_from,
-                x_to=x_to,
-                y_to=y_to,
-            )
-            url = self.URL
-            resp = client.get(url, params=params)
-            assert resp.status_code == 422
-
-            error_msg = "Path between given points absents"
-            assert error_msg in resp.text
-
-    class TestMobilityAnalysisIsochrones:
-        """ Проверка метрики доступности. """
-        URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/mobility_analysis/isochrones"
-        CITIES_FROM_POINTS = [  # random points in city bbox. latitude, longitude
-            (enums.CitiesEnum.SAINT_PETERSBURG, 59.9386300, 30.3141300),
-            (enums.CitiesEnum.KRASNODAR, 45.0448400, 38.9760300),
-            (enums.CitiesEnum.SEVASTOPOL, 44.5888300, 33.5224000)
-        ]
-
-        @pytest.mark.parametrize("travel_type", [
-            enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT,
-        ])
-        @pytest.mark.parametrize("weight_type, weight_value", [
-            (enums.MobilityAnalysisIsochronesWeightTypeEnum.TIME, 1)
-        ])
-        @pytest.mark.parametrize("city, x_from, y_from", CITIES_FROM_POINTS)
-        def test_public_transport_travel_type(
-                self, client, city, x_from, y_from, weight_type, weight_value, travel_type
-        ):
-            """ Проверка вычисления изохрон для общественного транспорта. """
-            params = dict(
-                city=city,
-                travel_type=travel_type,
-                weight_type=weight_type,
-                weight_value=weight_value,
-                x_from=x_from,
-                y_from=y_from,
-            )
-
-            url = self.URL
-
-            resp = client.get(url, params=params)
-            assert resp.status_code == 200
-
-        @pytest.mark.parametrize("travel_type", [
-            enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT,
-        ])
-        @pytest.mark.parametrize("weight_type, weight_value", [
-            (enums.MobilityAnalysisIsochronesWeightTypeEnum.METER, 100)
-        ])
-        @pytest.mark.parametrize("city, x_from, y_from", CITIES_FROM_POINTS)
-        def test_not_implemented_public_transport_travel_type_with_meter(self, client, city, x_from, y_from,
-                                                                         weight_type, weight_value, travel_type):
-            """ Проверка вычисления изохрон для общественного транспорта c нереализованным типом весов графа - метры. """
-            params = dict(
-                city=city,
-                travel_type=travel_type,
-                weight_type=weight_type,
-                weight_value=weight_value,
-                x_from=x_from,
-                y_from=y_from,
-            )
-
-            url = self.URL
-
-            resp = client.get(url, params=params)
-            assert resp.status_code == 422
-
-        @pytest.mark.parametrize("travel_type", [
-            enums.MobilityAnalysisIsochronesTravelTypeEnum.DRIVE,
-            enums.MobilityAnalysisIsochronesTravelTypeEnum.WALK,
-        ])
-        @pytest.mark.parametrize("weight_type, weight_value", [
-            (enums.MobilityAnalysisIsochronesWeightTypeEnum.TIME, 10),
-            (enums.MobilityAnalysisIsochronesWeightTypeEnum.METER, 100),  # todo check linestring
-            (enums.MobilityAnalysisIsochronesWeightTypeEnum.METER, 250)
-        ])
-        @pytest.mark.parametrize("city, x_from, y_from", CITIES_FROM_POINTS)
-        def test_drive_and_walk_travel_type(self, client, city, x_from, y_from, weight_type, weight_value, travel_type):
-            """ Проверка вычисления изохрон для личного транспорта. """
-            params = dict(
-                city=city,
-                travel_type=travel_type,
-                weight_type=weight_type,
-                weight_value=weight_value,
-                x_from=x_from,
-                y_from=y_from,
-            )
-
-            url = self.URL
-
-            resp = client.get(url, params=params)
-            assert resp.status_code == 200
-
-    class TestBlocksClusterization:
-        URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/blocks_clusterization"
-        RANDOM_SERVICE_TYPES = ["garbage_containers", "bakeries"]
-
-        @pytest.mark.parametrize("clusters_number, service_types", [
-            ("default", RANDOM_SERVICE_TYPES),
-            (5, RANDOM_SERVICE_TYPES),  # 5 random value
-        ])
-        @pytest.mark.parametrize("city", enums.CitiesEnum)
-        def test_get_blocks_calculations(self, client, city, clusters_number, service_types):
-            url = self.URL + "/get_blocks"
-            data = {
-                "city": city,
-                "param":
-                    {
-                        "clusters_number": clusters_number,
-                        "service_types": service_types,
-                    }
-            }
-
-            resp = client.post(url, json=data)
-            assert resp.status_code == 200
-
-        @pytest.mark.parametrize("city", enums.CitiesEnum)
-        @pytest.mark.parametrize("service_types, expected_status_code", [
-            (RANDOM_SERVICE_TYPES, 200),
-            ([], 422)
-        ])
-        def test_get_services_calculations_without_area(self, client, city, service_types, expected_status_code):
-            url = self.URL + "/get_services"
-            data = {
-                "city": city,
-                "param":
-                    {
-                        "service_types": service_types,
-                    }
-            }
-
-            resp = client.post(url, json=data)
-            assert resp.status_code == expected_status_code
-
-        @pytest.mark.parametrize("city, area_type, area_id", [
-            (enums.CitiesEnum.SAINT_PETERSBURG, "block", 856),
-            (enums.CitiesEnum.KRASNODAR, "block", 7259),
-            (enums.CitiesEnum.SEVASTOPOL, "block", 14518),
-        ])
-        def test_get_services_calculations(self, client, city, area_type, area_id):
-            url = self.URL + "/get_services"
-            data = {
-                "city": city,
-                "param":
-                    {
-                        "area": {area_type: area_id},
-                    }
-            }
-
-            resp = client.post(url, json=data)
-            assert resp.status_code == 200
-
-        @pytest.mark.parametrize("clusters_number, service_types", [
-            ("default", RANDOM_SERVICE_TYPES),
-            (5, RANDOM_SERVICE_TYPES),  # 5 random value
-        ])
-        @pytest.mark.parametrize("city", enums.CitiesEnum)
-        def test_get_dendrogram(self, client, city, clusters_number, service_types):
-            url = self.URL + "/get_dendrogram"
-            data = {
-                "city": city,
-                "param":
-                    {
-                        "clusters_number": clusters_number,
-                        "service_types": service_types,
-                    }
-            }
-
-            resp = client.post(url, json=data)
-            assert resp.status_code == 200
-            assert resp.headers.get("content-type") == "image/png"
-
-    class TestServicesClusterization:
-        URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/services_clusterization"
-        RANDOM_SERVICE_TYPES = ["garbage_containers", "bakeries"]
-
-        DISTRICTS = [
-            (enums.CitiesEnum.SAINT_PETERSBURG, "district", 48),
-            (enums.CitiesEnum.KRASNODAR, "district", 67),
-            (enums.CitiesEnum.SEVASTOPOL, "district", 86),
-        ]
-        MUNICIPALITIES = [
-            (enums.CitiesEnum.SAINT_PETERSBURG, "mo", 95),
-            (enums.CitiesEnum.KRASNODAR, "mo", 113),
-            (enums.CitiesEnum.SEVASTOPOL, "mo", 126),
-        ]
-
-        @pytest.mark.parametrize("city", enums.CitiesEnum)
-        @pytest.mark.parametrize("service_types, expected_status_code", [
-            (RANDOM_SERVICE_TYPES, 200),
-            ([], 422),
-        ])
-        def test_get_services_without_area(self, client, city, service_types, expected_status_code):
-            url = self.URL + "/get_services"
-            data = {
-                "city": city,
-                "param": {
-                    "service_types": service_types,
-                }
-            }
-
-            resp = client.post(url, json=data)
-            assert resp.status_code == expected_status_code
-
-        @pytest.mark.parametrize("city, area_type, area_id", [*DISTRICTS, *MUNICIPALITIES])
-        def test_get_services(self, client, city, area_type, area_id):
-            url = self.URL + "/get_services"
-            data = {
-                "city": city,
-                "param":
-                    {
-                        "area": {area_type: area_id},
-                    }
-            }
-
-            resp = client.post(url, json=data)
-            assert resp.status_code == 200
-
-        @pytest.mark.parametrize("city, area_type, area_id", [*DISTRICTS, *MUNICIPALITIES])
-        @pytest.mark.parametrize("condition", [
-            {"default": "default"},
-            {"distance": 1000},  # random distance value
-            {"maxclust": 2},  # random maxclust value
-        ])
-        @pytest.mark.parametrize("n_std", [
-            2,  # default value
-            10,  # random value
-        ])
-        @pytest.mark.parametrize("service_types", [RANDOM_SERVICE_TYPES])
-        def test_get_services_clusterization(self, client, city, area_type, area_id, condition, n_std, service_types):
-            url = self.URL + "/get_clusters_polygons"
-            data = {
-                "city": city,
-                "param":
-                    {
-                        "area": {area_type: area_id},
-                        "service_types": service_types,
-                        "condition": condition,
-                        "n_std": n_std,
-                    }
-            }
-            resp = client.post(url, json=data)
-            assert resp.status_code == 200
-
-        @pytest.mark.parametrize("city", enums.CitiesEnum)
-        @pytest.mark.parametrize("service_types", [RANDOM_SERVICE_TYPES])
-        def test_get_services_clusterization_without_area(self, client, city, service_types):
-            url = self.URL + "/get_clusters_polygons"
-            data = {
-                "city": city,
-                "param": {
-                    "service_types": service_types,
-                }
-            }
-
-            resp = client.post(url, json=data)
-            assert resp.status_code == 200
-
-        @pytest.mark.parametrize("city", enums.CitiesEnum)
-        @pytest.mark.parametrize("service_types", [
-            ["does_not_exists_service"],
-        ])
-        def test_get_services_clusterization_without_objects_to_cluster(self, client, city, service_types):
-            """ Тестирование случаев, когда нет сервисов для кластеризации. """
-            url = self.URL + "/get_clusters_polygons"
-            data = {
-                "city": city,
-                "param": {
-                    "service_types": service_types,
-                }
-            }
-
-            resp = client.post(url, json=data)
-            assert resp.status_code == 400
-
-            error_msg = "Not enough objects to cluster"
-            assert error_msg in resp.text
-
-    class TestDiversity:
-        URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/diversity"
-        RANDOM_SERVICE_TYPES = ["garbage_containers", "bakeries"]
-
-        @pytest.mark.parametrize("service_type", RANDOM_SERVICE_TYPES)
-        def test_get_diversity(self, client, service_type):
-            url = self.URL + "/diversity"
-            params = {
-                "service_type": service_type,
-            }
-
-            resp = client.get(url, params=params)
-            assert resp.status_code == 200
-
-        @pytest.mark.xfail(reason="500 ошибка если указать некорректный сервис. Сделать валидацию сервисов")
-        def test_get_diversity_does_not_exists_service_type(self, client):
-            url = self.URL + "/diversity"
-            params = {
-                "service_type": "cafe",
-            }
-
-            resp = client.get(url, params=params)
-            assert resp.status_code == 422
-
-    class TestVisibilityAnalysis:
-        URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/Visibility_analysis"
-        VIEWPOINTS = [  # random points in city bbox. latitude, longitude
-            (enums.CitiesEnum.SAINT_PETERSBURG, 59.785982, 30.2971539),
-            (enums.CitiesEnum.KRASNODAR, 45.0111502, 38.9100388),
-            (enums.CitiesEnum.SEVASTOPOL, 44.7775737, 33.4171179),
-        ]
-
-        @pytest.mark.parametrize("view_distance", [700])
-        @pytest.mark.parametrize("city, x_from, y_from", VIEWPOINTS)
-        def test_Visibility_analisys(self, client, city, x_from, y_from, view_distance):
-            url = self.URL + "/Visibility_analysis"
-            params = {
-                "city": city,
-                "x_from": x_from,
-                "y_from": y_from,
-                "view_distance": view_distance,
-            }
-
-            resp = client.get(url, params=params)
-            assert resp.status_code == 200
-
-    @pytest.mark.skip(reason="Not implemented test")
-    def test_get_provision(self):
-        ...
-
-    @pytest.mark.skip(reason="Not implemented test")
-    def test_get_provision_info(self):
-        ...
-
-
-class TestCMM:
-    class TestConnectivityCalculations:
-        URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/connectivity_calculations"
-
-        def test_connectivity_viewer(self, client, random_spb_municipality):
-            url = self.URL + "/connectivity_viewer"
-
-            feature_properties = {
-                "id": 1  # todo fake id?
-            }
-
-            data = {
-                "type": "FeatureCollection",
-                "name": "test_area",
-                "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}},
-                "features": [
-                    {
-                        "type": "Feature",
-                        "properties": feature_properties,
-                        "geometry": random_spb_municipality.dict()
-                    }
-                ],
-            }
-            resp = client.post(url, json=data)
-
-            assert resp.status_code == 200
-
-    class TestTraficsCalculation:
-        URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/pedastrian_walk_traffics"
-        TEST_POLYGON = {
-            "type": "FeatureCollection",
-            "name": "test_area",
-            "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}},
-            "features": [
-                {
-                    "type": "Feature",
-                    "properties": {},
-                    "geometry": {
-                        "type": "Polygon",
-                        "coordinates": [
-                            [[30.253654233376736, 59.952160447703385], [30.255163054210676, 59.95547985353806],
-                             [30.26592597615947, 59.954205738167175], [30.268843029771755, 59.95102044973996],
-                             [30.266428916437448, 59.94884104186871], [30.258013049119235, 59.94833810159073],
-                             [30.253654233376736, 59.952160447703385]]]
-                    }
-                }
-            ]
-        }
-
-        def test_pedastrian_walk_traffics_calculation(self, client):
-            url = self.URL + "/pedastrian_walk_traffics_calculation"
-            resp = client.post(url, json=self.TEST_POLYGON)
-
-            assert resp.status_code == 200
-
-        def test_400_error(self, client):
-            outside_spb_polygon = {
-                "type": "FeatureCollection",
-                "features": [
-                    {
-                        "type": "Feature",
-                        "properties": {},
-                        "geometry": {
-                            "type": "Polygon",
-                            "coordinates": [
-                                [
-                                    [
-                                        28.992919921875004,
-                                        61.03169171684717
-                                    ],
-                                    [
-                                        28.7841796875,
-                                        60.77525532466672
-                                    ],
-                                    [
-                                        29.33349609375,
-                                        60.6301017662667
-                                    ],
-                                    [
-                                        29.838867187500004,
-                                        60.91441435497479
-                                    ],
-                                    [
-                                        28.992919921875004,
-                                        61.03169171684717
-                                    ]
-                                ]
-                            ]
-                        }
-                    }
-                ]
-            }
-            url = self.URL + "/pedastrian_walk_traffics_calculation"
-            resp = client.post(url, json=outside_spb_polygon)
-
-            assert resp.status_code == 400
-
-    class TestWeightedVoronoi:
-        URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/voronoi"
-        SAINT_PETERSBURG_VORONOI_GEOJSON = {
-            "type": "FeatureCollection",
-            "name": "test",
-            "crs": {
-                "type": "name",
-                "properties": {
-                    "name": "urn:ogc:def:crs:EPSG::3857"
-                }
-            },
-            "features": [
-                {"type": "Feature", "properties": {"weight": 5.330623275960242},
-                 "geometry": {"type": "Point", "coordinates": [3365424.7412466537, 8388892.177795848]}},
-                {"type": "Feature", "properties": {"weight": 6.51134526170844},
-                 "geometry": {"type": "Point", "coordinates": [3366784.3993621334, 8390015.740133371]}},
-                {"type": "Feature", "properties": {"weight": 4.7412358799581495},
-                 "geometry": {"type": "Point", "coordinates": [3366811.6122107455, 8384317.056265167]}}]
-        }
-
-        @pytest.mark.parametrize("city, geojson", [  # todo add geojson to KRASNODAR and SEVASTOPOL
-            (enums.CitiesEnum.SAINT_PETERSBURG, SAINT_PETERSBURG_VORONOI_GEOJSON)
-        ])
-        def test_Weighted_voronoi_calculation(self, client, city, geojson):
-            url = self.URL + "/Weighted_voronoi_calculation"
-            data = {
-                "city": city,
-                "geojson": geojson,
-            }
-
-            resp = client.post(url, json=data)
-            assert resp.status_code == 200
-
-    @pytest.mark.xfail(reason="Тест падает после запуска тест кейсов TestConnectivityCalculations.")
-    class TestHouseLocation:
-        URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/house_location"
-        RANDOM_SERVICE_TYPES = ["garbage_containers", "bakeries"]
-
-        @pytest.mark.parametrize("area, floors, population, service_types", [
-            (2000, 5, 300, RANDOM_SERVICE_TYPES)
-        ])
-        def test_House_location_calculations(self, client, area, floors, population, service_types):
-            url = self.URL + "/house_location"
-            data = {
-                "area": area,
-                "floors": floors,
-                "population": population,
-                "service_types": service_types
-            }
-
-            resp = client.post(url, json=data)
-            assert resp.status_code == 200
-
-        @pytest.mark.parametrize("block_id, population, service_types", [
-            (856, 300, RANDOM_SERVICE_TYPES)
-        ])
-        def test_block_provision_calculations(self, client, block_id, population, service_types):
-            url = self.URL + "/block_provision"
-            data = {
-                "block_id": block_id,
-                "population": population,
-                "service_types": service_types
-            }
-
-            resp = client.post(url, json=data)
-            assert resp.status_code == 200
-
-        def test_block_provision_calculations_without_services_in_block(self):
-            """
-
-            Тестовый случай когда внутри квартала нет сервисов.
-            Ожидается 400 ошибка.
-            """
-
-    @pytest.mark.xfail(reason="Тест падает после запуска тест кейсов TestConnectivityCalculations.")
-    class TestServicesLocation:
-        URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/service_location"
-
-        @pytest.mark.parametrize("user_service_choice, user_unit_square_min, user_unit_square_max", [
-            ("Кафе/столовая", 10, 50)
-        ])
-        def test_service_location(self, client, user_service_choice, user_unit_square_min, user_unit_square_max):
-            url = self.URL + "/service_location"
-            data = {
-                "user_service_choice": user_service_choice,
-                "user_unit_square_min": user_unit_square_min,
-                "user_unit_square_max": user_unit_square_max
-            }
-
-            resp = client.post(url, json=data)
-            assert resp.status_code == 200
-
-    class TestHouseSelection:
-        URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/house_selection"
-
-        RANDOM_SIGNIFICANT_SERVICES = ["Урна", "Автозаправка"]
-        RANDOM_UNSIGNIFICANT_SERVICES = ["Кафе/столовая"]
-        RANDOM_SOCIAL_GROUP = "Дети младшего школьного возраста (7-11)"
-
-        @pytest.mark.xfail(reason="'InterfaceCityInformationModel' object has no attribute 'Social_groups'")
-        def test_get_social_groups_list(self, client):
-            url = self.URL + "/social_groups_list"
-
-            resp = client.get(url)
-            assert resp.status_code == 200
-
-        @pytest.mark.parametrize(
-            "user_selected_significant_services, user_selected_unsignificant_services, \
-            user_social_group_selection, user_price_preferences", [
-                (RANDOM_SIGNIFICANT_SERVICES, RANDOM_UNSIGNIFICANT_SERVICES, RANDOM_SOCIAL_GROUP, [20000, 30000]),
-            ])
-        def test_House_selection_calculations(
-                self, client,
-                user_selected_significant_services, user_selected_unsignificant_services,
-                user_social_group_selection, user_price_preferences
-        ):
-            url = self.URL + "/House_selection"
-            data = {
-                "user_selected_significant_services": user_selected_significant_services,
-                "user_selected_unsignificant_services": user_selected_unsignificant_services,
-                "user_social_group_selection": user_social_group_selection,
-                "user_price_preferences": user_price_preferences,
-            }
-            resp = client.post(url, json=data)
-            assert resp.status_code == 200
-
-    @pytest.mark.skip(reason="Not implemented test")
-    def test_spacematrix_objects(self):
-        ...
-
-    @pytest.mark.skip(reason="Not implemented test")
-    def test_get_wellbeing(self):
-        ...
-
-
-@pytest.mark.xfail(reason="'InterfaceCityInformationModel' object has no attribute 'get_instagram_data'")
-class TestInstagram:
-    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/instagram_concentration"
-
-    @pytest.mark.parametrize("year", [2018, 2019, 2020])  # todo replace on enum
-    @pytest.mark.parametrize("season", ["white_nights", "summer", "winter", "spring+autumn"])  # todo replace on enum
-    @pytest.mark.parametrize("day_time", ["dark", "light"])  # todo replace on enum
-    def test_instagram_get_squares(self, client, year, season, day_time):
-        url = self.URL + "/get_squares"
+from tests.geojson_example import CitiesPolygonForTrafficsCalculation, SAINT_PETERSBURG_VORONOI_GEOJSON
+from app import enums
+from tests import provision_geojson_examples
+
+MUNICIPALITIES = [
+    (enums.CitiesEnum.SAINT_PETERSBURG, enums.TerritorialEnum.MUNICIPALITY, 95),
+    (enums.CitiesEnum.KRASNODAR, enums.TerritorialEnum.MUNICIPALITY, 113),
+    (enums.CitiesEnum.SEVASTOPOL, enums.TerritorialEnum.MUNICIPALITY, 126),
+]
+
+BLOCKS = [
+    (enums.CitiesEnum.SAINT_PETERSBURG, enums.TerritorialEnum.BLOCK, 2800),
+    (enums.CitiesEnum.KRASNODAR, enums.TerritorialEnum.BLOCK, 7034),
+    (enums.CitiesEnum.SEVASTOPOL, enums.TerritorialEnum.BLOCK, 15020),
+]
+
+ADMINISTRATIVE_UNITS = [
+    (enums.CitiesEnum.SAINT_PETERSBURG, enums.TerritorialEnum.ADMINISTRATIVE_UNIT, 59),
+    (enums.CitiesEnum.KRASNODAR, enums.TerritorialEnum.ADMINISTRATIVE_UNIT, 69),
+    (enums.CitiesEnum.SEVASTOPOL, enums.TerritorialEnum.ADMINISTRATIVE_UNIT, 137),
+]
+
+
+class TestTrafficsCalculation:
+    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/pedastrian_walk_traffics"
+
+    @pytest.mark.parametrize("city, geojson", [
+        (enums.CitiesEnum.SAINT_PETERSBURG, CitiesPolygonForTrafficsCalculation.SAINT_PETERSBURG_INSIDE_GEOJSON),
+        (enums.CitiesEnum.KRASNODAR, CitiesPolygonForTrafficsCalculation.KRASNODAR_INSIDE_GEOJSON),
+        (enums.CitiesEnum.SEVASTOPOL, CitiesPolygonForTrafficsCalculation.SEVASTOPOL_INSIDE_GEOJSON),
+    ])
+    def test_pedastrian_walk_traffics_calculation(self, client, city, geojson):
+        url = self.URL + "/pedastrian_walk_traffics_calculation"
+        resp = client.post(url, json={"city": city, "geojson": geojson})
+
+        assert resp.status_code == 200
+
+    @pytest.mark.parametrize("city, geojson", [
+        (enums.CitiesEnum.SAINT_PETERSBURG, CitiesPolygonForTrafficsCalculation.SAINT_PETERSBURG_OUTSIDE_GEOJSON),
+        (enums.CitiesEnum.KRASNODAR, CitiesPolygonForTrafficsCalculation.KRASNODAR_OUTSIDE_GEOJSON),
+        (enums.CitiesEnum.SEVASTOPOL, CitiesPolygonForTrafficsCalculation.SEVASTOPOL_OUTSIDE_GEOJSON),
+    ])
+    def test_400_error(self, client, city, geojson):
+        """Проверка территорий, в которые не попадают жилые дома."""
+        url = self.URL + "/pedastrian_walk_traffics_calculation"
+        resp = client.post(url, json={"city": city, "geojson": geojson})
+
+        assert resp.status_code == 400
+
+
+class TestVisibilityAnalysis:
+    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/visibility_analysis"
+    VIEWPOINTS = [  # random points in city bbox. latitude, longitude
+        (enums.CitiesEnum.SAINT_PETERSBURG, 59.785982, 30.2971539),
+        (enums.CitiesEnum.KRASNODAR, 45.0111502, 38.9100388),
+        (enums.CitiesEnum.SEVASTOPOL, 44.7775737, 33.4171179),
+    ]
+
+    @pytest.mark.parametrize("view_distance", [700])
+    @pytest.mark.parametrize("city, x_from, y_from", VIEWPOINTS)
+    def test_visibility_analysis(self, client, city, x_from, y_from, view_distance):
+        url = self.URL + "/visibility_analysis"
         params = {
-            "year": year,
-            "season": season,
-            "day_time": day_time,
+            "city": city,
+            "x_from": x_from,
+            "y_from": y_from,
+            "view_distance": view_distance,
         }
 
         resp = client.get(url, params=params)
+        assert resp.status_code == 200
+
+
+class TestWeightedVoronoi:
+    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/voronoi"
+
+    @pytest.mark.parametrize("city, geojson", [
+        (enums.CitiesEnum.SAINT_PETERSBURG, SAINT_PETERSBURG_VORONOI_GEOJSON)
+    ])
+    def test_weighted_voronoi_calculation(self, client, city, geojson):
+        url = self.URL + "/weighted_voronoi_calculation"
+        data = {
+            "city": city,
+            "geojson": geojson,
+        }
+
+        resp = client.post(url, json=data)
+        assert resp.status_code == 200
+
+
+class TestBlocksClusterization:
+    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/blocks_clusterization"
+    RANDOM_SERVICE_TYPES = ["garbage_containers", "bakeries"]
+    RANDOM_CLUSTER_NUMBER = 5
+    DEFAULT_CLUSTER_NUMBER = None
+
+    @pytest.mark.parametrize("clusters_number", [DEFAULT_CLUSTER_NUMBER, RANDOM_CLUSTER_NUMBER])
+    @pytest.mark.parametrize("city, geojson", [
+        (enums.CitiesEnum.SAINT_PETERSBURG, CitiesPolygonForTrafficsCalculation.SAINT_PETERSBURG_INSIDE_GEOJSON),
+    ])
+    def test_get_blocks_calculations(self, client, city, clusters_number, geojson):
+        url = self.URL + "/get_blocks"
+        data = {
+            "city": city,
+            "clusters_number": clusters_number,
+            "service_types": self.RANDOM_SERVICE_TYPES,
+            "geojson": geojson,
+        }
+
+        resp = client.post(url, json=data)
+        assert resp.status_code == 200
+
+    @pytest.mark.parametrize("city, geojson", [
+        (enums.CitiesEnum.SAINT_PETERSBURG, CitiesPolygonForTrafficsCalculation.SAINT_PETERSBURG_INSIDE_GEOJSON),
+    ])
+    def test_get_dendrogram(self, client, city, geojson):
+        url = self.URL + "/get_dendrogram"
+        data = {
+            "city": city,
+            "clusters_number": self.RANDOM_CLUSTER_NUMBER,
+            "service_types": self.RANDOM_SERVICE_TYPES,
+            "geojson": geojson,
+        }
+
+        resp = client.post(url, json=data)
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type") == "image/png"
+
+
+class TestServicesClusterization:
+    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/services_clusterization"
+    RANDOM_SERVICE_TYPES = ["garbage_containers", "bakeries", "restaurants", "fastfoods"]
+
+    @pytest.mark.parametrize("city", enums.CitiesEnum)
+    @pytest.mark.parametrize("condition", enums.ClusterizationConditionsEnum)
+    def test_get_services_clusterization(self, client, city, condition):
+        """Запрос с обязательными полями и значениями по умолчанию. """
+        url = self.URL + "/get_clusters_polygons"
+        data = {
+            "city": city,
+            "service_types": self.RANDOM_SERVICE_TYPES,
+            "condition": condition,
+        }
+
+        resp = client.post(url, json=data)
+        assert resp.status_code == 200
+
+    @pytest.mark.parametrize("city, geojson, expected_code", [
+        (enums.CitiesEnum.SAINT_PETERSBURG, CitiesPolygonForTrafficsCalculation.SAINT_PETERSBURG_INSIDE_GEOJSON, 200),
+        (enums.CitiesEnum.KRASNODAR, CitiesPolygonForTrafficsCalculation.KRASNODAR_INSIDE_GEOJSON, 400),
+        (enums.CitiesEnum.SEVASTOPOL, CitiesPolygonForTrafficsCalculation.SEVASTOPOL_INSIDE_GEOJSON, 400),
+    ])
+    @pytest.mark.parametrize("condition", enums.ClusterizationConditionsEnum)
+    def test_get_services_clusterization_with_geojson_param(self, client, city, geojson, condition, expected_code):
+        """ Запрос с передачей geojson. """
+        url = self.URL + "/get_clusters_polygons"
+        data = {
+            "city": city,
+            "geojson": geojson,
+            "service_types": self.RANDOM_SERVICE_TYPES,
+            "condition": condition,
+        }
+
+        resp = client.post(url, json=data)
+        assert resp.status_code == expected_code
+
+    @pytest.mark.parametrize("city, area_type, area_id", [*ADMINISTRATIVE_UNITS, *MUNICIPALITIES, *BLOCKS])
+    @pytest.mark.parametrize("condition", enums.ClusterizationConditionsEnum)
+    def test_get_services_clusterization_area_type_and_id(self, client, city, area_type, area_id, condition):
+        url = self.URL + "/get_clusters_polygons"
+        data = {
+            "city": city,
+            "service_types": self.RANDOM_SERVICE_TYPES,
+            "condition": condition,
+            "area_type": area_type,
+            "area_id": area_id
+        }
+        resp = client.post(url, json=data)
+        expected_status_codes = [
+            200,  # OK
+            400,  # There is no services whithin a given territory
+        ]
+        assert resp.status_code in expected_status_codes
+
+    @pytest.mark.parametrize("city", enums.CitiesEnum)
+    @pytest.mark.parametrize("condition", enums.ClusterizationConditionsEnum)
+    def test_get_services_clusterization_without_objects_to_cluster(self, client, city, condition):
+        """ Тестирование случаев, когда нет сервисов для кластеризации. """
+        url = self.URL + "/get_clusters_polygons"
+
+        service_types = ["does_not_exists_service"]
+        data = {
+            "city": city,
+            "service_types": service_types,
+            "condition": condition,
+        }
+
+        resp = client.post(url, json=data)
+        assert resp.status_code == 400
+
+        error_detail = {"detail": "There is no services whithin a given territory."}
+        assert error_detail == resp.json()
+
+
+class TestSpacematrix:
+    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/spacematrix"
+
+    @pytest.mark.parametrize("city", enums.CitiesEnum)
+    def test_get_spacematrix_indices(self, client, city):
+        """Запрос с обязательными полями и значениями по умолчанию. """
+        data = {
+            "city": city,
+        }
+
+        url = self.URL + "/get_indices"
+        resp = client.post(url, json=data)
+        assert resp.status_code == 200
+
+    @pytest.mark.parametrize("city, geojson", [
+        (enums.CitiesEnum.SAINT_PETERSBURG, CitiesPolygonForTrafficsCalculation.SAINT_PETERSBURG_INSIDE_GEOJSON,),
+        (enums.CitiesEnum.KRASNODAR, CitiesPolygonForTrafficsCalculation.KRASNODAR_INSIDE_GEOJSON, ),
+        pytest.param(enums.CitiesEnum.SEVASTOPOL, CitiesPolygonForTrafficsCalculation.SEVASTOPOL_INSIDE_GEOJSON),
+    ])
+    def test_get_spacematrix_indices_geojson(self, client, city, geojson):
+        """ Запрос со передачей geojson геометрии. """
+        data = {
+            "city": city,
+            "geojson": geojson
+        }
+
+        url = self.URL + "/get_indices"
+        resp = client.post(url, json=data)
+        assert resp.status_code == 200
+
+    @pytest.mark.parametrize("city, area_type, area_id", [*ADMINISTRATIVE_UNITS, *MUNICIPALITIES, *BLOCKS])
+    def test_get_spacematrix_indices_with_area_type_and_id(self, client, city, area_type, area_id):
+        url = self.URL + "/get_indices"
+        data = {
+            "city": city,
+            "area_type": area_type,
+            "area_id": area_id
+        }
+        resp = client.post(url, json=data)
+        assert resp.status_code == 200
+
+
+class TestMobilityAnalysisIsochrones:
+    """ Проверка метрики доступности. """
+    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/mobility_analysis/isochrones"
+    CITIES_FROM_POINTS = [  # random points in city bbox. latitude, longitude
+        (enums.CitiesEnum.SAINT_PETERSBURG, 59.9386300, 30.3141300),
+        (enums.CitiesEnum.KRASNODAR, 45.0448400, 38.9760300),
+        (enums.CitiesEnum.SEVASTOPOL, 44.5888300, 33.5224000)
+    ]
+
+    @pytest.mark.parametrize("travel_type", enums.MobilityAnalysisIsochronesTravelTypeEnum)
+    @pytest.mark.parametrize("weight_type, weight_value", [
+        (enums.MobilityAnalysisIsochronesWeightTypeEnum.TIME, 1),
+        (enums.MobilityAnalysisIsochronesWeightTypeEnum.METER, 100)
+    ])
+    @pytest.mark.parametrize("city, x_from, y_from", CITIES_FROM_POINTS)
+    def test_mobility_analysis_isochrones(
+            self, client, city, x_from, y_from, weight_type, weight_value, travel_type
+    ):
+        """ Проверка вычисления изохрон для всех типов транспорта. """
+        params = dict(
+            city=city,
+            travel_type=travel_type,
+            weight_type=weight_type,
+            weight_value=weight_value,
+            x_from=x_from,
+            y_from=y_from,
+        )
+
+        url = self.URL
+
+        resp = client.get(url, params=params)
+        assert resp.status_code == 200
+
+    @pytest.mark.parametrize("travel_type", [
+        enums.MobilityAnalysisIsochronesTravelTypeEnum.PUBLIC_TRANSPORT,
+    ])
+    @pytest.mark.parametrize("weight_type, weight_value", [
+        (enums.MobilityAnalysisIsochronesWeightTypeEnum.TIME, 1),
+    ])
+    @pytest.mark.parametrize("city, x_from, y_from", CITIES_FROM_POINTS)
+    def test_mobility_analysis_isochrones_is_support_routers(
+            self, client, city, x_from, y_from, weight_type, weight_value, travel_type,
+    ):
+        """ Проверка успешного получения routers для изохрон """
+        params = dict(
+            city=city,
+            travel_type=travel_type,
+            weight_type=weight_type,
+            weight_value=weight_value,
+            x_from=x_from,
+            y_from=y_from,
+            routes=True,  # получить маршруты изохрон
+        )
+
+        url = self.URL
+
+        resp = client.get(url, params=params)
+        assert resp.status_code == 200
+
+    @pytest.mark.parametrize("travel_type", [
+        enums.MobilityAnalysisIsochronesTravelTypeEnum.WALK,
+        enums.MobilityAnalysisIsochronesTravelTypeEnum.DRIVE,
+    ])
+    @pytest.mark.parametrize("weight_type, weight_value", [
+        (enums.MobilityAnalysisIsochronesWeightTypeEnum.TIME, 1),
+        (enums.MobilityAnalysisIsochronesWeightTypeEnum.METER, 100)
+    ])
+    @pytest.mark.parametrize("city, x_from, y_from", CITIES_FROM_POINTS)
+    def test_mobility_analysis_isochrones_is_not_support_routers(
+            self, client, city, x_from, y_from, weight_type, weight_value, travel_type
+    ):
+        """ Проверка ошибки при получении routers для изохрон """
+        params = dict(
+            city=city,
+            travel_type=travel_type,
+            weight_type=weight_type,
+            weight_value=weight_value,
+            x_from=x_from,
+            y_from=y_from,
+            routes=True,  # получить маршруты изохрон
+        )
+
+        url = self.URL
+
+        resp = client.get(url, params=params)
+        assert resp.status_code == 422
+
+
+class TestDiversity:
+    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/diversity"
+    RANDOM_SERVICE_TYPE = "universities"
+
+    @pytest.mark.parametrize("service_type", [RANDOM_SERVICE_TYPE])
+    @pytest.mark.parametrize("city", enums.CitiesEnum)
+    def test_get_diversity(self, client, city, service_type):
+        url = self.URL + "/diversity"
+        params = {
+            "city": city,
+            "service_type": service_type
+        }
+
+        resp = client.get(url, params=params)
+        assert resp.status_code == 200
+
+    @pytest.mark.parametrize("service_type", ["cafes", "bakeries"])
+    @pytest.mark.parametrize("city, _, block_id", BLOCKS)
+    def test_get_diversity_get_buildings(self, client, city, _, block_id, service_type):
+        url = self.URL + "/get_buildings"
+        params = {
+            "city": city,
+            "block_id": block_id,
+            "service_type": service_type,
+        }
+
+        resp = client.get(url, params=params)
+        assert resp.status_code == 200
+
+    @pytest.mark.parametrize("service_type", [RANDOM_SERVICE_TYPE])
+    @pytest.mark.parametrize("city, house_id", [
+        (enums.CitiesEnum.SAINT_PETERSBURG, 915),
+        (enums.CitiesEnum.KRASNODAR, 137701),
+        (enums.CitiesEnum.SEVASTOPOL, 819244),
+    ])
+    def test_get_diversity_get_info(self, client, city, house_id, service_type):
+        url = self.URL + "/get_info"
+        params = {
+            "city": city,
+            "house_id": house_id,
+            "service_type": service_type,
+        }
+
+        resp = client.get(url, params=params)
+        assert resp.status_code == 200
+
+
+class TestProvision:
+    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/provision"
+
+    def test_get_provision(self, client):
+        url = self.URL + "/get_provision"
+
+        data = {
+            "city": "Saint_Petersburg",
+            "service_type": "kindergartens",
+            "valuation_type": "normative",
+            "year": 2022,
+        }
+
+        resp = client.post(url, json=data)
+        assert resp.status_code == 200
+
+    @pytest.mark.parametrize("user_changes_buildings", [
+        None, provision_geojson_examples.provisions_tests_kinders_houses,
+    ])
+    @pytest.mark.parametrize("user_changes_services", [
+        None, provision_geojson_examples.provisions_tests_kinders,
+    ])
+    def test_recalculate_provisions(self, client, user_changes_buildings, user_changes_services):
+        url = self.URL + "/recalculate_provisions"
+
+        data = {
+            "city": "Saint_Petersburg",
+            "service_type": "kindergartens",
+            "valuation_type": "normative",
+            "year": 2022,
+            "user_changes_buildings": user_changes_buildings,
+            "user_changes_services": user_changes_services,
+            "user_provisions": provision_geojson_examples.provisions_tests_kinders_provisions,
+        }
+
+        resp = client.post(url, json=data)
         assert resp.status_code == 200
