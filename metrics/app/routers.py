@@ -205,7 +205,7 @@ async def get_provision(
 ):
     city_model = cities_model[user_request.city]
     result = City_Provisions(
-        city_model, user_request.service_type,
+        city_model, user_request.service_types,
         user_request.valuation_type, user_request.year,
         user_changes_buildings=None, user_changes_services=None,
         user_provisions=None, user_selection_zone=user_request.user_selection_zone
@@ -220,7 +220,7 @@ async def recalculate_provisions(
 ):
     city_model = cities_model[user_request.city]
     result = City_Provisions(
-        city_model, user_request.service_type,
+        city_model, user_request.service_types,
         user_request.valuation_type, user_request.year,
         user_changes_buildings=user_request.user_changes_buildings, user_changes_services=user_request.user_changes_services,
         user_provisions=user_request.user_provisions, user_selection_zone=user_request.user_selection_zone
