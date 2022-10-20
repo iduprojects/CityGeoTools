@@ -278,6 +278,7 @@ class DiversityGetBuildingsQueryParams:
 
 
 class ProvisionInBase(BaseModel):
+    """Базовый класс схемы входных параметров для обеспеченности. """
     city: str
     service_type: str
     valuation_type: str
