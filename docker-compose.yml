@@ -2,7 +2,7 @@ version: '3.9'
 services:
   rpyc_metrics_server:
     build: rpyc_server/
-    image: oneonwar/rpyc_metrics_server:0.0.4
+    image: oneonwar/rpyc_metrics_server:0.0.4.1
     env_file:
       - .env
     container_name: rpyc
@@ -11,12 +11,12 @@ services:
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "18861"]
       interval: 1m
-      retries: 30
+      retries: 60
 
 
   idu_metrics:
     build: metrics/
-    image: oneonwar/idu_metrics:2.0.1
+    image: oneonwar/idu_metrics:2.0.1.1
     container_name: metrics
     env_file:
       - .env

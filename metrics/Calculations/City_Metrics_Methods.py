@@ -769,9 +769,9 @@ class City_Metrics_Methods():
                                  provision_type="calculated", city="Saint_Petersburg"):
 
         city_inf_model, city_crs = self.cities_inf_model[city], self.cities_crs[city]
-        block = city_inf_model.Base_Layer_Blocks.copy().to_crs(city_crs)
-        mo = city_inf_model.Base_Layer_Municipalities.copy().to_crs(city_crs)
-        district = city_inf_model.Base_Layer_Districts.copy().to_crs(city_crs)
+        block = city_inf_model.Blocks.copy().to_crs(city_crs)
+        mo = city_inf_model.Municipalities.copy().to_crs(city_crs)
+        district = city_inf_model.AdministrativeUnits.copy().to_crs(city_crs)
 
         wellbeing = self.get_wellbeing(BCAM=BCAM, living_situation_id=living_situation_id, return_dfs=True,
                                        user_service_types=user_service_types, provision_type=provision_type)
@@ -779,7 +779,7 @@ class City_Metrics_Methods():
         houses_mean_provision = houses.groupby([f"{area_type}_id"]).mean().filter(regex="provision")
         houses_mean_wellbeing = houses.groupby([f"{area_type}_id"]).mean().filter(regex="wellbeing")
         houses_mean_stat = pd.concat([houses_mean_provision, houses_mean_wellbeing], axis=1)
-        units = eval(area_type).set_index("id").drop(["center"], axis=1).join(houses_mean_stat)
+        units = eval(area_type).set_index("id").join(houses_mean_stat)
         return json.loads(units.reset_index().fillna("None").to_crs(4326).to_json())
 
     def calculate_wellbeing(self, loc, coef_df, get_provision=False):

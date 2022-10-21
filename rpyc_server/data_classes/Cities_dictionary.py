@@ -1,7 +1,5 @@
 import os
-from data_classes.InterfaceCityInformationModel import InterfaceCityInformationModel
-
-path = os.getcwd().split("/Data")[0]
+from data_classes.InterfaceCityInformationModel import DataQueryInterface
 
 cities_name = {"Saint_Petersburg": "Санкт-Петербург",
                "Krasnodar": "Краснодар",
@@ -15,9 +13,8 @@ cities_crs = {"Saint_Petersburg": 32636,
               "Krasnodar": 32637,
               "Sevastopol": 32636}
 
-cities_model = {"Krasnodar": InterfaceCityInformationModel("Krasnodar", cities_crs, cities_db_id),
-                "Sevastopol": InterfaceCityInformationModel("Sevastopol", cities_crs, cities_db_id),
-                "Saint_Petersburg": InterfaceCityInformationModel("Saint_Petersburg", cities_crs, cities_db_id)}
+cities_model = {name: DataQueryInterface(name, cities_crs[name], cities_db_id[name]) 
+                for name in cities_name}
 
 cities_metrics = {"Saint_Petersburg": ["connectivity_calculations", "pedastrian_walk_traffics",
                                        "mobility_analysis", "Visibility_analysis", "voronoi",

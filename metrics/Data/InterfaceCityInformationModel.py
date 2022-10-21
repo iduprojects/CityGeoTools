@@ -30,21 +30,19 @@ class InterfaceCityInformationModel:
 
         self.mongo_address = "http://" + os.environ["MONGO"]
         self.engine = create_engine("postgresql://" + os.environ["POSTGRES"])
-        self.db_api = "http://" + os.environ["DB_API"]
-        self.db_api_provision = "http://" + os.environ["DB_API_PROVISION"]
 
-        self.rpyc_connect = rpyc.connect("rpyc_metrics_server",
-                                         18861,
-                                         config={'allow_public_attrs': True, 
-                                                 "allow_pickle": True})
+        rpyc_server = os.environ["RPYC_SERVER"]
+        address, port = rpyc_server.split(":") if ":" in rpyc_server else (rpyc_server, 18861)
+        self.rpyc_connect = rpyc.connect(
+            address, port,
+            config={'allow_public_attrs': True, 
+                    "allow_pickle": True}
+                    )
         self.rpyc_connect._config['sync_request_timeout'] = None
 
         self.attr_names = ['walk_graph', 'drive_graph','public_transport_graph',
-                           'Buildings','Living_Buildings_Provision','Spacematrix_Buildings',
-                           'Commercial_rent_ads','Service_types','Services',
-                           'Public_Transport_Stops','Spacematrix_Blocks','Block_Diversity',
-                           'Base_Layer_Blocks','Base_Layer_Municipalities','Base_Layer_Districts',
-                           'Connectivity_Metrics_Data_Points','Hose_Location_service_ratio']
+                           'Buildings', 'Services', 'PublicTransportStops', 
+                           'ServiceTypes', 'Blocks', 'Municipalities','AdministrativeUnits']
         self.provisions = ['houses_provision','services_provision', "Social_groups"]
         
         for attr_name in self.attr_names:
@@ -108,10 +106,3 @@ class InterfaceCityInformationModel:
             WHERE t.name = '{ru_code}'"""
         df = pd.read_sql(sql_query, con=self.engine)
         return df["code"][0]
-
-    def get_social_groups_significance(self, user_request):
-        social_groups_significance = requests.get(self.db_api_provision +
-            "/api/relevance/service_types/?social_group={social_group_name}".format(
-                    social_group_name=user_request['user_social_group_selection'])
-                    ).json()['_embedded']['service_types']
-        return social_groups_significance

@@ -616,11 +616,11 @@ class Basics_City_Analysis_Methods():
             if service_normative[0] == "public_transport":
                 isochrone = self.transport_isochrone(
                     city, travel_type="public_transport", x_from=service_coord[1], y_from=service_coord[0],
-                    weight_value=str(service_normative[1]))
+                    weight_value=str(service_normative[1]))["isochrone"]
             else:
                 isochrone = self.walk_drive_isochrone(
                     city, travel_type="walk", x_from=service_coord[1], y_from=service_coord[0], weight_type="meter",
-                    weight_value=str(service_normative[1]))
+                    weight_value=str(service_normative[1]))["isochrone"]
 
         outcome_dict = {"houses": eval(houses.reset_index().fillna("None").to_crs(4326).to_json()),
                         "services": eval(services.reset_index().fillna("None").to_crs(4326).to_json())}
@@ -634,15 +634,15 @@ class Basics_City_Analysis_Methods():
                                  service_coef=None, city="Saint_Petersburg"):
 
         city_inf_model, city_crs = self.cities_inf_model[city], self.cities_crs[city]
-        block = city_inf_model.Base_Layer_Blocks.copy().to_crs(city_crs)
-        mo = city_inf_model.Base_Layer_Municipalities.copy().to_crs(city_crs)
-        district = city_inf_model.Base_Layer_Districts.copy().to_crs(city_crs)
+        block = city_inf_model.Blocks.copy().to_crs(city_crs)
+        mo = city_inf_model.Municipalities.copy().to_crs(city_crs)
+        district = city_inf_model.AdministrativeUnits.copy().to_crs(city_crs)
 
         provision = self.get_provision(service_type=service_types, provision_type=provision_type, detailed_info=False,
                                        is_weighted=is_weighted, service_coef=service_coef, return_dfs=True)
         houses = provision["houses"]
         houses_mean_provision = houses.groupby([f"{area_type}_id"]).mean().filter(regex="provision")
-        units = eval(area_type).set_index("id").drop(["center"], axis=1).join(houses_mean_provision)
+        units = eval(area_type).set_index("id").join(houses_mean_provision)
         return json.loads(units.reset_index().fillna("None").to_crs(4326).to_json())
 
     def get_top_provision_objects(self, service_types, area_type, area_value, provision_type="calculated",

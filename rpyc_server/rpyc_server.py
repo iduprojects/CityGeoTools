@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import rpyc
 from rpyc.utils.server import ThreadedServer
 
-from data_classes.InterfaceCityInformationModel import InterfaceCityInformationModel
+from data_classes.InterfaceCityInformationModel import DataQueryInterface
 from data_classes.Cities_dictionary import cities_model, cities_crs, cities_metrics, cities_name
 
 import pickle
