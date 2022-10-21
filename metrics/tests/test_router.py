@@ -390,7 +390,7 @@ class TestProvision:
 
         data = {
             "city": "Saint_Petersburg",
-            "service_type": "kindergartens",
+            "service_types": ["kindergartens"],
             "valuation_type": "normative",
             "year": 2022,
         }
@@ -409,7 +409,7 @@ class TestProvision:
 
         data = {
             "city": "Saint_Petersburg",
-            "service_type": "kindergartens",
+            "service_types": ["kindergartens"],
             "valuation_type": "normative",
             "year": 2022,
             "user_changes_buildings": user_changes_buildings,
