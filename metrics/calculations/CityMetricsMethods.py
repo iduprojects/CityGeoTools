@@ -424,7 +424,7 @@ class Spacematrix(BaseMethod):
         blocks["FSI"] = sum_grouper["building_area"] / blocks["area"]
         blocks["GSI"] = sum_grouper["basement_area"] / blocks["area"]
         blocks["MXI"] = (sum_grouper["living_area"] / sum_grouper["building_area"]).round(2)
-        blocks["L"] =( blocks["FSI"] / blocks["GSI"]).round()
+        blocks["L"] = (blocks["FSI"] / blocks["GSI"]).round()
         blocks["OSR"] = ((1 - blocks["GSI"]) / blocks["FSI"]).round(2)
         blocks[["FSI", "GSI"]] = blocks[["FSI", "GSI"]].round(2)
         
