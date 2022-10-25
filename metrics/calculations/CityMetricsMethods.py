@@ -399,7 +399,7 @@ class Spacematrix(BaseMethod):
 
     @staticmethod
     def simple_preprocess_data(buildings, blocks):
-        
+
             # temporary filters. since there are a few bugs in buildings table from DB
         buildings = buildings[buildings["block_id"].notna()]
         buildings = buildings[buildings["storeys_count"].notna()]
@@ -445,9 +445,7 @@ class Spacematrix(BaseMethod):
                 )
         return "".join(cluster_name)
 
-    def get_spacematrix_morph_types(self, clusters_number=11, area_type=None, area_id=None, geojson=None):
-        buildings, blocks = self.simple_preprocess_data(self.buildings, self.blocks)
-        blocks = self.calculate_block_indices(buildings, blocks)
+    def get_spacematrix_morph_types(self, blocks, clusters_number=11):
         # blocks with OSR >=10 considered as unbuilt blocks
         X = blocks[blocks["OSR"] < 10][['FSI', 'L', 'MXI']].dropna()
         scaler = StandardScaler()
@@ -460,47 +458,28 @@ class Spacematrix(BaseMethod):
             lambda x: self.name_spacematrix_morph_types(x), axis=1)
         blocks = blocks.join(named_clusters.rename("spacematrix_morphotype"), on="spacematrix_cluster")
         
-        if area_type and area_id:
-            if area_type == "block": 
-                blocks = blocks.loc[[area_id]]
-            else:
-                blocks = self.get_territorial_select(area_type, area_id, blocks)[0]
-        elif geojson:
-            blocks = self.get_custom_polygon_select(geojson, self.city_crs, blocks)[0]
-
-        return json.loads(blocks.reset_index().to_crs(4326).to_json())
-
+        return blocks
         
     @staticmethod
-    def storeys_names(blocks):
+    def get_strelka_morph_types(blocks):
 
         storeys = [blocks['L'].between(0,3), blocks['L'].between(4,8), (blocks['L']>=9)]
         labels = ['Малоэтажная застройка', 'Среднеэтажная застройка', 'Многоэтажная застройка']
-        storeys_names = np.select(storeys, labels, default='Другое')
+        blocks['strelka_morphotype'] = np.select(storeys, labels, default='Другое')
 
-        return storeys_names
-
-    @staticmethod
-    def living_names(blocks):
-        
-        mxis = [(blocks["strelka_morphotype"]=='Малоэтажная застройка') & (blocks['MXI']<0.05),
-                (blocks["strelka_morphotype"]=='Среднеэтажная застройка') & (blocks['MXI']<0.2),
-                (blocks["strelka_morphotype"]=='Многоэтажная застройка') & (blocks['MXI']<0.1)]
+        mxis = [(blocks["strelka_morphotype"] == 'Малоэтажная застройка') & (blocks['MXI']<0.05),
+                (blocks["strelka_morphotype"] == 'Среднеэтажная застройка') & (blocks['MXI']<0.2),
+                (blocks["strelka_morphotype"] == 'Многоэтажная застройка') & (blocks['MXI']<0.1)]
         labels = ['Малоэтажная нежилая застройка', 'Среднеэтажная нежилая застройка', 'Многоэтажная нежилая застройка']
-        living_names = np.select(mxis, labels, default = blocks["strelka_morphotype"])
+        blocks['strelka_morphotype'] = np.select(mxis, labels, default = blocks["strelka_morphotype"])
 
-        return living_names
-
-    @staticmethod
-    def strelka_names(blocks):
-
-        conds = [(blocks['strelka_morphotype']=='Малоэтажная застройка') & ((blocks['FSI']*10)<=1),
-                 (blocks['strelka_morphotype']=='Малоэтажная застройка') & ((blocks['FSI']*10)>1),
-                 (blocks['strelka_morphotype']=='Среднеэтажная застройка') & ((blocks['FSI']*10)<=8) & (blocks['MXI']<0.45),
-                 (blocks['strelka_morphotype']=='Среднеэтажная застройка') & ((blocks['FSI']*10)>8) & (blocks['MXI']<0.45),
-                 (blocks['strelka_morphotype']=='Среднеэтажная застройка') & ((blocks['FSI']*10)>15) & (blocks['MXI']>=0.6),
-                 (blocks['strelka_morphotype']=='Многоэтажная застройка') & ((blocks['FSI']*10)<=15),
-                 (blocks['strelka_morphotype']=='Многоэтажная застройка') & ((blocks['FSI']*10)>15)]
+        conds = [(blocks['strelka_morphotype'] == 'Малоэтажная застройка') & ((blocks['FSI']*10)<=1),
+                 (blocks['strelka_morphotype'] == 'Малоэтажная застройка') & ((blocks['FSI']*10)>1),
+                 (blocks['strelka_morphotype'] == 'Среднеэтажная застройка') & ((blocks['FSI']*10)<=8) & (blocks['MXI']<0.45),
+                 (blocks['strelka_morphotype'] == 'Среднеэтажная застройка') & ((blocks['FSI']*10)>8) & (blocks['MXI']<0.45),
+                 (blocks['strelka_morphotype'] == 'Среднеэтажная застройка') & ((blocks['FSI']*10)>15) & (blocks['MXI']>=0.6),
+                 (blocks['strelka_morphotype'] == 'Многоэтажная застройка') & ((blocks['FSI']*10)<=15),
+                 (blocks['strelka_morphotype'] == 'Многоэтажная застройка') & ((blocks['FSI']*10)>15)]
         labels = ['Индивидуальная жилая застройка',
                   'Малоэтажная модель застройки',
                   'Среднеэтажная микрорайонная застройка',
@@ -508,21 +487,24 @@ class Spacematrix(BaseMethod):
                   'Центральная модель застройки',
                   'Многоэтажная советская микрорайонная застройка',
                   'Многоэтажная соверменная микрорайонная застройка']
-        morph_names = np.select(conds, labels, default=blocks["strelka_morphotype"])
+        blocks['strelka_morphotype'] = np.select(conds, labels, default=blocks["strelka_morphotype"])
 
-        return morph_names
+        return blocks
 
-    def get_strelka_morphotypes(self, buildings, blocks, area_type=None, area_id=None, geojson=None):
+    def get_morphotypes(self, area_type=None, area_id=None, geojson=None):
 
         buildings, blocks = self.simple_preprocess_data(self.buildings, self.blocks)
         blocks = self.calculate_block_indices(buildings, blocks)
-        blocks['strelka_morphotype'] = self.storeys_names(blocks)
-        blocks['strelka_morphotype'] = self.living_names(blocks)
-        blocks['strelka_morphotype'] = self.strelka_names(blocks)
+
+        blocks = self.get_spacematrix_morph_types(blocks)
+        blocks = self.get_strelka_morph_types(blocks)
 
         if area_type and area_id:
-            if area_type == "block": 
-                blocks = blocks.loc[[area_id]]
+            if area_type == "block":
+                try: 
+                    blocks = blocks.loc[[area_id]]
+                except:
+                    raise SelectedValueError("build-up block", "area_id", "id")
             else:
                 blocks = self.get_territorial_select(area_type, area_id, blocks)[0]
         elif geojson:
@@ -757,7 +739,7 @@ class Diversity(BaseMethod):
 # ######################################### Collocation Matrix #################################################
 
 class CollocationMatrix(BaseMethod):
-    def _init_(self, city_model):
+    def __init__(self, city_model):
         BaseMethod.__init__(self, city_model)
         super().validation("collocation_matrix")
         self.services = self.city_model.Services.copy()
@@ -770,6 +752,7 @@ class CollocationMatrix(BaseMethod):
 
         return json.loads(collocation_matrix.to_json())
 
+    @staticmethod
     def get_numerator(services):
         services_numerator = services.pivot_table(index='block_id', columns='service_code', values='count')
 
@@ -800,7 +783,7 @@ class CollocationMatrix(BaseMethod):
 
         types_blocks_sum = []
         for i,j in pairs_services_denominator:
-            if [i]==[j]:
+            if [i] ==[j]:
                     types_blocks_sum.append(0)
             else:
                     num1 = count_type_block.loc[count_type_block['service_code'] == i, 'block_id'].iloc[0]
@@ -817,6 +800,7 @@ class CollocationMatrix(BaseMethod):
         denominator = sum_res_denominator - self.get_numerator(services)
 
         return denominator
+
 
 # ######################################### New Provisions #################################################
            
