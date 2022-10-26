@@ -29,7 +29,7 @@ def nk_routes_between_two_points(G_nk, nodes_data, p1, p2, exact_geometry=False)
     route_len = round(dijkstra.distance(p2_) + distance.sum(), 2)
 
     if exact_geometry:
-        complete_route = [(attrs[n]["x"], attrs[n]["y"]) for n in dijkstra.getPath(p2_)]
+        complete_route = [(nodes_data[n]["x"], nodes_data[n]["y"]) for n in dijkstra.getPath(p2_)]
         route_geometry = shapely.geometry.LineString(complete_route)
     else:
         route_geometry =  shapely.geometry.LineString([p1, p2])
