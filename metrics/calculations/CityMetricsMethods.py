@@ -446,7 +446,7 @@ class Spacematrix(BaseMethod):
                 )
         return "".join(cluster_name)
 
-    def get_spacematrix_morph_types(self, blocks, clusters_number=11):
+    def get_spacematrix_morph_types(self, blocks, clusters_number):
         # blocks with OSR >=10 considered as unbuilt blocks
         X = blocks[blocks["OSR"] < 10][['FSI', 'L', 'MXI']].dropna()
         scaler = StandardScaler()
@@ -492,7 +492,7 @@ class Spacematrix(BaseMethod):
 
         return blocks
 
-    def get_morphotypes(self, clusters_number=signature(get_spacematrix_morph_types).parameters['clusters_number'].default, area_type=None, area_id=None, geojson=None):
+    def get_morphotypes(self, clusters_number=11, area_type=None, area_id=None, geojson=None):
 
         buildings, blocks = self.simple_preprocess_data(self.buildings, self.blocks)
         blocks = self.calculate_block_indices(buildings, blocks)
