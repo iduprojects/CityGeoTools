@@ -23,6 +23,7 @@ from matplotlib import pyplot as plt
 from scipy import spatial
 from .errors import TerritorialSelectError, SelectedValueError, ImplementationError
 from itertools import product
+from inspect import signature
 
 #from app.schemas import FeatureCollectionWithCRS
 
@@ -491,12 +492,13 @@ class Spacematrix(BaseMethod):
 
         return blocks
 
-    def get_morphotypes(self, area_type=None, area_id=None, geojson=None):
+    def get_morphotypes(self, clusters_number=signature(get_spacematrix_morph_types).parameters['clusters_number'].default, area_type=None, area_id=None, geojson=None):
 
         buildings, blocks = self.simple_preprocess_data(self.buildings, self.blocks)
         blocks = self.calculate_block_indices(buildings, blocks)
 
-        blocks = self.get_spacematrix_morph_types(blocks)
+        blocks = self.get_spacematrix_morph_types(blocks, clusters_number)
+
         blocks = self.get_strelka_morph_types(blocks)
 
         if area_type and area_id:
@@ -746,8 +748,17 @@ class CollocationMatrix(BaseMethod):
 
     def get_collocation_matrix(self):
         services = self.services.dropna().reset_index(drop=True)[['service_code','block_id']].sort_values('service_code')
+        types_of_services = ["dentists", "pharmacies", "markets", "conveniences", "supermarkets", "art_spaces", "zoos", "libraries",
+                             "theaters", "museums", "cinemas", "bars", "bakeries", "cafes", "restaurants", "fastfoods", "saunas",
+                             "sportgrounds", "swimming_pools", "banks", "atms", "shopping_centers", "aquaparks", "fitness_clubs",
+                             "sport_centers", "sport_clubs", "stadiums", "beauty_salons", "spas", "metro_stations", "hardware_stores",
+                             "instrument_stores", "electronic_stores", "clothing_stores", "tobacco_stores", "sporting_stores",
+                             "jewelry_stores", "flower_stores", "pawnshops", "recreational_areas", "embankments", "souvenir_shops",
+                             "bowlings", "stops", "clubs", "microloan", "child_teenager_club", "sport_section", "culture_house", "quest",
+                             "circus", "child_game_room", "child_goods", "art_gallery", "book_store", "music_school", "art_goods",
+                             "mother_child_room", "holiday_goods", "toy_store", "beach", "amusement_park"]
+        services = services[services['service_code'].isin(types_of_services)]
         services['count'] = 0
-        
         collocation_matrix = self.get_numerator(services) / self.get_denominator(services)
 
         return json.loads(collocation_matrix.to_json())
