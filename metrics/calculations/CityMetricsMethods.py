@@ -1106,3 +1106,83 @@ class City_Provisions(BaseMethod):
             return Provisions
 
 
+# ######################################### Masterplan indicators #################################################
+
+class Masterplan(BaseMethod):
+
+    def init(self, city_model):
+        BaseMethod.init(self, city_model)
+        super().validation("masterplan")
+        self.buildings = self.city_model.Buildings.copy()
+        
+    @staticmethod
+    def get_masterplan(self, polygon,  land_area , dev_land_procent, dev_land_area, dev_land_density, land_living_area, dev_living_density, 
+                       population, population_density, living_area_provision, land_business_area, building_height_mode, living, commerce):
+
+        buildings = self.buildings[['id', 'population_balanced', 'living_area', 'basement_area', 'storeys_count', 'is_living', 'geometry']]
+        buildings_living = buildings[buildings['is_living'] == True]
+        land = gpd.read_file(polygon)
+        land_with_buildings = gpd.sjoin(buildings, land, how='inner')
+        land_with_buildings_living = gpd.sjoin(buildings_living, land, how='inner')
+
+        hectare = 10000
+
+        if living is None:
+            living = 80
+        if commerce is None:
+            commerce = 20
+        
+        if land_area is None: 
+            land =  land.to_crs(32636)
+            land_area =  land.area / hectare
+            land_area =  land_area.squeeze()
+ 
+        if dev_land_procent is None:
+            buildings_area = land_with_buildings['basement_area'].sum()
+            dev_land_procent = ((buildings_area / hectare) / land_area) * 100
+
+        if dev_land_area is None:
+            dev_land_area = land_with_buildings['basement_area'] * land_with_buildings['storeys_count']
+            dev_land_area = dev_land_area.sum() / hectare
+    
+        if dev_land_density is None:
+            dev_land_density = dev_land_area / land_area
+
+        if land_living_area is None:
+            land_living_area = land_with_buildings_living['basement_area'] * land_with_buildings_living['storeys_count']
+            land_living_area = ((land_living_area.sum() / hectare) / 100 * living)
+            
+        else:
+     
+            land_living_area = (land_living_area / 100 * living)
+
+        if dev_living_density is None:
+            dev_living_density = land_living_area / land_area
+
+        if population is None:
+            population =  land_with_buildings['population_balanced'].sum().squeeze() 
+            
+        if population_density is None:
+            population_density = population / land_area.squeeze()
+
+        if living_area_provision is None:
+            living_area_provision = (land_living_area * hectare) / population
+
+        if land_business_area is None:
+            land_business_area = ((land_living_area / living) * commerce) 
+
+        if building_height_mode is None:
+            building_height_mode = land_with_buildings['storeys_count'].mode().squeeze()
+            
+        data = [[land_area], [dev_land_procent], [dev_land_area], [dev_land_density], [land_living_area],
+                    [dev_living_density], [population], [population_density], [living_area_provision], 
+                    [land_business_area], [building_height_mode]]   
+        columns = ['Значение']
+        index = ['Площадь змелеьного участка', 'Процент застроенности земельного участка',
+                'Площадь застройки', 'Плотность застройки територии', 'Площадь квартала жилой застройки', 
+                'Плотность застройки квартала жилой застройкой', 'Численность жителей', 
+                'Плотность населения', 'Жилищная обеспеченность', 
+                'Общественно деловая площадь в жилой застройке', 'Мода этажности рядовой застройки']
+        df_indicators = pd.DataFrame(data, index, columns)
+
+        return json.loads(df_indicators.to_json())

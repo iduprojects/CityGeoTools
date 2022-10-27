@@ -1,5 +1,5 @@
 data_dictionary = {
-                    "Buildings": ["traffic_calculator", "visibility_analysis", "spacematrix", "diversity"],
+                    "Buildings": ["traffic_calculator", "visibility_analysis", "spacematrix", "diversity", "masterplan"],
                     "PublicTransportStops": ["traffic_calculator"],
                     "Services": ["blocks_clusterization", "services_clusterization", "diversity"],
                     "ServiceTypes": ["diversity"],
