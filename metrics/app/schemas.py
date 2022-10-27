@@ -278,8 +278,9 @@ class DiversityGetBuildingsQueryParams:
 
 
 class ProvisionInBase(BaseModel):
+    """Базовый класс схемы входных параметров для обеспеченности. """
     city: str
-    service_type: str
+    service_types: conlist(str, min_items=1)
     valuation_type: str
     year: int
     user_selection_zone: Optional[Polygon] = None
@@ -290,7 +291,7 @@ class ProvisionGetProvisionIn(ProvisionInBase):
         schema_extra = {
             "example": {
                 "city": "Saint_Petersburg",
-                "service_type": "kindergartens",
+                "service_types": ["kindergartens"],
                 "valuation_type": "normative",
                 "year": 2022,
             }
