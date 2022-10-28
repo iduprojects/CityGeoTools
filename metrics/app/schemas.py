@@ -299,7 +299,7 @@ class ProvisionGetProvisionIn(ProvisionInBase):
 
 
 class ProvisionRecalculateProvisionsIn(ProvisionInBase):
-    user_provisions: list[dict]
+    user_provisions: dict[str, list[dict]]
     user_changes_buildings: Optional[dict] = None
     user_changes_services: Optional[dict] = None
 
