@@ -277,6 +277,9 @@ class DiversityGetBuildingsQueryParams:
         self.service_type = service_type
 
 
+ProvisionsDestinationMatrix = dict[str, list[dict]]  # матрица назначений
+
+
 class ProvisionInBase(BaseModel):
     """Базовый класс схемы входных параметров для обеспеченности. """
     city: str
@@ -299,7 +302,7 @@ class ProvisionGetProvisionIn(ProvisionInBase):
 
 
 class ProvisionRecalculateProvisionsIn(ProvisionInBase):
-    user_provisions: dict[str, list[dict]]
+    user_provisions: ProvisionsDestinationMatrix
     user_changes_buildings: Optional[dict] = None
     user_changes_services: Optional[dict] = None
 
@@ -307,7 +310,7 @@ class ProvisionRecalculateProvisionsIn(ProvisionInBase):
 class ProvisionOutBase(BaseModel):
     houses: FeatureCollection
     services: FeatureCollection
-    provisions: list
+    provisions: ProvisionsDestinationMatrix
 
 
 class ProvisionGetProvisionOut(ProvisionOutBase):
