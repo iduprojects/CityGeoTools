@@ -949,7 +949,7 @@ class City_Provisions(BaseMethod):
                 #read tables from base and add em to existing buildings and services tables, return.
         except: 
             for service_type in self.service_types:
-                
+                print(service_type)
                 normative_distance = self.service_types_normatives.loc[service_type].dropna().copy(deep = True)
                 try:
                     self.Provisions[service_type]['normative_distance'] = normative_distance['walking_radius_normative']
@@ -1164,9 +1164,10 @@ class City_Provisions(BaseMethod):
         name = loc.name
         nans = loc.isna()
         index = nans[~nans].index
-        loc[~nans] = [pulp.LpVariable(name = f"route_{name}_{I}", lowBound=0, cat = "Integer") for I in index]
+        t = pd.Series([pulp.LpVariable(name = f"route_{name}_{I}", lowBound=0, cat = "Integer") for I in index], index)
+        loc[~nans] = t
         return loc
-
+        
     def _provision_loop(self, houses_table, services_table, distance_matrix, selection_range, Provisions, service_type): 
         print('started')
         select = distance_matrix[distance_matrix.iloc[:] <= selection_range]
@@ -1223,7 +1224,7 @@ class City_Provisions(BaseMethod):
                                         columns = houses_table[houses_table[f'{service_type}_service_demand_left_value_{self.valuation_type}'] == 0].index.values,
                                         errors = 'ignore')
         print(houses_table[f'{service_type}_service_demand_left_value_{self.valuation_type}'].sum(), services_table['capacity_left'].sum(),selection_range)
-        selection_range += 2 * selection_range
+        selection_range += selection_range
         if len(distance_matrix.columns) > 0 and len(distance_matrix.index) > 0:
             return self._provision_loop(houses_table, services_table, distance_matrix, selection_range, Provisions, service_type)
         else: 
