@@ -54,7 +54,16 @@
             },
             "service_code": {
               "description": "Service type",
-              "type": "string"
+              "type": "string",
+              "enum": ["dentists", "pharmacies", "markets", "conveniences", "supermarkets", "art_spaces", "zoos", "libraries",
+                       "theaters", "museums", "cinemas", "bars", "bakeries", "cafes", "restaurants", "fastfoods", "saunas",
+                       "sportgrounds", "swimming_pools", "banks", "atms", "shopping_centers", "aquaparks", "fitness_clubs",
+                       "sport_centers", "sport_clubs", "stadiums", "beauty_salons", "spas", "metro_stations", "hardware_stores",
+                       "instrument_stores", "electronic_stores", "clothing_stores", "tobacco_stores", "sporting_stores",
+                       "jewelry_stores", "flower_stores", "pawnshops", "recreational_areas", "embankments", "souvenir_shops",
+                       "bowlings", "stops", "clubs", "microloan", "child_teenager_club", "sport_section", "culture_house", "quest",
+                       "circus", "child_game_room", "child_goods", "art_gallery", "book_store", "music_school", "art_goods",
+                       "mother_child_room", "holiday_goods", "toy_store", "beach", "amusement_park"]
             },
             "block_id": {
               "description": "The identifier of block where a service is located",
