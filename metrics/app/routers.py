@@ -231,7 +231,7 @@ async def recalculate_provisions(
 
 @router.get(
     "/collocation_matrix/collocation_matrix",
-    response_model=dict, tags=[Tags.collocation_matrix]
+    response_model=dict[str, dict[str, Optional[float]]], tags=[Tags.collocation_matrix]
 )
 async def get_collocation_matrix(query_params: schemas.CollocationMatrixQueryParams = Depends()):
     city_model = cities_model[query_params.city]
