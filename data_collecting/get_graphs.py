@@ -61,46 +61,25 @@ def get_osmnx_graph(city_osm_id, city_crs, graph_type, speed=None):
     return G
 
 
-def public_routes_to_edges(city_osm_id, city_crs, transport_type, speed):
-
-    routes = overpass_query(get_routes, city_osm_id, transport_type)
-    print(f"Extracting and preparing {transport_type} routes:")
-
-    try:
-        df_routes = routes.progress_apply(
-            lambda x: parse_overpass_route_response(x, city_crs), axis = 1, result_type="expand"
-            )
-        df_routes = gpd.GeoDataFrame(df_routes).dropna(subset=["way"]).set_geometry("way")
-
-    except KeyError:
-        print(f"It seems there are no {transport_type} routes in the city. This transport type will be skipped.")
-        return []
-
-    # some stops don't lie on lines, therefore it's needed to project them
-    stop_points = df_routes.apply(lambda x: transform.project_platforms(x, city_crs), axis = 1)
-
-    edges = []
-    time_on_stop = 1
-    for i, route in stop_points.iterrows():
-        length = np.diff(list(route["distance"]))
-        for j in range(len(route["pathes"])):
-            edge_length = float(length[j])
-            p1 = route["pathes"][j][0]
-            p2 = route["pathes"][j][1]
-            d = {"time_min": round(edge_length/speed + time_on_stop, 2), "length_meter": round(edge_length, 2), 
-                "type": transport_type, "desc": f"route {i}", "geometry": str(LineString([p1, p2]))}
-            edges.append((p1, p2, d))
-
-    return edges
-
-
-def get_public_trasport_graph(city_osm_id, city_crs, transport_types_speed):
+def get_public_trasport_graph(city_osm_id, city_crs, transport_types_speed=None):
 
     G = nx.MultiDiGraph()
     edegs_different_types = []
 
+    if not transport_types_speed:
+        transport_types_speed = {
+            "subway": 12*1000/60, 
+            "tram": 15*1000/60, 
+            "trolleybus": 12*1000/60,
+            "bus": 17*1000/60
+            }
+
+    boundary = overpass_query(get_boundary, city_osm_id)  
+    boundary = osm2geojson.json2geojson(boundary)
+    boundary = shapely.geometry.shape(boundary['features'][0]["geometry"])
+
     for transport_type, speed in transport_types_speed.items():
-        edges = public_routes_to_edges(city_osm_id, city_crs, transport_type, speed)
+        edges = public_routes_to_edges(city_osm_id, city_crs, transport_type, speed, boundary)
         edegs_different_types.extend(edges)
     
     G.add_edges_from(edegs_different_types)
@@ -124,6 +103,38 @@ def get_public_trasport_graph(city_osm_id, city_crs, transport_types_speed):
     print("Public transport graph done!")
     return G
 
+
+def public_routes_to_edges(city_osm_id, city_crs, transport_type, speed, boundary):
+
+    routes = overpass_query(get_routes, city_osm_id, transport_type)
+    print(f"Extracting and preparing {transport_type} routes:")
+
+    try:
+        df_routes = routes.progress_apply(
+            lambda x: parse_overpass_route_response(x, city_crs, boundary), axis = 1, result_type="expand"
+            )
+        df_routes = gpd.GeoDataFrame(df_routes).dropna(subset=["way"]).set_geometry("way")
+
+    except KeyError:
+        print(f"It seems there are no {transport_type} routes in the city. This transport type will be skipped.")
+        return []
+
+    # some stops don't lie on lines, therefore it's needed to project them
+    stop_points = df_routes.apply(lambda x: transform.project_platforms(x, city_crs), axis = 1)
+
+    edges = []
+    time_on_stop = 1
+    for i, route in stop_points.iterrows():
+        length = np.diff(list(route["distance"]))
+        for j in range(len(route["pathes"])):
+            edge_length = float(length[j])
+            p1 = route["pathes"][j][0]
+            p2 = route["pathes"][j][1]
+            d = {"time_min": round(edge_length/speed + time_on_stop, 2), "length_meter": round(edge_length, 2), 
+                "type": transport_type, "desc": f"route {i}", "geometry": str(LineString([p1, p2]))}
+            edges.append((p1, p2, d))
+
+    return edges
 
 # G_base - the biggest one 
 def graphs_spatial_union(G_base, G_to_project):
@@ -153,8 +164,7 @@ def graphs_spatial_union(G_base, G_to_project):
     return united_graph
 
 
-def get_intermodal_graph(city_osm_id, city_crs, public_transport_speeds, 
-                        walk_speed =  4 * 1000 / 60, drive_speed = 17 * 1000 / 60):
+def get_intermodal_graph(city_osm_id, city_crs, public_transport_speeds=None, walk_speed = None, drive_speed = None):
 
     G_walk = get_osmnx_graph(city_osm_id, city_crs, "walk", speed=walk_speed)
     G_drive = get_osmnx_graph(city_osm_id, city_crs, "drive", speed=drive_speed)
