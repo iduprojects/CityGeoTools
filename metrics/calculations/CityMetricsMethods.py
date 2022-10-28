@@ -1161,16 +1161,11 @@ class City_Provisions(BaseMethod):
         return pd.Series(data = distances, index = target_nodes)
     
     def _declare_varables(self, loc):
-        nans = loc.isna()
-        index = loc.index
         name = loc.name
-        data = []
-        for I in index:
-            if nans[I] == False:
-                data.append(pulp.LpVariable(name = f"route_{name}_{I}", lowBound=0, cat = "Integer"))
-            else:
-                data.append(np.NaN)
-        return pd.Series(index = index, data = data, name = name)
+        nans = loc.isna()
+        index = nans[~nans].index
+        loc[~nans] = [pulp.LpVariable(name = f"route_{name}_{I}", lowBound=0, cat = "Integer") for I in index]
+        return loc
 
     def _provision_loop(self, houses_table, services_table, distance_matrix, selection_range, Provisions, service_type): 
         print('started')
