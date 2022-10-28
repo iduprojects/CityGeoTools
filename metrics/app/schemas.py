@@ -392,6 +392,3 @@ class CollocationMatrixQueryParams:
                  city: enums.CitiesEnum,
                  ):
         self.city = city
-
-
-CollocationMatrixOut = dict[str, Optional[float]]
