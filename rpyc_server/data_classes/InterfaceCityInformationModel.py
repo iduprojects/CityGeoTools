@@ -29,8 +29,11 @@ class DataQueryInterface(QueryInterface):
 
         # Buildings
         buildings_columns = ["building_id as id", "building_area as basement_area", "is_living", "living_area", 
-                            "population_balanced as population", "storeys_count", "functional_object_id", "address",
-                             "administrative_unit_id", "municipality_id", "block_id", "geometry"]
+                            "population_balanced as population", "storeys_count", 
+                            "building_year", "central_heating", "central_hotwater", "central_electro",
+                            "central_gas", "failure as is_emergency", "project_type", 
+                            "functional_object_id", "address", "administrative_unit_id", "municipality_id", 
+                            "block_id", "geometry"]
 
         self.Buildings = self.get_buildings(buildings_columns, place_slice).to_crs(self.city_crs)
         self.Buildings = self.Buildings[
@@ -64,6 +67,18 @@ class DataQueryInterface(QueryInterface):
         self.PublicTransportStops = pickle.dumps(self.PublicTransportStops)
         print(self.city_name, datetime.datetime.now(),'PublicTransportStops')
 
+        # Recreational_areas
+        rec_areas_columns = ["functional_object_id as id", "city_service_type", 
+                            "geometry", "city_service_type_id", 
+                            "functional_object_properties->>'ndvi' as vegetation_index", 
+                            "city_service_type_code as service_code", "service_name",
+                            "address", "capacity", "block_id", "administrative_unit_id", "municipality_id"]
+                            
+        self.RecreationalAreas = self.get_services(rec_areas_columns, add_normative=True, place_slice=place_slice)
+        self.RecreationalAreas = self.RecreationalAreas[self.RecreationalAreas["service_code"] == "recreational_areas"]
+
+        self.RecreationalAreas = pickle.dumps(self.RecreationalAreas)
+        print(self.city_name, datetime.datetime.now(),'RecreationalAreas')   
 
         # Blocks
         blocks_column = ["id", "area", "municipality_id", "administrative_unit_id", "geometry"]
