@@ -27,6 +27,7 @@ class Tags(str, enums.AutoName):
     diversity = auto()
     provision = auto()
     well_being = auto()
+    collocation_matrix = auto()
 
 
 @router.get("/")
@@ -226,6 +227,15 @@ async def recalculate_provisions(
         user_provisions=user_request.user_provisions, user_selection_zone=user_request.user_selection_zone
     ).recalculate_provisions()
     return result
+
+
+@router.get(
+    "/collocation_matrix/collocation_matrix",
+    response_model=dict[str, dict[str, Optional[float]]], tags=[Tags.collocation_matrix]
+)
+async def get_collocation_matrix(query_params: schemas.CollocationMatrixQueryParams = Depends()):
+    city_model = cities_model[query_params.city]
+    return CollocationMatrix(city_model).get_collocation_matrix()
 
 # @router.post("/provision/get_info", response_model=schemas.ProvisionGetInfoOut,
 #              tags=[Tags.provision])

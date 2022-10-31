@@ -385,3 +385,10 @@ class WellbeingGetWellbeingInfoIn(WellbeingInBase):
 
 class WellbeingGetWellbeingInfoOut(ProvisionOutBase):
     isochrone: Optional[FeatureCollection]
+
+
+class CollocationMatrixQueryParams:
+    def __init__(self,
+                 city: enums.CitiesEnum,
+                 ):
+        self.city = city
