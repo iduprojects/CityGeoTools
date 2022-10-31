@@ -1110,20 +1110,16 @@ class City_Provisions(BaseMethod):
 
 class Masterplan(BaseMethod):
 
-    def init(self, city_model):
-        BaseMethod.init(self, city_model)
+    def __init__(self, city_model):
+        BaseMethod.__init__(self, city_model)
         super().validation("masterplan")
         self.buildings = self.city_model.Buildings.copy()
-        
-    @staticmethod
+
     def get_masterplan(self, polygon,  land_area , dev_land_procent, dev_land_area, dev_land_density, land_living_area, dev_living_density, 
                        population, population_density, living_area_provision, land_business_area, building_height_mode, living, commerce):
 
-        buildings = self.buildings[['id', 'population_balanced', 'living_area', 'basement_area', 'storeys_count', 'is_living', 'geometry']]
-        buildings_living = buildings[buildings['is_living'] == True]
-        land = gpd.read_file(polygon)
-        land_with_buildings = gpd.sjoin(buildings, land, how='inner')
-        land_with_buildings_living = gpd.sjoin(buildings_living, land, how='inner')
+        land_with_buildings = gpd.sjoin(self.buildings, polygon, how='inner')
+        land_with_buildings_living = land_with_buildings[land_with_buildings['is_living'] == True]
 
         hectare = 10000
 
@@ -1133,8 +1129,8 @@ class Masterplan(BaseMethod):
             commerce = 20
         
         if land_area is None: 
-            land =  land.to_crs(32636)
-            land_area =  land.area / hectare
+            
+            land_area =  polygon.area / hectare
             land_area =  land_area.squeeze()
  
         if dev_land_procent is None:
@@ -1177,12 +1173,12 @@ class Masterplan(BaseMethod):
         data = [[land_area], [dev_land_procent], [dev_land_area], [dev_land_density], [land_living_area],
                     [dev_living_density], [population], [population_density], [living_area_provision], 
                     [land_business_area], [building_height_mode]]   
-        columns = ['Значение']
-        index = ['Площадь змелеьного участка', 'Процент застроенности земельного участка',
-                'Площадь застройки', 'Плотность застройки територии', 'Площадь квартала жилой застройки', 
-                'Плотность застройки квартала жилой застройкой', 'Численность жителей', 
-                'Плотность населения', 'Жилищная обеспеченность', 
-                'Общественно деловая площадь в жилой застройке', 'Мода этажности рядовой застройки']
+        columns = ['indicators']
+        index = ['land_area', 'dev_land_procent',
+                'dev_land_area', 'dev_land_density', 'land_living_area', 
+                'dev_living_density', 'population', 
+                'population_density', 'living_area_provision', 
+                'land_business_area', 'building_height_mode']
         df_indicators = pd.DataFrame(data, index, columns)
 
         return json.loads(df_indicators.to_json())
