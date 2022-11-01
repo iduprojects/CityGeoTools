@@ -27,11 +27,11 @@ if __name__ == "__main__":
     cities = pd.read_sql(
         """SELECT * 
         FROM cities
-        WHERE local_crs is not null AND name_en is not null""", con=engine).sort_values(["id"])
+        WHERE local_crs is not null AND code is not null""", con=engine)
 
-    cities = cities[["id", "name_en", "local_crs"]].to_dict("records")
+    cities = cities.sort_values(["id"])[["id", "code", "local_crs"]].to_dict("records")
     city_models = {
-        city["name_en"]: DataQueryInterface(city["name_en"], city["local_crs"], city["id"]) for city in cities
+        city["code"]: DataQueryInterface(city["code"], city["local_crs"], city["id"]) for city in cities
         }
 
     ready_for_metrics = [city for city, model in city_models.items() if pickle.loads(model.readiness)]
