@@ -46,16 +46,16 @@
         },
         "properties": {
           "type": "object",
-          "required": ["id", "population_balanced",  "is_living", "basement_area", "living_area", "storeys_count"],
+          "required": ["id", "population",  "is_living", "basement_area", "living_area", "storeys_count"],
           "properties": {
             "id": {
               "description": "The unique identifier for a building",
               "type": "integer"
             },
-            "population_balanced": {
+            "population": {
               "description": "Foundation area of a building",
-              "type": ["number", "null"]
-              
+              "type": ["number", "null"],
+              "minimum": 0
             },
             "is_living": {
               "description": "The flag if a building is living",
@@ -63,18 +63,18 @@
             },
             "basement_area": {
               "description": "Foundation area of a building",
-              "type": ["number", "null"]
-              
+              "type": ["number", "null"],
+              "minimum": 0
             },
             "living_area": {
               "description": "Living area in a whole building",
-              "type": ["number", "null"]
-              
+              "type": ["number", "null"],
+              "minimum": 0
             },
             "storey_count": {
               "description": "The number of storey in a building",
-              "type": ["number", "null"]
-              
+              "type": ["number", "null"],
+              "minimum": 0
             }
           }
         },

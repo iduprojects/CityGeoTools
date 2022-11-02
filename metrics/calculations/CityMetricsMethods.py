@@ -1118,6 +1118,8 @@ class Masterplan(BaseMethod):
     def get_masterplan(self, polygon,  land_area , dev_land_procent, dev_land_area, dev_land_density, land_living_area, dev_living_density, 
                        population, population_density, living_area_provision, land_business_area, building_height_mode, living, commerce):
 
+        
+        polygon =  polygon.to_crs(self.city_model.city_crs)
         land_with_buildings = gpd.sjoin(self.buildings, polygon, how='inner')
         land_with_buildings_living = land_with_buildings[land_with_buildings['is_living'] == True]
 
@@ -1156,7 +1158,7 @@ class Masterplan(BaseMethod):
             dev_living_density = land_living_area / land_area
 
         if population is None:
-            population =  land_with_buildings['population_balanced'].sum().squeeze() 
+            population =  land_with_buildings['population'].sum().squeeze() 
             
         if population_density is None:
             population_density = population / land_area.squeeze()
