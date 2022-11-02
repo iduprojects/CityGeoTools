@@ -12,9 +12,9 @@ class MobilityAnalysisRoutesTravelTypeEnum(str, Enum):
 
 
 class CitiesEnum(str, Enum):
-    SAINT_PETERSBURG = "Saint_Petersburg"
-    KRASNODAR = "Krasnodar"
-    SEVASTOPOL = "Sevastopol"
+    SAINT_PETERSBURG = "saint-petersburg"
+    KRASNODAR = "krasnodar"
+    SEVASTOPOL = "sevastopol"
 
 
 class TerritorialEnum(str, Enum):
