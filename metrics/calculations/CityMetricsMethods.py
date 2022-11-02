@@ -23,6 +23,7 @@ from matplotlib import pyplot as plt
 from scipy import spatial
 from .errors import TerritorialSelectError, SelectedValueError, ImplementationError
 from itertools import product
+from inspect import signature
 
 #from app.schemas import FeatureCollectionWithCRS
 
@@ -388,6 +389,7 @@ class ServicesClusterization(BaseMethod):
 
         return {"polygons": json.loads(df_clusters.to_json()), "services": json.loads(services.to_json())}
 
+
 # #############################################  Spacematrix  #######################################################
 class Spacematrix(BaseMethod):
     def __init__(self, city_model):
@@ -399,53 +401,44 @@ class Spacematrix(BaseMethod):
     @staticmethod
     def simple_preprocess_data(buildings, blocks):
 
-        # temporary filters. since there are a few bugs in buildings table from DB
+            # temporary filters. since there are a few bugs in buildings table from DB
         buildings = buildings[buildings["block_id"].notna()]
         buildings = buildings[buildings["storeys_count"].notna()]
         buildings["is_living"] = buildings["is_living"].fillna(False)
-
         buildings["building_area"] = buildings["basement_area"] * buildings["storeys_count"]
         bad_living_area = buildings[buildings["living_area"] > buildings["building_area"]].index
         buildings.loc[bad_living_area, "living_area"] = None
-
         living_grouper = buildings.groupby(["is_living"])
         living_area = living_grouper.apply(
             lambda x: x.living_area.fillna(x.building_area * 0.8) if x.name else x.living_area.fillna(0)
             )
         if type(living_area.index) == pd_index.multi.MultiIndex:
-             buildings["living_area"] = living_area.droplevel(0).round(2)
+            buildings["living_area"] = living_area.droplevel(0).round(2)
         else:
             buildings["living_area"] = living_area.values[0].round(2)
-
-        blocks_area_nans = blocks[blocks["area"].isna()].index
-        blocks.loc[blocks_area_nans, "area"] = blocks["geometry"].loc[blocks_area_nans].area
 
         return buildings, blocks
 
     @staticmethod
     def calculate_block_indices(buildings, blocks):
-
         sum_grouper = buildings.groupby(["block_id"]).sum()
         blocks["FSI"] = sum_grouper["building_area"] / blocks["area"]
         blocks["GSI"] = sum_grouper["basement_area"] / blocks["area"]
         blocks["MXI"] = (sum_grouper["living_area"] / sum_grouper["building_area"]).round(2)
-        blocks["L"] =( blocks["FSI"] / blocks["GSI"]).round()
+        blocks["L"] = (blocks["FSI"] / blocks["GSI"]).round()
         blocks["OSR"] = ((1 - blocks["GSI"]) / blocks["FSI"]).round(2)
         blocks[["FSI", "GSI"]] = blocks[["FSI", "GSI"]].round(2)
-
+        
         return blocks
 
     @staticmethod
     def name_spacematrix_morph_types(cluster):
-
         ranges = [[0, 3, 6, 10, 17], 
                   [0, 1, 2], 
                   [0, 0.22, 0.55]]
-
         labels = [["Малоэтажный", "Среднеэтажный", "Повышенной этажности", "Многоэтажный", "Высотный"],
                   [" низкоплотный", "", " плотный"], 
                   [" нежилой", " смешанный", " жилой"]]
-
         cluster_name = []
         for ind in range(len(cluster)):
             cluster_name.append(
@@ -453,12 +446,7 @@ class Spacematrix(BaseMethod):
                 )
         return "".join(cluster_name)
 
-
-    def get_spacematrix_morph_types(self, clusters_number=11, area_type=None, area_id=None, geojson=None):
-
-        buildings, blocks = self.simple_preprocess_data(self.buildings, self.blocks)
-        blocks = self.calculate_block_indices(buildings, blocks)
-
+    def get_spacematrix_morph_types(self, blocks, clusters_number):
         # blocks with OSR >=10 considered as unbuilt blocks
         X = blocks[blocks["OSR"] < 10][['FSI', 'L', 'MXI']].dropna()
         scaler = StandardScaler()
@@ -470,6 +458,48 @@ class Spacematrix(BaseMethod):
         named_clusters = cluster_grouper[["L", "FSI", "MXI"]].apply(
             lambda x: self.name_spacematrix_morph_types(x), axis=1)
         blocks = blocks.join(named_clusters.rename("spacematrix_morphotype"), on="spacematrix_cluster")
+        
+        return blocks
+        
+    @staticmethod
+    def get_strelka_morph_types(blocks):
+
+        storeys = [blocks['L'].between(0,3), blocks['L'].between(4,8), (blocks['L']>=9)]
+        labels = ['Малоэтажная застройка', 'Среднеэтажная застройка', 'Многоэтажная застройка']
+        blocks['strelka_morphotype'] = np.select(storeys, labels, default='Другое')
+
+        mxis = [(blocks["strelka_morphotype"] == 'Малоэтажная застройка') & (blocks['MXI']<0.05),
+                (blocks["strelka_morphotype"] == 'Среднеэтажная застройка') & (blocks['MXI']<0.2),
+                (blocks["strelka_morphotype"] == 'Многоэтажная застройка') & (blocks['MXI']<0.1)]
+        labels = ['Малоэтажная нежилая застройка', 'Среднеэтажная нежилая застройка', 'Многоэтажная нежилая застройка']
+        blocks['strelka_morphotype'] = np.select(mxis, labels, default = blocks["strelka_morphotype"])
+
+        conds = [(blocks['strelka_morphotype'] == 'Малоэтажная застройка') & ((blocks['FSI']*10)<=1),
+                 (blocks['strelka_morphotype'] == 'Малоэтажная застройка') & ((blocks['FSI']*10)>1),
+                 (blocks['strelka_morphotype'] == 'Среднеэтажная застройка') & ((blocks['FSI']*10)<=8) & (blocks['MXI']<0.45),
+                 (blocks['strelka_morphotype'] == 'Среднеэтажная застройка') & ((blocks['FSI']*10)>8) & (blocks['MXI']<0.45),
+                 (blocks['strelka_morphotype'] == 'Среднеэтажная застройка') & ((blocks['FSI']*10)>15) & (blocks['MXI']>=0.6),
+                 (blocks['strelka_morphotype'] == 'Многоэтажная застройка') & ((blocks['FSI']*10)<=15),
+                 (blocks['strelka_morphotype'] == 'Многоэтажная застройка') & ((blocks['FSI']*10)>15)]
+        labels = ['Индивидуальная жилая застройка',
+                  'Малоэтажная модель застройки',
+                  'Среднеэтажная микрорайонная застройка',
+                  'Среднеэтажная квартальная застройка',
+                  'Центральная модель застройки',
+                  'Многоэтажная советская микрорайонная застройка',
+                  'Многоэтажная соверменная микрорайонная застройка']
+        blocks['strelka_morphotype'] = np.select(conds, labels, default=blocks["strelka_morphotype"])
+
+        return blocks
+
+    def get_morphotypes(self, clusters_number=11, area_type=None, area_id=None, geojson=None):
+
+        buildings, blocks = self.simple_preprocess_data(self.buildings, self.blocks)
+        blocks = self.calculate_block_indices(buildings, blocks)
+
+        blocks = self.get_spacematrix_morph_types(blocks, clusters_number)
+
+        blocks = self.get_strelka_morph_types(blocks)
 
         if area_type and area_id:
             if area_type == "block":
@@ -483,6 +513,7 @@ class Spacematrix(BaseMethod):
             blocks = self.get_custom_polygon_select(geojson, self.city_crs, blocks)[0]
 
         return json.loads(blocks.reset_index().to_crs(4326).to_json())
+
 
 # ######################################### Accessibility isochrones #################################################
 class AccessibilityIsochrones(BaseMethod):
@@ -710,21 +741,31 @@ class Diversity(BaseMethod):
 # ######################################### Collocation Matrix #################################################
 
 class CollocationMatrix(BaseMethod):
-    def _init_(self, city_model):
+    def __init__(self, city_model):
         BaseMethod.__init__(self, city_model)
-        super().validation("services_clusterization")
+        super().validation("collocation_matrix")
         self.services = self.city_model.Services.copy()
 
-    def get_collocation_matrix(self, services):
-        services = services.dropna().reset_index(drop=True)[['city_service_type_code','block_id']].sort_values('city_service_type_code')
+    def get_collocation_matrix(self):
+        services = self.services.dropna().reset_index(drop=True)[['service_code','block_id']].sort_values('service_code')
+        types_of_services = ["dentists", "pharmacies", "markets", "conveniences", "supermarkets", "art_spaces", "zoos", "libraries",
+                             "theaters", "museums", "cinemas", "bars", "bakeries", "cafes", "restaurants", "fastfoods", "saunas",
+                             "sportgrounds", "swimming_pools", "banks", "atms", "shopping_centers", "aquaparks", "fitness_clubs",
+                             "sport_centers", "sport_clubs", "stadiums", "beauty_salons", "spas", "metro_stations", "hardware_stores",
+                             "instrument_stores", "electronic_stores", "clothing_stores", "tobacco_stores", "sporting_stores",
+                             "jewelry_stores", "flower_stores", "pawnshops", "recreational_areas", "embankments", "souvenir_shops",
+                             "bowlings", "stops", "clubs", "microloan", "child_teenager_club", "sport_section", "culture_house", "quest",
+                             "circus", "child_game_room", "child_goods", "art_gallery", "book_store", "music_school", "art_goods",
+                             "mother_child_room", "holiday_goods", "toy_store", "beach", "amusement_park"]
+        services = services[services['service_code'].isin(types_of_services)]
         services['count'] = 0
-        
         collocation_matrix = self.get_numerator(services) / self.get_denominator(services)
 
         return json.loads(collocation_matrix.to_json())
 
-    def get_numerator(self, services):
-        services_numerator = services.pivot_table(index='block_id', columns='city_service_type_code', values='count')
+    @staticmethod
+    def get_numerator(services):
+        services_numerator = services.pivot_table(index='block_id', columns='service_code', values='count')
 
         pairs_services_numerator = [(a, b) for idx, a in enumerate(services_numerator) for b in services_numerator[idx + 1:]]
         pairs_services_numerator = dict.fromkeys(pairs_services_numerator, 0)
@@ -745,19 +786,19 @@ class CollocationMatrix(BaseMethod):
         return numerator
 
     def get_denominator(self, services):
-        count_type_block = services.groupby('city_service_type_code')['block_id'].nunique().reset_index(drop=False)
+        count_type_block = services.groupby('service_code')['block_id'].nunique().reset_index(drop=False)
 
         pairs_services_denominator = []
-        for i in product(count_type_block['city_service_type_code'], repeat=2):
+        for i in product(count_type_block['service_code'], repeat=2):
             pairs_services_denominator.append(i)
 
         types_blocks_sum = []
         for i,j in pairs_services_denominator:
-            if [i]==[j]:
+            if [i] ==[j]:
                     types_blocks_sum.append(0)
             else:
-                    num1 = count_type_block.loc[count_type_block['city_service_type_code'] == i, 'block_id'].iloc[0]
-                    num2 = count_type_block.loc[count_type_block['city_service_type_code'] == j, 'block_id'].iloc[0]
+                    num1 = count_type_block.loc[count_type_block['service_code'] == i, 'block_id'].iloc[0]
+                    num2 = count_type_block.loc[count_type_block['service_code'] == j, 'block_id'].iloc[0]
                     types_blocks_sum.append(num1+num2)
 
         res_denominator = {}
@@ -770,6 +811,7 @@ class CollocationMatrix(BaseMethod):
         denominator = sum_res_denominator - self.get_numerator(services)
 
         return denominator
+
 
 # ######################################### New Provisions #################################################
            
