@@ -1,4 +1,3 @@
-from distutils import extension
 import pandas as pd
 import os
 import pickle
@@ -8,6 +7,7 @@ import geopandas as gpd
 import networkx as nx
 
 from sqlalchemy import create_engine
+from typing import Optional
 from .DataValidation import DataValidation
 from .data_transform import load_graph_geometry, convert_nx2nk, get_nx2nk_idmap, get_nk_attrs, get_subgraph
 
@@ -18,7 +18,8 @@ from .data_transform import load_graph_geometry, convert_nx2nk, get_nx2nk_idmap,
 
 class CityInformationModel:
     
-    def __init__(self, city_name, city_crs, cities_db_id=None, cwd="../", mode='user_mode'):
+    def __init__(self, city_name: str, city_crs: int, cities_db_id=Optional[int], cwd="../", mode='user_mode', 
+                postgres_con=Optional[str], rpyc_adr=Optional[str], rpyc_port=Optional[int]) -> None:
 
         self.city_name = city_name
         self.city_crs = city_crs
@@ -26,16 +27,34 @@ class CityInformationModel:
         self.cwd = cwd
         self.mode = mode
 
+        if mode == "general_mode":
+            self.engine = create_engine(postgres_con)
+            self.rpyc_adr = rpyc_adr
+            self.rpyc_port = rpyc_port
+
         self.attr_names = ['MobilityGraph', 'Buildings', 'Services', 'PublicTransportStops', 'ServiceTypes',
                             'Blocks', 'Municipalities','AdministrativeUnits']
         self.set_city_layers()
         self.methods = DataValidation() if self.mode == "user_mode" else None
-    
-    def get_all_attributes(self):
+
+    def __new__(cls, *args, **kwargs):
+        if kwargs["mode"] == "general_mode" and cls._validate(*args, **kwargs):
+            return super().__new__(cls)
+
+    @classmethod
+    def _validate(cls, *args, **kwargs) -> bool:
+        rpyc_connect = rpyc.connect(
+            kwargs["rpyc_adr"], kwargs["rpyc_port"],
+            config={'allow_public_attrs': True, 
+                "allow_pickle": True}
+                )
+        return pickle.loads(rpyc_connect.root.get_city_model_attr(kwargs["city_name"], "readiness"))
+
+    def get_all_attributes(self) -> dict:
         all_attr = self.__dict__
         return all_attr
 
-    def set_city_layers(self):
+    def set_city_layers(self) -> None:
 
         if self.mode == "general_mode":
             self.get_city_layers_from_db()
@@ -44,13 +63,10 @@ class CityInformationModel:
             self.set_none_layers()
         del self.attr_names
         
-    def get_city_layers_from_db(self):
+    def get_city_layers_from_db(self) -> None:
 
-        self.engine = create_engine("postgresql://" + os.environ["POSTGRES"])
-        rpyc_server = os.environ["RPYC_SERVER"]
-        address, port = rpyc_server.split(":") if ":" in rpyc_server else (rpyc_server, 18861)
         rpyc_connect = rpyc.connect(
-            address, port,
+            self.rpyc_adr, self.rpyc_port,
             config={'allow_public_attrs': True, 
                     "allow_pickle": True}
                     )
@@ -61,7 +77,7 @@ class CityInformationModel:
             setattr(self, attr_name, pickle.loads(
                 rpyc_connect.root.get_city_model_attr(self.city_name, attr_name)))
         
-    def get_supplementary_graphs(self):
+    def get_supplementary_graphs(self) -> None:
 
         sub_edges = ["subway", "bus", "tram", "trolleybus", "walk"] # exclude drive
         MobilitySubGraph = get_subgraph(self.MobilityGraph, "type", sub_edges)
@@ -71,16 +87,16 @@ class CityInformationModel:
         self.graph_nk_time = convert_nx2nk(MobilitySubGraph, idmap=self.nk_idmap, weight="time_min")
         self.MobilitySubGraph = load_graph_geometry(MobilitySubGraph)
 
-    def set_none_layers(self):
+    def set_none_layers(self) -> None:
         for attr_name in self.attr_names:
             setattr(self, attr_name, None)
 
-    def update_layers(self, file_dict):
+    def update_layers(self, file_dict) -> None:
 
         for attr_name, file_name in file_dict.items():
             self.update_layer(attr_name, file_name)
 
-    def update_layer(self, attr_name, file_name):
+    def update_layer(self, attr_name, file_name) -> None:
 
         if attr_name not in self.get_all_attributes():
             raise ValueError("Invalid attribute name.")

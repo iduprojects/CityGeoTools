@@ -62,7 +62,7 @@ class QueryInterface:
         return sql_query
 
     @staticmethod
-    def get_place_slice(conditions):
+    def get_place_slice(conditions: dict) -> str:
 
         if conditions["place"] == "polygon":
             slice_row = f"ST_intersects(b.geometry, ST_GeomFromText('POLYGON({polygon}), 4326')) = True"

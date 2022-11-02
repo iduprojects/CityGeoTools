@@ -14,12 +14,7 @@ class MyService(rpyc.Service):
 
     def get_city_model_attr(self, city_name, atr_name):
         print(city_name, datetime.datetime.now(), atr_name)
-        return getattr(self.city_models[city_name], atr_name)
-    
-    def get_provisions(self,city_name,atr_name, chunk_num):
-        print(city_name, datetime.datetime.now(), atr_name, chunk_num)
-        return getattr(self.city_models[city_name], atr_name)[chunk_num]
-
+        return getattr(city_models[city_name], atr_name)
 
 if __name__ == "__main__":
 
