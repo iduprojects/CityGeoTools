@@ -95,18 +95,16 @@ class QueryInterface:
 
         sql_query = self.generate_general_sql_query("all_buildings", columns, place_slice=place_slice)
         df = pd.read_sql(sql_query, con=self.engine)
-        if len(df) > 0:
-            df[["x", "y"]] = df["centroid"].apply(lambda x: pd.Series(eval(x)["coordinates"]))
-
-        df = self.del_nan_units(df)
+        gdf = gpd.GeoDataFrame(df)
         
         if "geometry" in df.columns:
-            df['geometry'] = df['geometry'].apply(lambda x: shape(ast.literal_eval(x)))
-            gdf = gpd.GeoDataFrame(df, geometry=df.geometry).set_crs(4326)
+            gdf['geometry'] = gdf['geometry'].apply(lambda x: shape(ast.literal_eval(x)))
+            gdf = gdf.set_geometry("geometry").set_crs(4326)
             gdf = gdf[(gdf.geom_type == "MultiPolygon") | (gdf.geom_type == "Polygon")]
-            return gdf
-        else:
-            return df
+        if len(gdf) > 0:
+            gdf[["x", "y"]] = gdf["geometry"].to_crs(self.city_crs).centroid.apply(lambda obj: pd.Series((obj.x, obj.y)))
+
+        return self.del_nan_units(gdf)
 
     def get_services(self, columns: list, equal_slice: dict = None, 
                     place_slice: dict = None) -> Union[GeoDataFrame, DataFrame]:
@@ -114,17 +112,15 @@ class QueryInterface:
         sql_query = self.generate_general_sql_query(
             "all_services", columns, equal_slice=equal_slice, place_slice=place_slice)
         df = pd.read_sql(sql_query, con=self.engine)
-        if len(df) > 0:
-            df[["x", "y"]] = df["geometry"].apply(lambda x: pd.Series(eval(x)["coordinates"]))
-
-        df = self.del_nan_units(df)
+        gdf = gpd.GeoDataFrame(df)
 
         if "geometry" in df.columns:
             df['geometry'] = df['geometry'].apply(lambda x: shape(ast.literal_eval(x)))
-            gdf = gpd.GeoDataFrame(df, geometry=df.geometry).set_crs(4326)
-            return gdf
-        else:
-            return df
+            gdf = gdf.set_geometry("geometry").set_crs(4326)
+        if len(gdf) > 0:
+            gdf[["x", "y"]] = gdf["geometry"].to_crs(self.city_crs).centroid.apply(lambda obj: pd.Series((obj.x, obj.y)))
+
+        return self.del_nan_units(gdf)
 
     # for objects that are out of territorial units for some reason
     @staticmethod
