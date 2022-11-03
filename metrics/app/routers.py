@@ -1,4 +1,5 @@
 from enum import auto
+import faulthandler
 
 from fastapi import APIRouter, HTTPException, status, Body, Depends
 from fastapi.responses import StreamingResponse
@@ -8,10 +9,10 @@ from app import enums, schemas
 from calculations.utils import request_points_project
 from calculations.CityMetricsMethods import *
 from calculations import errors
-from data.cities_dictionary import cities_model, cities_name
+from data.city_models import city_models, city_names
 
 router = APIRouter()
-
+faulthandler.enable()
 
 class Tags(str, enums.AutoName):
     def _generate_next_value_(name, start, count, last_values):
@@ -36,14 +37,14 @@ async def read_root():
 
 @router.get("/cities")
 async def get_cities_names():
-    return cities_name
+    return city_names
 
 @router.post(
     '/pedastrian_walk_traffics/pedastrian_walk_traffics_calculation',
     response_model=schemas.PedastrianWalkTrafficsCalculationOut, tags=[Tags.trafics_calculation]
 )
 def pedastrian_walk_traffics_calculation(query_params: schemas.PedastrianWalkTrafficsCalculationIn):
-    city_model = cities_model[query_params.city]
+    city_model = city_models[query_params.city]
     try:
         result = TrafficCalculator(city_model).get_trafic_calculation(query_params.geojson.dict())
         return result
@@ -59,9 +60,9 @@ def pedastrian_walk_traffics_calculation(query_params: schemas.PedastrianWalkTra
     response_model=FeatureCollection, tags=[Tags.visibility_analysis]
 )
 async def visibility_analysis(query_params: schemas.VisibilityAnalisysQueryParams = Depends()):
-    city_model = cities_model[query_params.city]
+    city_model = city_models[query_params.city]
     request_points = [[query_params.x_from, query_params.y_from]]
-    to_crs = cities_model[query_params.city].city_crs
+    to_crs = city_models[query_params.city].city_crs
     request_point = request_points_project(request_points, 4326, to_crs)[0]
     return VisibilityAnalysis(city_model).get_visibility_result(request_point, query_params.view_distance)
 
@@ -71,7 +72,7 @@ async def visibility_analysis(query_params: schemas.VisibilityAnalisysQueryParam
     response_model=schemas.WeightedVoronoiCalculationOut, tags=[Tags.weighted_voronoi]
 )
 async def wighted_voronoi_calculation(query_params: schemas.WeightedVoronoiCalculationIn):
-    city_model = cities_model[query_params.city]
+    city_model = city_models[query_params.city]
     return WeightedVoronoi(city_model).get_weighted_voronoi_result(query_params.geojson.dict())
 
 
@@ -80,7 +81,7 @@ async def wighted_voronoi_calculation(query_params: schemas.WeightedVoronoiCalcu
     response_model=FeatureCollection, tags=[Tags.blocks_clusterization]
 )
 async def get_blocks_clusterization(query_params: schemas.BlocksClusterizationGetBlocks):
-    city_model = cities_model[query_params.city]
+    city_model = city_models[query_params.city]
     geojson = query_params.geojson.dict() if query_params.geojson else None
     return BlocksClusterization(city_model).get_blocks(
         query_params.service_types, query_params.clusters_number, 
@@ -98,7 +99,7 @@ async def get_blocks_clusterization(query_params: schemas.BlocksClusterizationGe
     response_class=StreamingResponse, tags=[Tags.blocks_clusterization]
 )
 async def get_blocks_clusterization_dendrogram(query_params: schemas.BlocksClusterizationGetBlocks):
-    city_model = cities_model[query_params.city]
+    city_model = city_models[query_params.city]
     result = BlocksClusterization(city_model).get_dendrogram(query_params.service_types)
     return StreamingResponse(content=result, media_type="image/png")
 
@@ -107,7 +108,7 @@ async def get_blocks_clusterization_dendrogram(query_params: schemas.BlocksClust
     "/services_clusterization/get_clusters_polygons",
     response_model=schemas.ServicesClusterizationGetClustersPolygonsOut, tags=[Tags.services_clusterization])
 async def get_services_clusterization(query_params: schemas.ServicesClusterizationGetClustersPolygonsIn):
-    city_model = cities_model[query_params.city]
+    city_model = city_models[query_params.city]
     geojson = query_params.geojson.dict() if query_params.geojson else None
 
     try:
@@ -128,7 +129,7 @@ async def get_services_clusterization(query_params: schemas.ServicesClusterizati
     response_model=FeatureCollection, tags=[Tags.spacematrix]
 )
 async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
-    city_model = cities_model[query_params.city]
+    city_model = city_models[query_params.city]
     geojson = query_params.geojson.dict() if query_params.geojson else None
     try:
         return Spacematrix(city_model).get_morphotypes(
@@ -146,9 +147,9 @@ async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
     response_model=schemas.MobilityAnalysisIsochronesOut, tags=[Tags.mobility_analysis]
 )
 async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIsochronesQueryParams = Depends()):
-    city_model = cities_model[query_params.city]
+    city_model = city_models[query_params.city]
     request_points = [[query_params.x_from, query_params.y_from]]
-    to_crs = cities_model[query_params.city].city_crs
+    to_crs = city_models[query_params.city].city_crs
     x_from, y_from = request_points_project(request_points, 4326, to_crs)[0]
     try:
         result = AccessibilityIsochrones(city_model).get_accessibility_isochrone(
@@ -167,14 +168,14 @@ async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIso
 @router.get("/diversity/diversity", response_model=schemas.DiversityOut,
             tags=[Tags.diversity])
 async def get_diversity(query_params: schemas.DiversityQueryParams = Depends()):  # todo validate service_type?
-    city_model = cities_model[query_params.city]
+    city_model = city_models[query_params.city]
     result = Diversity(city_model).get_diversity(query_params.service_type)
     return result
 
 @router.get("/diversity/get_buildings", response_model=FeatureCollection,
             tags=[Tags.diversity])
 async def get_buildings_diversity(query_params: schemas.DiversityGetBuildingsQueryParams = Depends()):
-    city_model = cities_model[query_params.city]
+    city_model = city_models[query_params.city]
     try:
         result = Diversity(city_model).get_houses(query_params.block_id, query_params.service_type)
         return result
@@ -188,11 +189,12 @@ async def get_buildings_diversity(query_params: schemas.DiversityGetBuildingsQue
 @router.get("/diversity/get_info", response_model=schemas.DiversityGetInfoOut,
             tags=[Tags.diversity])
 async def get_diversity_info(query_params: schemas.DiversityGetInfoQueryParams = Depends()):
-    city_model = cities_model[query_params.city]
+    city_model = city_models[query_params.city]
     try:
         result = Diversity(city_model).get_info(query_params.house_id, query_params.service_type)
         return result
     except (errors.TerritorialSelectError, errors.SelectedValueError) as e:
+
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e)
@@ -204,7 +206,7 @@ async def get_diversity_info(query_params: schemas.DiversityGetInfoQueryParams =
 async def get_provision(
         user_request: schemas.ProvisionGetProvisionIn,
 ):
-    city_model = cities_model[user_request.city]
+    city_model = city_models[user_request.city]
     result = City_Provisions(
         city_model, user_request.service_type,
         user_request.valuation_type, user_request.year,
@@ -219,7 +221,7 @@ async def get_provision(
 async def recalculate_provisions(
         user_request: schemas.ProvisionRecalculateProvisionsIn,
 ):
-    city_model = cities_model[user_request.city]
+    city_model = city_models[user_request.city]
     result = City_Provisions(
         city_model, user_request.service_type,
         user_request.valuation_type, user_request.year,
@@ -234,7 +236,7 @@ async def recalculate_provisions(
     response_model=dict[str, dict[str, Optional[float]]], tags=[Tags.collocation_matrix]
 )
 async def get_collocation_matrix(query_params: schemas.CollocationMatrixQueryParams = Depends()):
-    city_model = cities_model[query_params.city]
+    city_model = city_models[query_params.city]
     return CollocationMatrix(city_model).get_collocation_matrix()
 
 # @router.post("/provision/get_info", response_model=schemas.ProvisionGetInfoOut,
