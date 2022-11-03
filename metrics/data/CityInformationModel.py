@@ -33,7 +33,7 @@ class CityInformationModel:
             self.rpyc_port = rpyc_port
 
         self.attr_names = ['MobilityGraph', 'Buildings', 'Services', 'PublicTransportStops', 'ServiceTypes',
-                            'Blocks', 'Municipalities','AdministrativeUnits']
+                            'RecreationalAreas', 'Blocks', 'Municipalities','AdministrativeUnits']
         self.set_city_layers()
         self.methods = DataValidation() if self.mode == "user_mode" else None
 
