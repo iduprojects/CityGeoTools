@@ -722,8 +722,6 @@ class Diversity(BaseMethod):
         house = self.living_buildings[self.living_buildings['id'] == house_id].reset_index(drop=True)
         if len(house) == 0:
             raise SelectedValueError("living building", house_id, "id")
-
-        print("hey")
             
         house_x, house_y = house[["x", "y"]].values[0]
         travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
