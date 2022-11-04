@@ -389,8 +389,13 @@ class TestProvision:
         url = self.URL + "/get_provision"
 
         data = {
+<<<<<<< HEAD
             "city": "Saint_Petersburg",
             "service_types": ["kindergartens"],
+=======
+            "city": "saint-petersburg",
+            "service_type": "kindergartens",
+>>>>>>> master
             "valuation_type": "normative",
             "year": 2022,
         }
@@ -408,8 +413,13 @@ class TestProvision:
         url = self.URL + "/recalculate_provisions"
 
         data = {
+<<<<<<< HEAD
             "city": "Saint_Petersburg",
             "service_types": ["kindergartens"],
+=======
+            "city": "saint-petersburg",
+            "service_type": "kindergartens",
+>>>>>>> master
             "valuation_type": "normative",
             "year": 2022,
             "user_changes_buildings": user_changes_buildings,
@@ -418,4 +428,20 @@ class TestProvision:
         }
 
         resp = client.post(url, json=data)
+        assert resp.status_code == 200
+
+
+class TestCollocationMatrix:
+    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/collocation_matrix"
+
+    @pytest.mark.parametrize("city", enums.CitiesEnum)
+    def test_get_collocation_matrix(self, client, city):
+        """ Тестирование collocation matrix для городов. """
+        url = self.URL + "/collocation_matrix"
+
+        params = {
+            "city": city,
+        }
+
+        resp = client.get(url, params=params)
         assert resp.status_code == 200

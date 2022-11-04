@@ -176,7 +176,7 @@ def get_intermodal_graph(city_osm_id, city_crs, public_transport_speeds=None, wa
 
     for u, v, d in G_intermodal.edges(data=True):
         if "time_min" not in d:
-            d["time_min"] = round(d["length_meter"] / walk_speed, 2)
+            d["time_min"] = round(d["length_meter"] / G_walk.graph["walk speed"] , 2)
         if "desc" not in d:
             d["desc"] = ""
 
@@ -187,7 +187,7 @@ def get_intermodal_graph(city_osm_id, city_crs, public_transport_speeds=None, wa
             d["desc"] = ""
 
     G_intermodal.graph["graph_type"] = "intermodal graph"
-    G_intermodal.graph["drive speed"] = drive_speed
+    G_intermodal.graph["car speed"] = G_drive.graph["car speed"]
     G_intermodal.graph.update({k: v for k, v in G_public_transport.graph.items() if "speed" in k})
     G_intermodal.graph["created by"] = "CityGeoTools"
 

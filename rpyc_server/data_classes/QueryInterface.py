@@ -3,27 +3,25 @@ import networkx as nx
 import requests
 import pandas as pd
 import ast
-import numpy as np
 
 from typing import Union
 import shapely
 from shapely.geometry import shape
-from shapely import wkt
 from geopandas.geodataframe import GeoDataFrame
 from pandas.core.frame import DataFrame
 from networkx.classes.multidigraph import MultiDiGraph
-
 
 class QueryInterface:
 
     def get_graph_for_city(self, city: str, graph_type: str, node_type: type) -> MultiDiGraph:
 
         file_name = city.lower() + "_" + graph_type
-        graph = requests.get(self.mongo_address + "/uploads/city_graphs/" + file_name)
-        graph = nx.readwrite.graphml.parse_graphml(graph.text, node_type=node_type)
-        if graph_type == "walk_graph" or graph_type == "drive_graph":
-            graph = self.load_graph_geometry(graph)
-        return graph
+        response = requests.get(self.mongo_address + "/uploads/city_graphs/" + file_name)
+        if response.status_code == 200:
+            graph = nx.readwrite.graphml.parse_graphml(response.text, node_type=node_type)
+            return graph
+        else:
+            return None
 
     @staticmethod
     def load_graph_geometry(graph: MultiDiGraph) -> MultiDiGraph:
@@ -36,14 +34,21 @@ class QueryInterface:
 
         return graph
 
-
     def generate_general_sql_query(self, table: str, columns: list, join_tables: str = None, equal_slice: dict = None,
                                    place_slice: dict = None) -> str:
+        sql_columns = []
+        for c in columns:
+            if "center" in c:
+                sql_columns.append(c.replace("center", "ST_AsGeoJSON(t.center)"))
+            elif "geometry" in c:
+                sql_columns.append(c.replace("geometry", "ST_AsGeoJSON(t.geometry) as geometry"))
+            else:
+                sql_columns.append("t." + c)
 
-        columns = ", ".join(columns)
-        columns = columns.replace("t.geometry", "ST_AsGeoJSON(t.geometry) AS geometry")
-        columns = columns.replace("t.center", "ST_AsGeoJSON(t.center) AS geometry")
-        sql_query = f"""SELECT {columns} FROM {table} t """
+        sql_columns = ", ".join(sql_columns)
+        sql_columns = sql_columns.replace("t.geometry", "ST_AsGeoJSON(t.geometry)")
+        sql_columns = sql_columns.replace("t.center", "ST_AsGeoJSON(t.center)")
+        sql_query = f"""SELECT {sql_columns} FROM {table} t """
 
         sql_query += join_tables if join_tables else ""
         where_statment = ""
@@ -57,7 +62,7 @@ class QueryInterface:
         return sql_query
 
     @staticmethod
-    def get_place_slice(conditions):
+    def get_place_slice(conditions: dict) -> str:
 
         if conditions["place"] == "polygon":
             slice_row = f"ST_intersects(b.geometry, ST_GeomFromText('POLYGON({polygon}), 4326')) = True"
@@ -75,64 +80,52 @@ class QueryInterface:
     def get_territorial_units(self, territory_type: str, columns: list, place_slice: dict = None
                             ) -> Union[GeoDataFrame, DataFrame]:
 
-        columns = ["t." + c for c in columns]
         sql_query = self.generate_general_sql_query(territory_type, columns, place_slice=place_slice)
         df = pd.read_sql(sql_query, con=self.engine)
+        df = self.del_nan_units(df)
+
         if "geometry" in df.columns:
             df['geometry'] = df['geometry'].apply(lambda x: shape(ast.literal_eval(x)))
-            gdf = gpd.GeoDataFrame(df, geometry=df.geometry).set_crs(4326).to_crs(self.city_crs)
+            gdf = gpd.GeoDataFrame(df, geometry=df.geometry).set_crs(4326)
             return gdf
         else:
             return df
 
     def get_buildings(self, columns: list, place_slice: dict = None) -> Union[DataFrame, GeoDataFrame]:
 
-        columns = ["t." + c for c in columns]
         sql_query = self.generate_general_sql_query("all_buildings", columns, place_slice=place_slice)
         df = pd.read_sql(sql_query, con=self.engine)
+        gdf = gpd.GeoDataFrame(df)
+        
         if "geometry" in df.columns:
-            df['geometry'] = df['geometry'].apply(lambda x: shape(ast.literal_eval(x)))
-            gdf = gpd.GeoDataFrame(df, geometry=df.geometry).set_crs(4326).to_crs(self.city_crs)
-            return gdf
-        else:
-            return df
+            gdf['geometry'] = gdf['geometry'].apply(lambda x: shape(ast.literal_eval(x)))
+            gdf = gdf.set_geometry("geometry").set_crs(4326)
+            gdf = gdf[(gdf.geom_type == "MultiPolygon") | (gdf.geom_type == "Polygon")]
+        if len(gdf) > 0:
+            gdf[["x", "y"]] = gdf["geometry"].to_crs(self.city_crs).centroid.apply(lambda obj: pd.Series((obj.x, obj.y)))
 
-    def get_services(self, columns: list, add_normative: bool = False, equal_slice: dict = None, 
+        return self.del_nan_units(gdf)
+
+    def get_services(self, columns: list, equal_slice: dict = None, 
                     place_slice: dict = None) -> Union[GeoDataFrame, DataFrame]:
 
-        join_table = ""
-        columns = ["t." + c for c in columns]
-
         sql_query = self.generate_general_sql_query(
-            "all_services", columns, join_tables=join_table, equal_slice=equal_slice, place_slice=place_slice)
+            "all_services", columns, equal_slice=equal_slice, place_slice=place_slice)
         df = pd.read_sql(sql_query, con=self.engine)
-        
-        if add_normative:
-            columns.extend(['s.public_transport_time_normative as access_normative_min', 
-                            's.walking_radius_normative as access_normative_meter'])
-            join_table = f"""
-            LEFT JOIN provision.services s ON functional_object_id = s.service_id"""
+        gdf = gpd.GeoDataFrame(df)
 
         if "geometry" in df.columns:
             df['geometry'] = df['geometry'].apply(lambda x: shape(ast.literal_eval(x)))
-            gdf = gpd.GeoDataFrame(df, geometry=df.geometry).set_crs(4326).to_crs(self.city_crs)
-            return gdf
-        else:
-            return df
+            gdf = gdf.set_geometry("geometry").set_crs(4326)
+        if len(gdf) > 0:
+            gdf[["x", "y"]] = gdf["geometry"].to_crs(self.city_crs).centroid.apply(lambda obj: pd.Series((obj.x, obj.y)))
 
-    def transform_provision_file(self, table):
-        table = gpd.GeoDataFrame(table, geometry = table['geometry'].apply(lambda x: shapely.wkt.loads(x)), crs=4326).to_crs(self.city_crs)
-        table = table.apply(lambda col: col.apply(lambda row: self.get_eval_values(row)))
-        table = table.set_index("functional_object_id").replace("NaN", np.nan)
-        return table
+        return self.del_nan_units(gdf)
 
+    # for objects that are out of territorial units for some reason
     @staticmethod
-    def get_eval_values(value):
-        try:
-            parsed_value = eval(value)
-            if type(parsed_value) in [str, int, float, dict, list]:
-                return parsed_value
-            else:
-                return value
-        except:
-            return value
+    def del_nan_units(df) -> DataFrame:
+        for unit in ["block_id", "municipality_id", "administrative_unit_id"]:
+            if unit in df.columns:
+                df = df.dropna(subset=[unit])
+        return df

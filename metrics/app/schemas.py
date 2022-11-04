@@ -294,7 +294,11 @@ class ProvisionGetProvisionIn(ProvisionInBase):
         schema_extra = {
             "example": {
                 "city": "saint-petersburg",
+<<<<<<< HEAD
                 "service_types": ["kindergartens"],
+=======
+                "service_type": "kindergartens",
+>>>>>>> master
                 "valuation_type": "normative",
                 "year": 2022,
             }
@@ -389,3 +393,10 @@ class WellbeingGetWellbeingInfoIn(WellbeingInBase):
 
 class WellbeingGetWellbeingInfoOut(ProvisionOutBase):
     isochrone: Optional[FeatureCollection]
+
+
+class CollocationMatrixQueryParams:
+    def __init__(self,
+                 city: enums.CitiesEnum,
+                 ):
+        self.city = city

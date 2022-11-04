@@ -109,7 +109,7 @@ class VisibilityAnalysis(BaseMethod):
 
     def __init__(self, city_model):
         BaseMethod.__init__(self, city_model)
-        super().validation("traffic_calculator")
+        super().validation("visibility_analysis")
         self.buildings = self.city_model.Buildings.copy()
 
     def get_visibility_result(self, point, view_distance):
@@ -127,7 +127,7 @@ class VisibilityAnalysis(BaseMethod):
         else:
             splited_lines = buffer_lines_gdf["geometry"]
 
-        splited_lines_gdf = gpd.GeoDataFrame(geometry=splited_lines).explode()
+        splited_lines_gdf = gpd.GeoDataFrame(geometry=splited_lines).explode(index_parts=True)
         splited_lines_list = []
 
         for u, v in splited_lines_gdf.groupby(level=0):
@@ -452,7 +452,7 @@ class Spacematrix(BaseMethod):
                 )
         return "".join(cluster_name)
 
-    def get_spacematrix_morph_types(self, blocks, clusters_number=11):
+    def get_spacematrix_morph_types(self, blocks, clusters_number):
         # blocks with OSR >=10 considered as unbuilt blocks
         X = blocks[blocks["OSR"] < 10][['FSI', 'L', 'MXI']].dropna()
         scaler = StandardScaler()
@@ -498,7 +498,7 @@ class Spacematrix(BaseMethod):
 
         return blocks
 
-    def get_morphotypes(self, clusters_number=signature(get_spacematrix_morph_types).parameters['clusters_number'].default, area_type=None, area_id=None, geojson=None):
+    def get_morphotypes(self, clusters_number=11, area_type=None, area_id=None, geojson=None):
 
         buildings, blocks = self.simple_preprocess_data(self.buildings, self.blocks)
         blocks = self.calculate_block_indices(buildings, blocks)
@@ -597,11 +597,11 @@ class AccessibilityIsochrones(BaseMethod):
                     ), type).fillna(False)
                 stops = stops.join(stop_types)
 
-                routes_select = routes["type"].isin(self.edge_types[travel_type][:-1])
-                routes["geometry"] = routes["geometry"].apply(lambda x: shapely.wkt.loads(x))
-                routes = routes[["type", "time_min", "length_meter", "geometry"]]
-                routes = gpd.GeoDataFrame(routes, crs=self.city_crs)
-                return json.loads(routes.to_crs(4326).to_json()), json.loads(stops.to_crs(4326).to_json())
+                routes_select = routes[routes["type"].isin(self.edge_types[travel_type][:-1])]
+                routes_select["geometry"] = routes_select["geometry"].apply(lambda x: shapely.wkt.loads(x))
+                routes_select = routes_select[["type", "time_min", "length_meter", "geometry"]]
+                routes_select = gpd.GeoDataFrame(routes_select, crs=self.city_crs)
+                return json.loads(routes_select.to_crs(4326).to_json()), json.loads(stops.to_crs(4326).to_json())
             else:
                 return None, None
 
