@@ -35,7 +35,7 @@ class PedastrianWalkTrafficsCalculationIn(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "city": "Saint_Petersburg",
+                "city": "saint-petersburg",
                 "geojson": {
                 "type": "FeatureCollection",
                 "name": "test_area",
@@ -81,7 +81,7 @@ class MobilityAnalysisIsochronesQueryParams:
         schema_extra = {
             'example': [
                 {
-                    'city': 'Saint_Petersburg',
+                    'city': 'saint-petersburg',
                     'travel_type': 'public_transport',
                     'weight_type': 'time',
                     'weight_value': 15,
@@ -128,7 +128,7 @@ class WeightedVoronoiCalculationIn(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "city": "Saint_Petersburg",
+                "city": "saint-petersburg",
                 "geojson": {
                     "type": "FeatureCollection", "name": "test",
                     "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:EPSG::3857"}},
@@ -163,7 +163,7 @@ class BlocksClusterizationGetBlocks(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "city": "Saint_Petersburg",
+                "city": "saint-petersburg",
                 "clusters_number": None,
                 "service_types": [
                         "garbage_containers",
@@ -199,7 +199,7 @@ class ServicesClusterizationGetClustersPolygonsIn(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "city": "Saint_Petersburg",
+                "city": "saint-petersburg",
                 "service_types": [
                         "schools",
                         "kindergartens",
@@ -228,7 +228,7 @@ class SpacematrixIn(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "city": "Saint_Petersburg",
+                "city": "saint-petersburg",
                 "clusters_number": 11,
                 "area_type": "administrative_unit",
                 "area_id": 61
@@ -287,13 +287,13 @@ class ProvisionInBase(BaseModel):
     valuation_type: str
     year: int
     user_selection_zone: Optional[Polygon] = None
-
+    service_impotancy: Optional[list] = None  #FIXME
 
 class ProvisionGetProvisionIn(ProvisionInBase):
     class Config:
         schema_extra = {
             "example": {
-                "city": "Saint_Petersburg",
+                "city": "saint-petersburg",
                 "service_types": ["kindergartens"],
                 "valuation_type": "normative",
                 "year": 2022,

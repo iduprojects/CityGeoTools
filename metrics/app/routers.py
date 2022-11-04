@@ -130,7 +130,7 @@ async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
     city_model = cities_model[query_params.city]
     geojson = query_params.geojson.dict() if query_params.geojson else None
     try:
-        return Spacematrix(city_model).get_spacematrix_morph_types(
+        return Spacematrix(city_model).get_morphotypes(
             query_params.clusters_number, query_params.area_type, query_params.area_id, geojson
             )
     except SelectedValueError as e:
@@ -208,7 +208,8 @@ async def get_provision(
         city_model, user_request.service_types,
         user_request.valuation_type, user_request.year,
         user_changes_buildings=None, user_changes_services=None,
-        user_provisions=None, user_selection_zone=user_request.user_selection_zone
+        user_provisions=None, user_selection_zone=user_request.user_selection_zone,
+        service_impotancy = user_request.service_impotancy #FIXME 
     ).get_provisions()
     return result
 
@@ -223,7 +224,8 @@ async def recalculate_provisions(
         city_model, user_request.service_types,
         user_request.valuation_type, user_request.year,
         user_changes_buildings=user_request.user_changes_buildings, user_changes_services=user_request.user_changes_services,
-        user_provisions=user_request.user_provisions, user_selection_zone=user_request.user_selection_zone
+        user_provisions=user_request.user_provisions, user_selection_zone=user_request.user_selection_zone,
+        service_impotancy = user_request.service_impotancy #FIXME 
     ).recalculate_provisions()
     return result
 
