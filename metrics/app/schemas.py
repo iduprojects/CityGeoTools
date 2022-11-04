@@ -294,11 +294,7 @@ class ProvisionGetProvisionIn(ProvisionInBase):
         schema_extra = {
             "example": {
                 "city": "saint-petersburg",
-<<<<<<< HEAD
                 "service_types": ["kindergartens"],
-=======
-                "service_type": "kindergartens",
->>>>>>> master
                 "valuation_type": "normative",
                 "year": 2022,
             }
