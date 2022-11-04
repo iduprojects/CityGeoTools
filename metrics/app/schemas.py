@@ -81,7 +81,7 @@ class MobilityAnalysisIsochronesQueryParams:
         schema_extra = {
             'example': [
                 {
-                    'city': 'Saint_Petersburg',
+                    'city': 'saint-petersburg',
                     'travel_type': 'public_transport',
                     'weight_type': 'time',
                     'weight_value': 15,
@@ -277,20 +277,28 @@ class DiversityGetBuildingsQueryParams:
         self.service_type = service_type
 
 
+ProvisionsDestinationMatrix = dict[str, list[dict]]  # матрица назначений
+
+
 class ProvisionInBase(BaseModel):
+    """Базовый класс схемы входных параметров для обеспеченности. """
     city: str
-    service_type: str
+    service_types: conlist(str, min_items=1)
     valuation_type: str
     year: int
     user_selection_zone: Optional[Polygon] = None
-
+    service_impotancy: Optional[list] = None  #FIXME
 
 class ProvisionGetProvisionIn(ProvisionInBase):
     class Config:
         schema_extra = {
             "example": {
                 "city": "saint-petersburg",
+<<<<<<< HEAD
+                "service_types": ["kindergartens"],
+=======
                 "service_type": "kindergartens",
+>>>>>>> master
                 "valuation_type": "normative",
                 "year": 2022,
             }
@@ -298,7 +306,7 @@ class ProvisionGetProvisionIn(ProvisionInBase):
 
 
 class ProvisionRecalculateProvisionsIn(ProvisionInBase):
-    user_provisions: list[dict]
+    user_provisions: ProvisionsDestinationMatrix
     user_changes_buildings: Optional[dict] = None
     user_changes_services: Optional[dict] = None
 
@@ -306,7 +314,7 @@ class ProvisionRecalculateProvisionsIn(ProvisionInBase):
 class ProvisionOutBase(BaseModel):
     houses: FeatureCollection
     services: FeatureCollection
-    provisions: list
+    provisions: ProvisionsDestinationMatrix
 
 
 class ProvisionGetProvisionOut(ProvisionOutBase):

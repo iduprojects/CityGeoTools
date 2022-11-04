@@ -1,3 +1,6 @@
+import warnings
+warnings.filterwarnings('ignore')
+
 from typing import Any, Optional
 import geopandas as gpd
 import shapely
@@ -24,6 +27,9 @@ from scipy import spatial
 from .errors import TerritorialSelectError, SelectedValueError, ImplementationError
 from itertools import product
 from inspect import signature
+
+import requests
+import os
 
 #from app.schemas import FeatureCollectionWithCRS
 
@@ -817,140 +823,218 @@ class CollocationMatrix(BaseMethod):
            
 class City_Provisions(BaseMethod): 
 
-    def __init__(self, city_model: Any, service_type: str, valuation_type: str, year: int,
-                 user_provisions: Optional[list], user_changes_buildings: Optional[dict],
-                 user_changes_services: Optional[dict], user_selection_zone: Optional[dict]):
+    def __init__(self, city_model: Any, service_types: list, valuation_type: str, year: int,
+                 user_provisions: Optional[dict[str, list[dict]]], user_changes_buildings: Optional[dict],
+                 user_changes_services: Optional[dict], user_selection_zone: Optional[dict], service_impotancy: Optional[list]):
         '''
-        >>> City_Provisions(city_model,service_type = "kindergartens", valuation_type = "normative", year = 2022).get_provisons()
+        >>> City_Provisions(city_model,service_types = "kindergartens", valuation_type = "normative", year = 2022).get_provisons()
         >>>
         >>>
         '''
         BaseMethod.__init__(self, city_model)
         self.engine = city_model.engine
-        self.service_type = service_type
+        self.city_name = city_model.city_name
+        self.service_types = service_types
         self.valuation_type = valuation_type
         self.year = year
         self.city = city_model.city_name
-        service_types_normatives = city_model.ServiceTypes[city_model.ServiceTypes['code'] == service_type].dropna(axis = 1).copy()
-
-        if 'walking_radius_normative' in service_types_normatives.columns:  
-            self.normative_distance = service_types_normatives['walking_radius_normative'].iloc[0]
-            self.nk_graph = city_model.graph_nk_length
-        else:
-            self.normative_distance = service_types_normatives['public_transport_time_normative'].iloc[0]
-            self.nk_graph =  city_model.graph_nk_time
-                                                 
-        self.buildings = city_model.Buildings.copy()
-        self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
-        self.services = city_model.Services[city_model.Services['service_code'] == service_type].copy()
-        self.services.index = self.services['id'].values.astype(int)
+        self.service_types_normatives = city_model.ServiceTypes[city_model.ServiceTypes['code'].isin(service_types)].copy(deep = True)
+        self.service_types_normatives.index = self.service_types_normatives['code'].values
+        
+        self.graph_nk_length = city_model.graph_nk_length
+        self.graph_nk_time =  city_model.graph_nk_time
         self.nx_graph =  city_model.MobilityGraph
+                                         
+        self.buildings = city_model.Buildings.copy(deep = True)
+        #self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
+        self.buildings.index = range(0, len(self.buildings))
 
-        self.demands = pd.read_sql(f'''SELECT functional_object_id, {self.service_type}_service_demand_value_{self.valuation_type} 
-                                       FROM social_stats.buildings_load_future
-                                       WHERE year = {self.year}
-                                       ''', con = self.engine)
-                                       
-        self.buildings = self.buildings.merge(self.demands, on = 'functional_object_id', how = 'right').dropna()
-        self.buildings = self.buildings.rename(columns = {f'{self.service_type}_service_demand_value_{self.valuation_type}': "demand"})
+        self.services = city_model.Services[city_model.Services['service_code'].isin(service_types)].copy(deep = True)
+        #self.services.index = self.services['id'].values.astype(int)
+        self.services.index = range(len(self.buildings) + 1, len(self.buildings) + len(self.services) + 1)
+        try:
+            self.services_impotancy = dict(zip(service_types, service_impotancy))
+        except:
+            self.services_impotancy = None
+
+        self.user_provisions = {}
+        self.user_changes_buildings = {}
+        self.user_changes_services = {}
+        self.buildings_old_values = None
+        self.services_old_values = None
+
+        self.errors = []
+        for service_type in service_types:
+            try:
+                self.demands = pd.read_sql(f'''SELECT functional_object_id, {service_type}_service_demand_value_{self.valuation_type} 
+                                        FROM social_stats.buildings_load_future
+                                        WHERE year = {self.year}
+                                        ''', con = self.engine)
+                self.buildings = self.buildings.merge(self.demands, on = 'functional_object_id', how = 'right').dropna()
+                self.buildings[f'{service_type}_service_demand_left_value_{self.valuation_type}'] = self.buildings[f'{service_type}_service_demand_value_{self.valuation_type}']
+            except:
+                self.errors.append(service_type)
+        self.service_types= [x for x in service_types if x not in self.errors]
         self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
-        self.buildings['demand_left'] = self.buildings['demand']
+        
         self.services['capacity_left'] = self.services['capacity']
 
+        self.Provisions = {service_type:{'destination_matrix': None, 
+                                         'distance_matrix': None,
+                                         'normative_distance':None,
+                                         'buildings':None,
+                                         'services': None,
+                                         'selected_graph':None} for service_type in service_types}
+        self.new_Provisions = {service_type:{'destination_matrix': None, 
+                                            'distance_matrix': None,
+                                            'normative_distance':None,
+                                            'buildings':None,
+                                            'services': None,
+                                            'selected_graph':None} for service_type in service_types}
         #Bad interface , raise error must be 
-        if user_changes_buildings:
-            print(1.1)
-            self.user_changes_buildings = gpd.GeoDataFrame.from_features(user_changes_buildings['features'], crs = 4326).to_crs(city_model.city_crs)
-            self.user_changes_buildings.index = self.user_changes_buildings['functional_object_id'].values.astype(int)
-            self.user_changes_buildings = self.user_changes_buildings.rename(columns = {f'{self.service_type}_demand': "demand"})
-            self.user_changes_buildings = self.user_changes_buildings.combine_first(self.buildings)
-            self.user_changes_buildings.index = self.user_changes_buildings['functional_object_id'].values.astype(int)
-            self.user_changes_buildings['demand_left'] = self.user_changes_buildings['demand']
-        else:
-            print(1.2)
-            self.user_changes_buildings = self.buildings.copy()
         if user_changes_services:
-            print(2.1)
-            self.user_changes_services = gpd.GeoDataFrame.from_features(user_changes_services['features'], crs = 4326).to_crs(city_model.city_crs)
+            self.user_changes_services = gpd.GeoDataFrame.from_features(user_changes_services['features']).set_crs(4326).to_crs(self.city_crs)
             self.user_changes_services.index = self.user_changes_services['id'].values.astype(int)
             self.user_changes_services = self.user_changes_services.combine_first(self.services)
             self.user_changes_services.index = self.user_changes_services['id'].values.astype(int)
             self.user_changes_services['capacity_left'] = self.user_changes_services['capacity']
+            self.services_old_values = self.user_changes_services[['capacity','capacity_left','carried_capacity_within','carried_capacity_without']]
+            self.user_changes_services = self.user_changes_services.set_crs(self.city_crs)
+            #
+            self.user_changes_services.index = range(0, len(self.user_changes_services))
         else:
-            print(2.2)
-            self.user_changes_services = self.services.copy()
+            self.user_changes_services = self.services.copy(deep = True)
+        
+        if user_changes_buildings:
+            old_cols = []
+            self.user_changes_buildings = gpd.GeoDataFrame.from_features(user_changes_buildings['features']).set_crs(4326).to_crs(self.city_crs)
+            self.user_changes_buildings.index = self.user_changes_buildings['functional_object_id'].values.astype(int)
+            self.user_changes_buildings = self.user_changes_buildings.combine_first(self.buildings)
+            self.user_changes_buildings.index = self.user_changes_buildings['functional_object_id'].values.astype(int)
+            for service_type in service_types:
+                old_cols.extend([f'{service_type}_provison_value', 
+                                 f'{service_type}_service_demand_left_value_{self.valuation_type}', 
+                                 f'{service_type}_service_demand_value_{self.valuation_type}', 
+                                 f'{service_type}_supplyed_demands_within', 
+                                 f'{service_type}_supplyed_demands_without'])
+                self.user_changes_buildings[f'{service_type}_service_demand_left_value_{self.valuation_type}'] = self.user_changes_buildings[f'{service_type}_service_demand_value_{self.valuation_type}'].values
+            self.buildings_old_values = self.user_changes_buildings[old_cols]
+            self.user_changes_buildings = self.user_changes_buildings.set_crs(self.city_crs)
+            self.user_changes_buildings.index = range(len(self.user_changes_services) + 1, len(self.user_changes_services) + len(self.user_changes_buildings) + 1)
+
+        else:
+            self.user_changes_buildings = self.buildings.copy()
         if user_provisions:
-            print(3.1)
-            self.user_provisions  = pd.DataFrame(0, index =  self.user_changes_services.index.values,
-                                                    columns =  self.user_changes_buildings.index.values)
-            self.user_provisions = (self.user_provisions + self._restore_user_provisions(user_provisions)).fillna(0)
+            for service_type in service_types:
+                self.user_provisions[service_type]  = pd.DataFrame(0, index =  self.user_changes_services.index.values,
+                                                                      columns =  self.user_changes_buildings.index.values)
+                self.user_provisions[service_type] = (self.user_provisions[service_type] + self._restore_user_provisions(user_provisions[service_type])).fillna(0)
         else:
-            print(3.2)
             self.user_provisions = None
+
         if user_selection_zone:
-            print(4.1)
             gdf = gpd.GeoDataFrame(data = {"id":[1]}, 
                                     geometry = [shapely.geometry.shape(user_selection_zone)],
                                     crs = 4326).to_crs(city_model.city_crs)
             self.user_selection_zone = gdf['geometry'][0]
         else:
-            print(4.2)
             self.user_selection_zone = None
-            
 
     def get_provisions(self, ):
+        
+        for service_type in self.service_types:
+            normative_distance = self.service_types_normatives.loc[service_type].dropna().copy(deep = True)
+            try:
+                self.Provisions[service_type]['normative_distance'] = normative_distance['walking_radius_normative']
+                self.Provisions[service_type]['selected_graph'] = self.graph_nk_length
+            except:
+                self.Provisions[service_type]['normative_distance'] = normative_distance['public_transport_time_normative']
+                self.Provisions[service_type]['selected_graph'] = self.graph_nk_time
+            
+            try:
+                self.Provisions[service_type]['services'] =t = pd.read_pickle(io.BytesIO(requests.get(f'{os.environ["PROVISIONS_DATA_FILE_SERVER"]}/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_services').content))
+                self.Provisions[service_type]['buildings'] = pd.read_pickle(io.BytesIO(requests.get(f'{os.environ["PROVISIONS_DATA_FILE_SERVER"]}/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_buildings').content))
+                self.Provisions[service_type]['distance_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'{os.environ["PROVISIONS_DATA_FILE_SERVER"]}/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_distance_matrix').content))
+                self.Provisions[service_type]['destination_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'{os.environ["PROVISIONS_DATA_FILE_SERVER"]}/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_destination_matrix').content))
+            except:
+    
+                self.Provisions[service_type]['buildings'] = self.buildings.copy(deep = True)
+                self.Provisions[service_type]['services'] = self.services[self.services['service_code'] == service_type].copy(deep = True)
+                
+                self.Provisions[service_type] =  self._calculate_provisions(self.Provisions[service_type], service_type)
+                self.Provisions[service_type]['buildings'], self.Provisions[service_type]['services'] = self._additional_options(self.Provisions[service_type]['buildings'].copy(), 
+                                                                                                                                    self.Provisions[service_type]['services'].copy(),
+                                                                                                                                    self.Provisions[service_type]['distance_matrix'].copy(),
+                                                                                                                                    self.Provisions[service_type]['destination_matrix'].copy(),
+                                                                                                                                    self.Provisions[service_type]['normative_distance'],
+                                                                                                                                    service_type,
+                                                                                                                                    self.user_selection_zone,
+                                                                                                                                    self.valuation_type)
+        cols_to_drop = [x for x in self.buildings.columns for service_type in self.service_types if service_type in x]
+        self.buildings = self.buildings.drop(columns = cols_to_drop)
 
-        try:
-            self.Provisions = pd.read_sql(f'''SELECT * 
-                                         FROM provisions.{self.city}_{self.service_type}_{self.valuation_type}_{self.year}_provisions
-                                         ''', con = self.engine)
-            self.Matrix = pd.read_sql(f'''SELECT * 
-                                     FROM provisions.{self.city}_{self.service_type}_{self.valuation_type}_{self.year}_matrix
-                                     ''', con = self.engine)
-        except: 
-            self.Matrix, self.Provisions = self._calculate_provisions(buildings_ = self.buildings.copy(), 
-                                                                      services_ = self.services.copy())
+        for service_type in self.service_types: 
+            self.buildings = self.buildings.merge(self.Provisions[service_type]['buildings'], 
+                                                    left_on = 'functional_object_id', 
+                                                    right_on = 'functional_object_id')
+        to_rename_x = [x for x in self.buildings.columns if '_x' in x]
+        to_rename_y = [x for x in self.buildings.columns if '_y' in x]
+        self.buildings = self.buildings.rename(columns = dict(zip(to_rename_x, [x.split('_x')[0] for x in to_rename_x])))
+        self.buildings = self.buildings.rename(columns = dict(zip(to_rename_y, [y.split('_y')[0] for y in to_rename_y])))
+        self.buildings = self.buildings.loc[:,~self.buildings.columns.duplicated()].copy()
 
-        self.buildings, self.services = self._additional_options(self.buildings, 
-                                                                 self.services,
-                                                                 self.Matrix,
-                                                                 self.Provisions,
-                                                                 self.normative_distance,
-                                                                 self.service_type,
-                                                                 self.user_selection_zone)  
-        #self.Provisions = Provisions
-        #self.Matrix = Matrix
+        self.buildings, self.services = self.is_shown(self.buildings,self.services, self.Provisions)
 
+        self.buildings = self.buildings.to_crs(4326)
+        self.services = pd.concat([self.Provisions[service_type]['services'] for service_type in self.service_types])
+        self.services = self.services.to_crs(4326)
+            
         return {"houses": eval(self.buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
                 "services": eval(self.services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
-                "provisions": self._provision_matrix_transform(self.Provisions)}
+                "provisions": {service_type: self._provision_matrix_transform(self.Provisions[service_type]['destination_matrix']) for service_type in self.service_types}}
 
-    def _calculate_provisions(self, buildings_, services_):
+    def is_shown(self, buildings, services, Provisions):
+        if self.user_selection_zone:
+            buildings['is_shown'] = buildings.within(self.user_selection_zone)
+            a = buildings['is_shown'].copy()
+            for service_type in self.service_types:
+                t = Provisions[service_type]['destination_matrix'][[c for c in Provisions[service_type]['destination_matrix'].columns if c in list(a[a].index.values)]]
+                t['is_shown'] = t.apply(lambda x: len(x[x > 0])>0, axis = 1)
+                services['is_shown'] = t['is_shown']
+        else:
+            buildings['is_shown'] = True
+            services['is_shown'] = True
+        return buildings, services
+
+    def _calculate_provisions(self, Provisions, service_type):
         df = pd.DataFrame.from_dict(dict(self.nx_graph.nodes(data=True)), orient='index')
         self.graph_gdf = gpd.GeoDataFrame(df, geometry = df['geometry'], crs = self.city_crs)
-        from_houses = self.graph_gdf['geometry'].sindex.nearest(buildings_['geometry'], 
+        from_houses = self.graph_gdf['geometry'].sindex.nearest(Provisions['buildings']['geometry'], 
                                                                 return_distance = True, 
                                                                 return_all = False) 
-        to_services = self.graph_gdf['geometry'].sindex.nearest(services_['geometry'], 
+        to_services = self.graph_gdf['geometry'].sindex.nearest(Provisions['services']['geometry'], 
                                                                 return_distance = True, 
                                                                 return_all = False)
 
-        Matrix = pd.DataFrame(0, index = to_services[0][1], 
-                                 columns = from_houses[0][1])
+        Provisions['distance_matrix'] = pd.DataFrame(0, index = to_services[0][1], 
+                                                        columns = from_houses[0][1])
         
-        nk_dists = nk.distance.SPSP(G = self.nk_graph, sources = Matrix.index.values).run()
-
-        Matrix =  Matrix.apply(lambda x: self._get_nk_distances(nk_dists,
-                                                                        x), axis =1)
-        Matrix.index = services_.index
-        Matrix.columns = buildings_.index
-        Provisions = pd.DataFrame(0, index = Matrix.index, columns = Matrix.columns)
-        Provisions = self._provision_loop(buildings_, 
-                                          services_, 
-                                          Matrix, 
-                                          self.normative_distance, 
-                                          Provisions, )
-        return Matrix, Provisions        
+        nk_dists = nk.distance.SPSP(G = Provisions['selected_graph'], sources = Provisions['distance_matrix'].index.values).run()
+        Provisions['distance_matrix'] =  Provisions['distance_matrix'].apply(lambda x: self._get_nk_distances(nk_dists,x), axis =1)
+        Provisions['distance_matrix'].index = Provisions['services'].index
+        Provisions['distance_matrix'].columns = Provisions['buildings'].index
+        Provisions['destination_matrix'] = pd.DataFrame(0, index = Provisions['distance_matrix'].index, 
+                                                           columns = Provisions['distance_matrix'].columns)
+        print(Provisions['buildings'][f'{service_type}_service_demand_left_value_{self.valuation_type}'].sum(), 
+              Provisions['services']['capacity_left'].sum(), 
+              Provisions['normative_distance'])                                                        
+        Provisions['destination_matrix'] = self._provision_loop(Provisions['buildings'].copy(), 
+                                                                Provisions['services'].copy(), 
+                                                                Provisions['distance_matrix'].copy(), 
+                                                                Provisions['normative_distance'], 
+                                                                Provisions['destination_matrix'].copy(),
+                                                                service_type )
+        return Provisions        
 
     @staticmethod
     def _restore_user_provisions(user_provisions):
@@ -963,6 +1047,136 @@ class City_Provisions(BaseMethod):
 
         return restored_user_provisions
     
+
+    @staticmethod
+    def _additional_options(buildings, services, Matrix, destination_matrix, normative_distance, service_type, selection_zone, valuation_type): 
+        #clear matrix same size as buildings and services if user sent sth new
+        cols_to_drop = list(set(set(Matrix.columns.values) - set(buildings.index.values)))
+        rows_to_drop = list(set(set(Matrix.index.values) - set(services.index.values)))
+        Matrix = Matrix.drop(index=rows_to_drop, 
+                                columns=cols_to_drop, 
+                                errors = 'irgonre')
+        destination_matrix = destination_matrix.drop(index=rows_to_drop, 
+                                    columns=cols_to_drop, 
+                                    errors = 'irgonre')
+                                                
+        #bad performance 
+        #bad code
+        #rewrite to vector operations [for col in ****]
+        buildings[f'{service_type}_service_demand_left_value_{valuation_type}'] = buildings[f'{service_type}_service_demand_value_{valuation_type}'] 
+        buildings[f'{service_type}_supplyed_demands_within'] = 0
+        buildings[f'{service_type}_supplyed_demands_without'] = 0
+        services['capacity_left'] = services['capacity']
+        services['carried_capacity_within'] = 0
+        services['carried_capacity_without'] = 0
+        for i in range(len(destination_matrix)):
+            loc = destination_matrix.iloc[i]
+            s = Matrix.loc[loc.name] <= normative_distance
+            within = loc[s]
+            without = loc[~s]
+            within = within[within > 0]
+            without = without[without > 0]
+
+            buildings[f'{service_type}_service_demand_left_value_{valuation_type}'] = buildings[f'{service_type}_service_demand_left_value_{valuation_type}'].sub(within.add(without, fill_value= 0), fill_value = 0)
+            buildings[f'{service_type}_supplyed_demands_within'] = buildings[f'{service_type}_supplyed_demands_within'].add(within, fill_value = 0)
+            buildings[f'{service_type}_supplyed_demands_without'] = buildings[f'{service_type}_supplyed_demands_without'].add(without, fill_value = 0)
+            services.at[loc.name,'capacity_left'] = services.at[loc.name,'capacity_left'] - within.add(without, fill_value= 0).sum()
+            services.at[loc.name,'carried_capacity_within'] = services.at[loc.name,'carried_capacity_within'] + within.sum()
+            services.at[loc.name,'carried_capacity_without'] = services.at[loc.name,'carried_capacity_without'] + without.sum()
+        buildings[f'{service_type}_provison_value'] = buildings[f'{service_type}_supplyed_demands_within'] / buildings[f'{service_type}_service_demand_value_{valuation_type}']
+        services['service_load'] = services['capacity'] - services['capacity_left']
+
+        buildings = buildings[[x for x in buildings.columns if service_type in x] + ['functional_object_id']]
+        return buildings, services 
+
+    def recalculate_provisions(self, ):
+        
+        for service_type in self.service_types:
+            print(service_type)
+            normative_distance = self.service_types_normatives.loc[service_type].dropna().copy(deep = True)
+            try:
+                self.new_Provisions[service_type]['normative_distance'] = normative_distance['walking_radius_normative']
+                self.new_Provisions[service_type]['selected_graph'] = self.graph_nk_length
+                print('walking_radius_normative')
+            except:
+                self.new_Provisions[service_type]['normative_distance'] = normative_distance['public_transport_time_normative']
+                self.new_Provisions[service_type]['selected_graph'] = self.graph_nk_time
+                print('public_transport_time_normative')
+            
+            self.new_Provisions[service_type]['buildings'] = self.user_changes_buildings.copy(deep = True)
+            self.new_Provisions[service_type]['services'] = self.user_changes_services[self.user_changes_services['service_code'] == service_type].copy(deep = True)
+
+            self.new_Provisions[service_type] =  self._calculate_provisions(self.new_Provisions[service_type], service_type)
+            self.new_Provisions[service_type]['buildings'], self.new_Provisions[service_type]['services'] = self._additional_options(self.new_Provisions[service_type]['buildings'].copy(), 
+                                                                                                                                     self.new_Provisions[service_type]['services'].copy(),
+                                                                                                                                     self.new_Provisions[service_type]['distance_matrix'].copy(),
+                                                                                                                                     self.new_Provisions[service_type]['destination_matrix'].copy(),
+                                                                                                                                     self.new_Provisions[service_type]['normative_distance'],
+                                                                                                                                     service_type,
+                                                                                                                                     self.user_selection_zone,
+                                                                                                                                     self.valuation_type)
+            self.new_Provisions[service_type]['buildings'], self.new_Provisions[service_type]['services'] = self._get_provisions_delta(service_type)
+
+        cols_to_drop = [x for x in self.user_changes_buildings.columns for service_type in self.service_types if service_type in x]
+        self.user_changes_buildings = self.user_changes_buildings.drop(columns = cols_to_drop)
+        for service_type in self.service_types:
+            self.user_changes_buildings = self.user_changes_buildings.merge(self.new_Provisions[service_type]['buildings'], 
+                                                                            left_on = 'functional_object_id', 
+                                                                            right_on = 'functional_object_id')
+                                                                          
+        to_rename_x = [x for x in self.user_changes_buildings.columns if '_x' in x]
+        to_rename_y = [x for x in self.user_changes_buildings.columns if '_y' in x]
+        self.user_changes_buildings = self.user_changes_buildings.rename(columns = dict(zip(to_rename_x, [x.split('_x')[0] for x in to_rename_x])))
+        self.user_changes_buildings = self.user_changes_buildings.rename(columns = dict(zip(to_rename_y, [y.split('_y')[0] for y in to_rename_y])))
+        self.user_changes_buildings = self.user_changes_buildings.loc[:,~self.user_changes_buildings.columns.duplicated()].copy()
+
+        self.user_changes_buildings, self.user_changes_services = self.is_shown(self.user_changes_buildings,self.user_changes_services, self.new_Provisions)
+
+        self.user_changes_buildings = self.user_changes_buildings.to_crs(4326)
+        self.user_changes_services = pd.concat([self.new_Provisions[service_type]['services'] for service_type in self.service_types])
+        self.user_changes_services = self.user_changes_services.to_crs(4326)
+
+        return {"houses": eval(self.user_changes_buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
+                "services": eval(self.user_changes_services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
+                "provisions": {service_type: self._provision_matrix_transform(self.new_Provisions[service_type]['destination_matrix']) for service_type in self.service_types}}
+
+    def _get_provisions_delta(self, service_type):
+        #bad performance 
+        #bad code
+        #rewrite to df[[for col.split()[0] in ***]].sub(other[col])
+        services_delta_cols = ['capacity_delta', 'capacity_left_delta', 'carried_capacity_within_delta', 'carried_capacity_without_delta']
+        buildsing_delta_cols = [f'{service_type}_provison_value_delta', 
+                                f'{service_type}_service_demand_left_value_{self.valuation_type}_delta', 
+                                f'{service_type}_service_demand_value_{self.valuation_type}_delta',
+                                f'{service_type}_supplyed_demands_within_delta',
+                                f'{service_type}_supplyed_demands_without_delta']
+        if self.buildings_old_values is not None:
+            for col in buildsing_delta_cols:
+                d = self.buildings_old_values[col.split('_delta')[0]].sub(self.new_Provisions[service_type]['buildings'][col.split('_delta')[0]], fill_value = 0)
+                d = d.loc[self.new_Provisions[service_type]['buildings'].index]
+                self.new_Provisions[service_type]['buildings'][col] =  d
+        if self.services_old_values is not None:
+            for col in services_delta_cols:
+                d =  self.services_old_values[col.split('_delta')[0]].sub(self.new_Provisions[service_type]['services'][col.split('_delta')[0]], fill_value = 0) 
+                d = d.loc[self.new_Provisions[service_type]['services'].index]
+                self.new_Provisions[service_type]['services'][col] = d
+        return self.new_Provisions[service_type]['buildings'], self.new_Provisions[service_type]['services'] 
+
+    def _get_nk_distances(self, nk_dists, loc):
+        target_nodes = loc.index
+        source_node = loc.name
+        distances = [nk_dists.getDistance(source_node, node) for node in target_nodes]
+
+        return pd.Series(data = distances, index = target_nodes)
+    
+    def _declare_varables(self, loc):
+        name = loc.name
+        nans = loc.isna()
+        index = nans[~nans].index
+        t = pd.Series([pulp.LpVariable(name = f"route_{name}_{I}", lowBound=0, cat = "Integer") for I in index], index)
+        loc[~nans] = t
+        return loc
+
     @staticmethod
     def _provision_matrix_transform(Provisions):
         provisions_transformed = []
@@ -974,119 +1188,10 @@ class City_Provisions(BaseMethod):
                                            'service_id': service_id} for k,v in loc)
         return provisions_transformed
 
-    def recalculate_provisions(self, ):
-        
-        self.new_Matrix, self.new_Provisions = self._calculate_provisions(buildings_ = self.user_changes_buildings.copy(), 
-                                                                          services_ = self.user_changes_services.copy())
-
-        self.user_changes_buildings, self.user_changes_services = self._additional_options(self.user_changes_buildings,
-                                                                                           self.user_changes_services,
-                                                                                           self.new_Matrix,
-                                                                                           self.new_Provisions,
-                                                                                           self.normative_distance,
-                                                                                           self.service_type,
-                                                                                           self.user_selection_zone)
-
-        self.buildings, self.services = self._additional_options(self.buildings, 
-                                                                 self.services,
-                                                                 self.new_Matrix,
-                                                                 self.user_provisions,
-                                                                 self.normative_distance,
-                                                                 self.service_type,
-                                                                 self.user_selection_zone) 
-
-        self.user_changes_buildings, self.user_changes_services = self._get_provisions_delta()
-
-        return {"houses": eval(self.user_changes_buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
-                "services": eval(self.user_changes_services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
-                "provisions": self._provision_matrix_transform(self.new_Provisions)}
-
-    def _get_provisions_delta(self,):
-
-        #bad performance 
-        #bad code
-        #rewrite to df[[for col.split()[0] in ***]].sub(other[col])
-        services_delta_cols = ['capacity_delta', 'capacity_left_delta', 'carried_capacity_within_delta', 'carried_capacity_without_delta']
-        buildsing_delta_cols = [f'{self.service_type}_demand_delta', f'{self.service_type}_demand_left_delta', f'{self.service_type}_supplyed_demands_within_delta', f'{self.service_type}_supplyed_demands_without_delta']
-        for col in buildsing_delta_cols:
-            self.user_changes_buildings[col] = self.buildings[col.split('_delta')[0]].sub(self.user_changes_buildings[col.split('_delta')[0]], fill_value = 0) 
-        for col in services_delta_cols:
-            self.user_changes_services[col] = self.services[col.split('_delta')[0]].sub(self.user_changes_services[col.split('_delta')[0]], fill_value = 0) 
-
-        return self.user_changes_buildings, self.user_changes_services
-
-    @staticmethod
-    def _additional_options(buildings, services, Matrix, Provisions, normative_distance, service_type, selection_zone): 
-        #clear matrix same size as buildings and services if user sent sth new
-        cols_to_drop = list(set(set(Matrix.columns.values) - set(buildings.index.values)))
-        rows_to_drop = list(set(set(Matrix.index.values) - set(services.index.values)))
-        Matrix = Matrix.drop(index=rows_to_drop, 
-                             columns=cols_to_drop, 
-                             errors = 'irgonre')
-        Provisions = Provisions.drop(index=rows_to_drop, 
-                                     columns=cols_to_drop, 
-                                     errors = 'irgonre')
-        buildings = buildings.rename(columns = {'demand':f'{service_type}_demand'})           
-        #bad performance 
-        #bad code
-        #rewrite to vector operations [for col in ****]
-        buildings[f'{service_type}_demand_left'] = buildings[f'{service_type}_demand'] 
-        buildings[f'{service_type}_supplyed_demands_within'] = 0
-        buildings[f'{service_type}_supplyed_demands_without'] = 0
-        services['capacity_left'] = services['capacity']
-        services['carried_capacity_within'] = 0
-        services['carried_capacity_without'] = 0
-        for i in range(len(Provisions)):
-            loc = Provisions.iloc[i]
-            s = Matrix.loc[loc.name] <= normative_distance
-            within = loc[s]
-            without = loc[~s]
-            within = within[within > 0]
-            without = without[without > 0]
-
-            buildings[f'{service_type}_demand_left'] = buildings[f'{service_type}_demand_left'].sub(within.add(without, fill_value= 0), fill_value = 0)
-            buildings[f'{service_type}_supplyed_demands_within'] = buildings[f'{service_type}_supplyed_demands_within'].add(within, fill_value = 0)
-            buildings[f'{service_type}_supplyed_demands_without'] = buildings[f'{service_type}_supplyed_demands_without'].add(without, fill_value = 0)
-            services.at[loc.name,'capacity_left'] = services.at[loc.name,'capacity_left'] - within.add(without, fill_value= 0).sum()
-            services.at[loc.name,'carried_capacity_within'] = services.at[loc.name,'carried_capacity_within'] + within.sum()
-            services.at[loc.name,'carried_capacity_without'] = services.at[loc.name,'carried_capacity_without'] + without.sum()
-    
-        buildings[f'{service_type}_provison_value'] = buildings[f'{service_type}_supplyed_demands_within'] /  buildings[f'{service_type}_demand']
-        services['service_load'] = services['capacity'] - services['capacity_left']
-        if selection_zone:
-            buildings['is_shown'] = buildings.within(selection_zone)
-            a = buildings['is_shown'].copy()
-            t = Provisions[[c for c in Provisions.columns if c in list(a[a].index.values)]]
-            t['is_shown'] = t.apply(lambda x: len(x[x > 0])>0, axis = 1)
-            services['is_shown'] = t['is_shown']
-        else:
-            buildings['is_shown'] = True
-            services['is_shown'] = True
-
-        buildings = buildings.to_crs(4326)
-        services = services.to_crs(4326)
-
-        return buildings, services 
-
-    def _get_nk_distances(self, nk_dists, loc):
-        target_nodes = loc.index
-        source_node = loc.name
-        distances = [nk_dists.getDistance(source_node, node) for node in target_nodes]
-
-        return pd.Series(data = distances, index = target_nodes)
-    
-    def _declare_varables(self, loc):
-        index = loc.index
-        name = loc.name
-        return pd.Series(index = index, data = [pulp.LpVariable(name = f"route_{name}_{I}", lowBound=0, cat = "Integer") for I in index.astype(str)], name = name)
-
-    def _provision_loop(self, houses_table, services_table, distance_matrix, selection_range, Provisions, ): 
-        
-        print('started')
+    def _provision_loop(self, houses_table, services_table, distance_matrix, selection_range, destination_matrix, service_type): 
         select = distance_matrix[distance_matrix.iloc[:] <= selection_range]
         select = select.apply(lambda x: 1/(x+1), axis = 1)
-        variables = select.apply(lambda x: self._declare_varables(x.dropna()), axis = 1)
-        print('vars')
+        variables = select.apply(lambda x: self._declare_varables(x), axis = 1)
         variables = variables.join(pd.DataFrame(np.NaN, 
                                                 columns = list(set(select.columns) - set(select.columns)), 
                                                 index = select.index))
@@ -1094,7 +1199,7 @@ class City_Provisions(BaseMethod):
         for col in variables.columns:
             t = variables[col].dropna().values
             if len(t) > 0: 
-                prob +=(pulp.lpSum(t) <= houses_table['demand_left'][col],
+                prob +=(pulp.lpSum(t) <= houses_table[f'{service_type}_service_demand_left_value_{self.valuation_type}'][col],
                         f"sum_of_capacities_{col}")
             else: pass
 
@@ -1112,9 +1217,7 @@ class City_Provisions(BaseMethod):
         prob +=(pulp.lpSum(costs),
                 "Sum_of_Transporting_Costs" )
         prob.solve(pulp.PULP_CBC_CMD(msg=False))
-        print('solved')
         to_df = {}
-        print('vars = ', len(prob.variables()))
         for var in prob.variables():
             t = var.name.split('_')
             try:
@@ -1127,24 +1230,23 @@ class City_Provisions(BaseMethod):
                 
         result = pd.DataFrame(to_df).transpose()
         result = result.join(pd.DataFrame(0,
-                                          columns = list(set(set(Provisions.columns) - set(result.columns))),
-                                          index = Provisions.index), how = 'outer')
+                                          columns = list(set(set(destination_matrix.columns) - set(result.columns))),
+                                          index = destination_matrix.index), how = 'outer')
         result = result.fillna(0)
-        Provisions = Provisions + result
-        axis_1 = Provisions.sum(axis = 1)
-        axis_0 = Provisions.sum(axis = 0)
+        destination_matrix = destination_matrix + result
+        axis_1 = destination_matrix.sum(axis = 1)
+        axis_0 = destination_matrix.sum(axis = 0)
         services_table['capacity_left'] = services_table['capacity'].subtract(axis_1,fill_value = 0)
-        houses_table['demand_left'] = houses_table['demand'].subtract(axis_0,fill_value = 0)
+        houses_table[f'{service_type}_service_demand_left_value_{self.valuation_type}'] = houses_table[f'{service_type}_service_demand_value_{self.valuation_type}'].subtract(axis_0,fill_value = 0)
 
         distance_matrix = distance_matrix.drop(index = services_table[services_table['capacity_left'] == 0].index.values,
-                                        columns = houses_table[houses_table['demand_left'] == 0].index.values,
+                                        columns = houses_table[houses_table[f'{service_type}_service_demand_left_value_{self.valuation_type}'] == 0].index.values,
                                         errors = 'ignore')
-        print(len(distance_matrix.columns), len(distance_matrix.index), selection_range)
-        print(houses_table['demand_left'].sum(), services_table['capacity_left'].sum())
-        selection_range += 2 * selection_range
+        
+        selection_range += selection_range
         if len(distance_matrix.columns) > 0 and len(distance_matrix.index) > 0:
-            return self._provision_loop(houses_table, services_table, distance_matrix, selection_range, Provisions, )
+            return self._provision_loop(houses_table, services_table, distance_matrix, selection_range, destination_matrix, service_type)
         else: 
-            return Provisions
-
+            print(houses_table[f'{service_type}_service_demand_left_value_{self.valuation_type}'].sum(), services_table['capacity_left'].sum(),selection_range)
+            return destination_matrix
 
