@@ -8,3 +8,4 @@ requests==2.26.0
 rpyc==5.1.0
 Shapely==1.7.1
 SQLAlchemy==1.4.25
+coloredlogs==15.0.1
