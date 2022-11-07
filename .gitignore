@@ -11,7 +11,7 @@ chache
 cache/
 # C extensions
 *.so
-
+notebook_examples/develop.ipynb
 # Distribution / packaging
 .Python
 build/

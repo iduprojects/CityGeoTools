@@ -820,7 +820,6 @@ class CollocationMatrix(BaseMethod):
 
 
 # ######################################### New Provisions #################################################
-           
 class City_Provisions(BaseMethod): 
 
     def __init__(self, city_model: Any, service_types: list, valuation_type: str, year: int,
@@ -952,12 +951,13 @@ class City_Provisions(BaseMethod):
                 self.Provisions[service_type]['selected_graph'] = self.graph_nk_time
             
             try:
-                self.Provisions[service_type]['services'] =t = pd.read_pickle(io.BytesIO(requests.get(f'{os.environ["PROVISIONS_DATA_FILE_SERVER"]}/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_services').content))
-                self.Provisions[service_type]['buildings'] = pd.read_pickle(io.BytesIO(requests.get(f'{os.environ["PROVISIONS_DATA_FILE_SERVER"]}/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_buildings').content))
-                self.Provisions[service_type]['distance_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'{os.environ["PROVISIONS_DATA_FILE_SERVER"]}/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_distance_matrix').content))
-                self.Provisions[service_type]['destination_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'{os.environ["PROVISIONS_DATA_FILE_SERVER"]}/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_destination_matrix').content))
+                self.Provisions[service_type]['services'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_services').content))
+                self.Provisions[service_type]['buildings'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_buildings').content))
+                self.Provisions[service_type]['distance_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_distance_matrix').content))
+                self.Provisions[service_type]['destination_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_destination_matrix').content))
+                print(service_type + ' loaded')
             except:
-    
+                print(service_type + ' not loaded')
                 self.Provisions[service_type]['buildings'] = self.buildings.copy(deep = True)
                 self.Provisions[service_type]['services'] = self.services[self.services['service_code'] == service_type].copy(deep = True)
                 
@@ -983,17 +983,33 @@ class City_Provisions(BaseMethod):
         self.buildings = self.buildings.rename(columns = dict(zip(to_rename_y, [y.split('_y')[0] for y in to_rename_y])))
         self.buildings = self.buildings.loc[:,~self.buildings.columns.duplicated()].copy()
 
-        self.buildings, self.services = self.is_shown(self.buildings,self.services, self.Provisions)
+        self.buildings, self.services = self._is_shown(self.buildings,self.services, self.Provisions)
 
         self.buildings = self.buildings.to_crs(4326)
         self.services = pd.concat([self.Provisions[service_type]['services'] for service_type in self.service_types])
         self.services = self.services.to_crs(4326)
+
+        self.buildings = self.buildings.fillna(0)
+        self.services = self.services.fillna(0)
+
+        self.buildings = self._provisions_impotancy(self.buildings)
             
         return {"houses": eval(self.buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
                 "services": eval(self.services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
                 "provisions": {service_type: self._provision_matrix_transform(self.Provisions[service_type]['destination_matrix']) for service_type in self.service_types}}
 
-    def is_shown(self, buildings, services, Provisions):
+    def _provisions_impotancy(self, buildings):
+
+        provision_value_columns = [service_type + '_provison_value' for service_type in self.service_types]
+        t = buildings[provision_value_columns].apply(lambda x: self.services_impotancy[x.name.split("_")[0]]*x).sum(axis = 1)
+        _min = t.min()
+        _max = t.max()
+        t = t.apply(lambda x: (x - _min)/(_max - _min))
+        buildings['total_provision_assessment'] = t
+        return buildings
+
+
+    def _is_shown(self, buildings, services, Provisions):
         if self.user_selection_zone:
             buildings['is_shown'] = buildings.within(self.user_selection_zone)
             a = buildings['is_shown'].copy()
@@ -1046,7 +1062,6 @@ class City_Provisions(BaseMethod):
         restored_user_provisions = restored_user_provisions.fillna(0)
 
         return restored_user_provisions
-    
 
     @staticmethod
     def _additional_options(buildings, services, Matrix, destination_matrix, normative_distance, service_type, selection_zone, valuation_type): 
@@ -1130,11 +1145,16 @@ class City_Provisions(BaseMethod):
         self.user_changes_buildings = self.user_changes_buildings.rename(columns = dict(zip(to_rename_y, [y.split('_y')[0] for y in to_rename_y])))
         self.user_changes_buildings = self.user_changes_buildings.loc[:,~self.user_changes_buildings.columns.duplicated()].copy()
 
-        self.user_changes_buildings, self.user_changes_services = self.is_shown(self.user_changes_buildings,self.user_changes_services, self.new_Provisions)
+        self.user_changes_buildings, self.user_changes_services = self._is_shown(self.user_changes_buildings,self.user_changes_services, self.new_Provisions)
 
         self.user_changes_buildings = self.user_changes_buildings.to_crs(4326)
         self.user_changes_services = pd.concat([self.new_Provisions[service_type]['services'] for service_type in self.service_types])
         self.user_changes_services = self.user_changes_services.to_crs(4326)
+
+        self.user_changes_services = self.user_changes_services.fillna(0)
+        self.user_changes_buildings = self.user_changes_buildings.fillna(0)
+
+        self.user_changes_buildings = self._provisions_impotancy(self.user_changes_buildings)
 
         return {"houses": eval(self.user_changes_buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
                 "services": eval(self.user_changes_services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
@@ -1178,15 +1198,15 @@ class City_Provisions(BaseMethod):
         return loc
 
     @staticmethod
-    def _provision_matrix_transform(Provisions):
-        provisions_transformed = []
-        for service_id in Provisions.index:
-            loc = Provisions.loc[service_id]
-            loc = loc[loc > 0].to_dict().items()
-            provisions_transformed.extend({'house_id': k, 
-                                           'demand': v,
-                                           'service_id': service_id} for k,v in loc)
-        return provisions_transformed
+    def _provision_matrix_transform(destination_matrix):
+        def subfunc(loc):
+            try:
+                return [{"service_id":int(k),"demand":int(v), "house_id": int(loc.name)} for k,v in loc.to_dict().items()]
+            except:
+                return np.NaN
+        flat_matrix = destination_matrix.transpose().apply(lambda x: subfunc(x[x>0]), result_type = "reduce")
+        flat_matrix = [item for sublist in list(flat_matrix) for item in sublist]
+        return flat_matrix
 
     def _provision_loop(self, houses_table, services_table, distance_matrix, selection_range, destination_matrix, service_type): 
         select = distance_matrix[distance_matrix.iloc[:] <= selection_range]
@@ -1249,4 +1269,5 @@ class City_Provisions(BaseMethod):
         else: 
             print(houses_table[f'{service_type}_service_demand_left_value_{self.valuation_type}'].sum(), services_table['capacity_left'].sum(),selection_range)
             return destination_matrix
+
 
