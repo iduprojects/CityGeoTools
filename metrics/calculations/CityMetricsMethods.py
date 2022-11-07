@@ -951,10 +951,10 @@ class City_Provisions(BaseMethod):
                 self.Provisions[service_type]['selected_graph'] = self.graph_nk_time
             
             try:
-                self.Provisions[service_type]['services'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision//{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_services').content))
-                self.Provisions[service_type]['buildings'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision//{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_buildings').content))
-                self.Provisions[service_type]['distance_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision//{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_distance_matrix').content))
-                self.Provisions[service_type]['destination_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision//{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_destination_matrix').content))
+                self.Provisions[service_type]['services'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_services').content))
+                self.Provisions[service_type]['buildings'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_buildings').content))
+                self.Provisions[service_type]['distance_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_distance_matrix').content))
+                self.Provisions[service_type]['destination_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_destination_matrix').content))
                 print(service_type + ' loaded')
             except:
                 print(service_type + ' not loaded')
