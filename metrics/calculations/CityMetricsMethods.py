@@ -1271,3 +1271,10 @@ class City_Provisions(BaseMethod):
             return destination_matrix
 
 
+class Provisions_context(BaseMethod): 
+
+    def __init__(self, city_model: Any, service_types: list, 
+                 valuation_type: str, year: int, 
+                 city_name: str, user_selection_zone: Optional[dict]):
+
+        Provisions_class = City_Provisions()
