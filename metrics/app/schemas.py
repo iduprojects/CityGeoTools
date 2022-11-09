@@ -288,6 +288,7 @@ class ProvisionInBase(BaseModel):
     year: int
     user_selection_zone: Optional[Polygon] = None
     service_impotancy: Optional[list] = None  #FIXME
+    return_jsons: bool #FIXME
 
 class ProvisionGetProvisionIn(ProvisionInBase):
     class Config:

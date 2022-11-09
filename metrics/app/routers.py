@@ -212,7 +212,8 @@ async def get_provision(
         user_request.valuation_type, user_request.year,
         user_changes_buildings=None, user_changes_services=None,
         user_provisions=None, user_selection_zone=user_request.user_selection_zone,
-        service_impotancy = user_request.service_impotancy #FIXME 
+        service_impotancy = user_request.service_impotancy,
+        return_jsons = True #FIXME 
     ).get_provisions()
     return result
 
