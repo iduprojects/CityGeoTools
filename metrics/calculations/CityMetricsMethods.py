@@ -1115,20 +1115,28 @@ class Masterplan(BaseMethod):
         super().validation("masterplan")
         self.buildings = self.city_model.Buildings.copy()
 
-    def get_masterplan(self, polygon,  land_area , dev_land_procent, dev_land_area, dev_land_density, land_living_area, dev_living_density, 
-                       population, population_density, living_area_provision, land_business_area, building_height_mode, living, commerce):
+    def get_masterplan(self, polygon,  land_area: float , dev_land_procent: float, dev_land_area: float, dev_land_density: float, land_living_area: float, 
+    dev_living_density: float, population: int, population_density: float, living_area_provision: float, land_business_area: float, building_height_mode: float, 
+    living: float, commerce: float):
+        """The function calculates the indicators of the master plan for a certain territory.
 
+        :param polygon: the territory within which indicators will be calculated in GeoJSON format.
+        :param land_area... building_height_mode: the value of the indicators that the user can set.
+        :param living: the percentage of the territory that will be occupied by residential buildings.
+        :param commerce: the percentage of the territory that will be occupied by commercial buildings.
         
-        polygon =  polygon.to_crs(self.city_model.city_crs)
+        :return: dictionary with the name of the indicator and its value in JSON format.
+        """
+
+        polygon = gpd.GeoDataFrame.from_features([polygon]).set_crs(4326).to_crs(self.city_model.city_crs)
         land_with_buildings = gpd.sjoin(self.buildings, polygon, how='inner')
         land_with_buildings_living = land_with_buildings[land_with_buildings['is_living'] == True]
-
         hectare = 10000
 
         if living is None:
             living = 80
         if commerce is None:
-            commerce = 20
+            commerce = 20                                                                             
         
         if land_area is None: 
             
