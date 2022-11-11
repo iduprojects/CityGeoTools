@@ -820,11 +820,40 @@ class CollocationMatrix(BaseMethod):
 
 
 # ######################################### New Provisions #################################################
+class BaseMethod():
+
+    def __init__(self, city_model):
+
+        self.city_model = city_model
+        self.city_crs = city_model.city_crs
+        self.mode = city_model.mode
+
+    def validation(self, method):
+        if self.mode == "user_mode":
+            if not self.city_model.methods.if_method_available(method):
+                bad_layers = self.city_model.methods.get_bad_layers(method)
+                raise ValidationError(f'Layers {", ".join(bad_layers)} do not match specification.')
+
+    @staticmethod
+    def get_territorial_select(area_type, area_id, *args):
+        return tuple(df[df[area_type + "_id"] == area_id] for df in args)
+
+    @staticmethod
+    def get_custom_polygon_select(geojson: dict, set_crs, *args):
+        geojson_crs = geojson["crs"]["properties"]["name"]
+        geojson = gpd.GeoDataFrame.from_features(geojson['features'])
+        geojson = geojson.set_crs(geojson_crs).to_crs(set_crs)
+        custom_polygon = geojson['geometry'][0]
+        return tuple(df[df.within(custom_polygon)] for df in args)
+
+    # TODO: add method for slicing object's dataframe with specifed parameter
 class City_Provisions(BaseMethod): 
 
     def __init__(self, city_model: Any, service_types: list, valuation_type: str, year: int,
                  user_provisions: Optional[dict[str, list[dict]]], user_changes_buildings: Optional[dict],
-                 user_changes_services: Optional[dict], user_selection_zone: Optional[dict], service_impotancy: Optional[list]):
+                 user_changes_services: Optional[dict], user_selection_zone: Optional[dict], service_impotancy: Optional[list],
+                 return_jsons: bool
+                 ):
         '''
         >>> City_Provisions(city_model,service_types = "kindergartens", valuation_type = "normative", year = 2022).get_provisons()
         >>>
@@ -839,7 +868,7 @@ class City_Provisions(BaseMethod):
         self.city = city_model.city_name
         self.service_types_normatives = city_model.ServiceTypes[city_model.ServiceTypes['code'].isin(service_types)].copy(deep = True)
         self.service_types_normatives.index = self.service_types_normatives['code'].values
-        
+        self.return_jsons = return_jsons
         self.graph_nk_length = city_model.graph_nk_length
         self.graph_nk_time =  city_model.graph_nk_time
         self.nx_graph =  city_model.MobilityGraph
@@ -951,10 +980,10 @@ class City_Provisions(BaseMethod):
                 self.Provisions[service_type]['selected_graph'] = self.graph_nk_time
             
             try:
-                self.Provisions[service_type]['services'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_services').content))
-                self.Provisions[service_type]['buildings'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_buildings').content))
-                self.Provisions[service_type]['distance_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_distance_matrix').content))
-                self.Provisions[service_type]['destination_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_destination_matrix').content))
+                self.Provisions[service_type]['services'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision//{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_services').content))
+                self.Provisions[service_type]['buildings'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision//{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_buildings').content))
+                self.Provisions[service_type]['distance_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision//{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_distance_matrix').content))
+                self.Provisions[service_type]['destination_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision//{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_destination_matrix').content))
                 print(service_type + ' loaded')
             except:
                 print(service_type + ' not loaded')
@@ -993,21 +1022,24 @@ class City_Provisions(BaseMethod):
         self.services = self.services.fillna(0)
 
         self.buildings = self._provisions_impotancy(self.buildings)
-            
-        return {"houses": eval(self.buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
-                "services": eval(self.services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
-                "provisions": {service_type: self._provision_matrix_transform(self.Provisions[service_type]['destination_matrix']) for service_type in self.service_types}}
+        if self.return_jsons == True:  
+            return {"houses": eval(self.buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
+                    "services": eval(self.services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
+                    "provisions": {service_type: self._provision_matrix_transform(self.Provisions[service_type]['destination_matrix']) for service_type in self.service_types}}
+        else:
+            return self
 
     def _provisions_impotancy(self, buildings):
-
         provision_value_columns = [service_type + '_provison_value' for service_type in self.service_types]
-        t = buildings[provision_value_columns].apply(lambda x: self.services_impotancy[x.name.split("_")[0]]*x).sum(axis = 1)
+        if self.services_impotancy:
+            t = buildings[provision_value_columns].apply(lambda x: self.services_impotancy[x.name.split("_")[0]]*x).sum(axis = 1)
+        else: 
+            t = buildings[provision_value_columns].sum(axis = 1)
         _min = t.min()
         _max = t.max()
         t = t.apply(lambda x: (x - _min)/(_max - _min))
         buildings['total_provision_assessment'] = t
         return buildings
-
 
     def _is_shown(self, buildings, services, Provisions):
         if self.user_selection_zone:
@@ -1268,8 +1300,9 @@ class City_Provisions(BaseMethod):
             return self._provision_loop(houses_table, services_table, distance_matrix, selection_range, destination_matrix, service_type)
         else: 
             print(houses_table[f'{service_type}_service_demand_left_value_{self.valuation_type}'].sum(), services_table['capacity_left'].sum(),selection_range)
-            
             return destination_matrix
+
+
 # ######################################### City context #################################################
 class City_context(City_Provisions): 
 
