@@ -825,7 +825,7 @@ class City_Provisions(BaseMethod):
     def __init__(self, city_model: Any, service_types: list, valuation_type: str, year: int,
                  user_provisions: Optional[dict[str, list[dict]]], user_changes_buildings: Optional[dict],
                  user_changes_services: Optional[dict], user_selection_zone: Optional[dict], service_impotancy: Optional[list],
-                 return_jsons: bool
+                 return_jsons: bool = False
                  ):
         '''
         >>> City_Provisions(city_model,service_types = "kindergartens", valuation_type = "normative", year = 2022).get_provisons()
