@@ -287,8 +287,8 @@ class ProvisionInBase(BaseModel):
     valuation_type: str
     year: int
     user_selection_zone: Optional[Polygon] = None
-    service_impotancy: Optional[list] = None  #FIXME
-    return_jsons: bool #FIXME
+    service_impotancy: Optional[list] = None
+
 
 class ProvisionGetProvisionIn(ProvisionInBase):
     class Config:
