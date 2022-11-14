@@ -29,6 +29,7 @@ class Tags(str, enums.AutoName):
     provision = auto()
     well_being = auto()
     collocation_matrix = auto()
+    city_context = auto()
 
 
 @router.get("/")
@@ -212,8 +213,8 @@ async def get_provision(
         user_request.valuation_type, user_request.year,
         user_changes_buildings=None, user_changes_services=None,
         user_provisions=None, user_selection_zone=user_request.user_selection_zone,
-        service_impotancy = user_request.service_impotancy,
-        return_jsons = True #FIXME 
+        service_impotancy=user_request.service_impotancy,
+        return_jsons=True,
     ).get_provisions()
     return result
 
@@ -229,7 +230,7 @@ async def recalculate_provisions(
         user_request.valuation_type, user_request.year,
         user_changes_buildings=user_request.user_changes_buildings, user_changes_services=user_request.user_changes_services,
         user_provisions=user_request.user_provisions, user_selection_zone=user_request.user_selection_zone,
-        service_impotancy = user_request.service_impotancy #FIXME 
+        service_impotancy=user_request.service_impotancy
     ).recalculate_provisions()
     return result
 
@@ -241,3 +242,19 @@ async def recalculate_provisions(
 async def get_collocation_matrix(query_params: schemas.CollocationMatrixQueryParams = Depends()):
     city_model = city_models[query_params.city]
     return CollocationMatrix(city_model).get_collocation_matrix()
+
+
+@router.post(
+    "/city_context/get_context",
+    tags=[Tags.city_context],
+)
+def city_context_get_context(
+        user_request: schemas.CityContextGetContextIn
+):
+    city_model = city_models[user_request.city]
+    return City_context(
+        city_model, service_types=user_request.service_types,
+        valuation_type=user_request.valuation_type,
+        year=user_request.year,
+        user_context_zone=user_request.user_selection_zone
+    ).get_context()

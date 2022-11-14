@@ -318,6 +318,10 @@ class ProvisionGetProvisionOut(ProvisionOutBase):
     ...
 
 
+class CityContextGetContextIn(ProvisionInBase):
+    ...
+
+
 class ProvisionGetInfoIn(BaseModel):
     object_type: enums.ProvisionGetInfoObjectTypeEnum
     functional_object_id: int
