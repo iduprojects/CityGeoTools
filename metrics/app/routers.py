@@ -241,39 +241,3 @@ async def recalculate_provisions(
 async def get_collocation_matrix(query_params: schemas.CollocationMatrixQueryParams = Depends()):
     city_model = city_models[query_params.city]
     return CollocationMatrix(city_model).get_collocation_matrix()
-
-# @router.post("/provision/get_info", response_model=schemas.ProvisionGetInfoOut,
-#              tags=[Tags.provision])
-# async def get_provision_info(user_request: schemas.ProvisionGetInfoIn):
-#     """
-#     In user request:
-#     required params: object_type, functional_object_id, service_type, provision_type
-#     :return: dict of FeatureCollections of houses, services and isochrone (not for all request)
-#     """
-#     result = BCAM.get_provision_info(**user_request.dict())
-#     return result
-
-
-# @router.post("/wellbeing/get_wellbeing", response_model=schemas.WellbeingGetWellbeingOut,
-#              tags=[Tags.well_being])
-# async def get_wellbeing(user_request: schemas.WellbeingGetWellbeingIn):
-#     """
-#     In user request:
-#     required params: provision_type and either living_situation_id or user_service_types
-#     :return: dict of FeatureCollections houses and services
-#     """
-#     result = CMM.get_wellbeing(BCAM, **user_request.dict())
-#     return result
-
-
-# @router.post("/wellbeing/get_wellbeing_info", response_model=schemas.WellbeingGetWellbeingInfoOut,
-#              tags=[Tags.well_being])
-# async def get_wellbeing_info(user_request: schemas.WellbeingGetWellbeingInfoIn):
-#     """
-#     In user request:
-#     required params: provision_type, object_type, functional_object_id and either living_situation_id or user_service_types
-#     :return: dict of FeatureCollections of houses, services, isochrone (not for all request) and service types as json (not for all request)
-#     """
-#     result = CMM.get_wellbeing_info(BCAM, **user_request.dict())
-#     return result
-
