@@ -319,7 +319,15 @@ class ProvisionGetProvisionOut(ProvisionOutBase):
 
 
 class CityContextGetContextIn(ProvisionInBase):
-    ...
+    class Config:
+        schema_extra = {
+            "example": {
+                "city": "saint-petersburg",
+                "service_types": ["schools", "kindergartens",'colleges', 'saunas', 'zoos','optics'],
+                "valuation_type": "normative",
+                "year": 2022,
+            }
+        }
 
 
 class ProvisionGetInfoIn(BaseModel):
