@@ -246,7 +246,7 @@ async def get_collocation_matrix(query_params: schemas.CollocationMatrixQueryPar
 
 @router.post(
     "/city_context/get_context",
-    tags=[Tags.city_context],
+    response_model=schemas.CityContextGetContextOut, tags=[Tags.city_context],
 )
 def city_context_get_context(
         user_request: schemas.CityContextGetContextIn
