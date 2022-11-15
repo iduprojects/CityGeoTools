@@ -825,7 +825,7 @@ class City_Provisions(BaseMethod):
     def __init__(self, city_model: Any, service_types: list, valuation_type: str, year: int,
                  user_provisions: Optional[dict[str, list[dict]]], user_changes_buildings: Optional[dict],
                  user_changes_services: Optional[dict], user_selection_zone: Optional[dict], service_impotancy: Optional[list],
-                 return_jsons: bool
+                 return_jsons: bool = False
                  ):
         '''
         >>> City_Provisions(city_model,service_types = "kindergartens", valuation_type = "normative", year = 2022).get_provisons()
@@ -847,12 +847,12 @@ class City_Provisions(BaseMethod):
         self.nx_graph =  city_model.MobilityGraph
                                          
         self.buildings = city_model.Buildings.copy(deep = True)
-        #self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
-        self.buildings.index = range(0, len(self.buildings))
+        self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
+        #self.buildings.index = range(0, len(self.buildings))
 
         self.services = city_model.Services[city_model.Services['service_code'].isin(service_types)].copy(deep = True)
-        #self.services.index = self.services['id'].values.astype(int)
-        self.services.index = range(len(self.buildings) + 1, len(self.buildings) + len(self.services) + 1)
+        self.services.index = self.services['id'].values.astype(int)
+        #self.services.index = range(len(self.buildings) + 1, len(self.buildings) + len(self.services) + 1)
         try:
             self.services_impotancy = dict(zip(service_types, service_impotancy))
         except:
@@ -985,16 +985,15 @@ class City_Provisions(BaseMethod):
         self.buildings = self.buildings.rename(columns = dict(zip(to_rename_y, [y.split('_y')[0] for y in to_rename_y])))
         self.buildings = self.buildings.loc[:,~self.buildings.columns.duplicated()].copy()
 
-        self.buildings, self.services = self._is_shown(self.buildings,self.services, self.Provisions)
-
-        self.buildings = self.buildings.to_crs(4326)
+        self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
+        
+        #self.buildings = self.buildings.to_crs(4326)
         self.services = pd.concat([self.Provisions[service_type]['services'] for service_type in self.service_types])
-        self.services = self.services.to_crs(4326)
-
+        #self.services = self.services.to_crs(4326)
+        self.buildings, self.services = self._is_shown(self.buildings,self.services, self.Provisions)
+        self.buildings = self._provisions_impotancy(self.buildings)
         self.buildings = self.buildings.fillna(0)
         self.services = self.services.fillna(0)
-
-        self.buildings = self._provisions_impotancy(self.buildings)
         if self.return_jsons == True:  
             return {"houses": eval(self.buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
                     "services": eval(self.services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
@@ -1017,11 +1016,11 @@ class City_Provisions(BaseMethod):
     def _is_shown(self, buildings, services, Provisions):
         if self.user_selection_zone:
             buildings['is_shown'] = buildings.within(self.user_selection_zone)
-            a = buildings['is_shown'].copy()
+            a = buildings['is_shown'].copy() 
+            t = []
             for service_type in self.service_types:
-                t = Provisions[service_type]['destination_matrix'][[c for c in Provisions[service_type]['destination_matrix'].columns if c in list(a[a].index.values)]]
-                t['is_shown'] = t.apply(lambda x: len(x[x > 0])>0, axis = 1)
-                services['is_shown'] = t['is_shown']
+                t.append(Provisions[service_type]['destination_matrix'][a[a].index.values].apply(lambda x: len(x[x > 0])>0, axis = 1))
+            services['is_shown'] = pd.concat([a[a] for a in t])
         else:
             buildings['is_shown'] = True
             services['is_shown'] = True
@@ -1150,16 +1149,19 @@ class City_Provisions(BaseMethod):
         self.user_changes_buildings = self.user_changes_buildings.rename(columns = dict(zip(to_rename_y, [y.split('_y')[0] for y in to_rename_y])))
         self.user_changes_buildings = self.user_changes_buildings.loc[:,~self.user_changes_buildings.columns.duplicated()].copy()
 
-        self.user_changes_buildings, self.user_changes_services = self._is_shown(self.user_changes_buildings,self.user_changes_services, self.new_Provisions)
+        self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
+        
+
 
         self.user_changes_buildings = self.user_changes_buildings.to_crs(4326)
         self.user_changes_services = pd.concat([self.new_Provisions[service_type]['services'] for service_type in self.service_types])
         self.user_changes_services = self.user_changes_services.to_crs(4326)
 
+        self.user_changes_buildings, self.user_changes_services = self._is_shown(self.user_changes_buildings,self.user_changes_services, self.new_Provisions)
+        self.user_changes_buildings = self._provisions_impotancy(self.user_changes_buildings)
+
         self.user_changes_services = self.user_changes_services.fillna(0)
         self.user_changes_buildings = self.user_changes_buildings.fillna(0)
-
-        self.user_changes_buildings = self._provisions_impotancy(self.user_changes_buildings)
 
         return {"houses": eval(self.user_changes_buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
                 "services": eval(self.user_changes_services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
@@ -1216,10 +1218,12 @@ class City_Provisions(BaseMethod):
     def _provision_loop(self, houses_table, services_table, distance_matrix, selection_range, destination_matrix, service_type): 
         select = distance_matrix[distance_matrix.iloc[:] <= selection_range]
         select = select.apply(lambda x: 1/(x+1), axis = 1)
+
+        select = select.loc[:, ~select.columns.duplicated()].copy(deep = True)
+        select = select.loc[~select.index.duplicated(),: ].copy(deep = True) 
+
         variables = select.apply(lambda x: self._declare_varables(x), axis = 1)
-        variables = variables.join(pd.DataFrame(np.NaN, 
-                                                columns = list(set(select.columns) - set(select.columns)), 
-                                                index = select.index))
+
         prob = pulp.LpProblem("problem", pulp.LpMaximize)
         for col in variables.columns:
             t = variables[col].dropna().values
@@ -1274,7 +1278,6 @@ class City_Provisions(BaseMethod):
         else: 
             print(houses_table[f'{service_type}_service_demand_left_value_{self.valuation_type}'].sum(), services_table['capacity_left'].sum(),selection_range)
             return destination_matrix
-
 
 # ######################################### City context #################################################
 class City_context(City_Provisions): 
