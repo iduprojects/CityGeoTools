@@ -330,6 +330,11 @@ class CityContextGetContextIn(ProvisionInBase):
         }
 
 
+class CityContextGetContextOut(BaseModel):
+    context_unit: FeatureCollection
+    additional_data: dict[str, dict]
+
+
 class ProvisionGetInfoIn(BaseModel):
     object_type: enums.ProvisionGetInfoObjectTypeEnum
     functional_object_id: int

@@ -845,25 +845,19 @@ class City_Provisions(BaseMethod):
         self.graph_nk_length = city_model.graph_nk_length
         self.graph_nk_time =  city_model.graph_nk_time
         self.nx_graph =  city_model.MobilityGraph
-                                         
         self.buildings = city_model.Buildings.copy(deep = True)
         self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
-        #self.buildings.index = range(0, len(self.buildings))
-
         self.services = city_model.Services[city_model.Services['service_code'].isin(service_types)].copy(deep = True)
         self.services.index = self.services['id'].values.astype(int)
-        #self.services.index = range(len(self.buildings) + 1, len(self.buildings) + len(self.services) + 1)
         try:
             self.services_impotancy = dict(zip(service_types, service_impotancy))
         except:
             self.services_impotancy = None
-
         self.user_provisions = {}
         self.user_changes_buildings = {}
         self.user_changes_services = {}
         self.buildings_old_values = None
         self.services_old_values = None
-
         self.errors = []
         for service_type in service_types:
             try:
@@ -877,9 +871,7 @@ class City_Provisions(BaseMethod):
                 self.errors.append(service_type)
         self.service_types= [x for x in service_types if x not in self.errors]
         self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
-        
         self.services['capacity_left'] = self.services['capacity']
-
         self.Provisions = {service_type:{'destination_matrix': None, 
                                          'distance_matrix': None,
                                          'normative_distance':None,
@@ -901,11 +893,9 @@ class City_Provisions(BaseMethod):
             self.user_changes_services['capacity_left'] = self.user_changes_services['capacity']
             self.services_old_values = self.user_changes_services[['capacity','capacity_left','carried_capacity_within','carried_capacity_without']]
             self.user_changes_services = self.user_changes_services.set_crs(self.city_crs)
-            #
             self.user_changes_services.index = range(0, len(self.user_changes_services))
         else:
             self.user_changes_services = self.services.copy(deep = True)
-        
         if user_changes_buildings:
             old_cols = []
             self.user_changes_buildings = gpd.GeoDataFrame.from_features(user_changes_buildings['features']).set_crs(4326).to_crs(self.city_crs)
@@ -922,7 +912,6 @@ class City_Provisions(BaseMethod):
             self.buildings_old_values = self.user_changes_buildings[old_cols]
             self.user_changes_buildings = self.user_changes_buildings.set_crs(self.city_crs)
             self.user_changes_buildings.index = range(len(self.user_changes_services) + 1, len(self.user_changes_services) + len(self.user_changes_buildings) + 1)
-
         else:
             self.user_changes_buildings = self.buildings.copy()
         if user_provisions:
@@ -932,7 +921,6 @@ class City_Provisions(BaseMethod):
                 self.user_provisions[service_type] = (self.user_provisions[service_type] + self._restore_user_provisions(user_provisions[service_type])).fillna(0)
         else:
             self.user_provisions = None
-
         if user_selection_zone:
             gdf = gpd.GeoDataFrame(data = {"id":[1]}, 
                                     geometry = [shapely.geometry.shape(user_selection_zone)],
@@ -974,7 +962,6 @@ class City_Provisions(BaseMethod):
                                                                                                                                     self.valuation_type)
         cols_to_drop = [x for x in self.buildings.columns for service_type in self.service_types if service_type in x]
         self.buildings = self.buildings.drop(columns = cols_to_drop)
-
         for service_type in self.service_types: 
             self.buildings = self.buildings.merge(self.Provisions[service_type]['buildings'], 
                                                     left_on = 'functional_object_id', 
@@ -984,16 +971,14 @@ class City_Provisions(BaseMethod):
         self.buildings = self.buildings.rename(columns = dict(zip(to_rename_x, [x.split('_x')[0] for x in to_rename_x])))
         self.buildings = self.buildings.rename(columns = dict(zip(to_rename_y, [y.split('_y')[0] for y in to_rename_y])))
         self.buildings = self.buildings.loc[:,~self.buildings.columns.duplicated()].copy()
-
         self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
-        
-        #self.buildings = self.buildings.to_crs(4326)
         self.services = pd.concat([self.Provisions[service_type]['services'] for service_type in self.service_types])
-        #self.services = self.services.to_crs(4326)
         self.buildings, self.services = self._is_shown(self.buildings,self.services, self.Provisions)
         self.buildings = self._provisions_impotancy(self.buildings)
         self.buildings = self.buildings.fillna(0)
         self.services = self.services.fillna(0)
+        self.services = self.services.to_crs(4326)
+        self.buildings = self.buildings.to_crs(4326)
         if self.return_jsons == True:  
             return {"houses": eval(self.buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
                     "services": eval(self.services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
@@ -1035,10 +1020,8 @@ class City_Provisions(BaseMethod):
         to_services = self.graph_gdf['geometry'].sindex.nearest(Provisions['services']['geometry'], 
                                                                 return_distance = True, 
                                                                 return_all = False)
-
         Provisions['distance_matrix'] = pd.DataFrame(0, index = to_services[0][1], 
                                                         columns = from_houses[0][1])
-        
         nk_dists = nk.distance.SPSP(G = Provisions['selected_graph'], sources = Provisions['distance_matrix'].index.values).run()
         Provisions['distance_matrix'] =  Provisions['distance_matrix'].apply(lambda x: self._get_nk_distances(nk_dists,x), axis =1)
         Provisions['distance_matrix'].index = Provisions['services'].index
@@ -1077,8 +1060,7 @@ class City_Provisions(BaseMethod):
                                 errors = 'irgonre')
         destination_matrix = destination_matrix.drop(index=rows_to_drop, 
                                     columns=cols_to_drop, 
-                                    errors = 'irgonre')
-                                                
+                                    errors = 'irgonre')                             
         #bad performance 
         #bad code
         #rewrite to vector operations [for col in ****]
@@ -1095,7 +1077,6 @@ class City_Provisions(BaseMethod):
             without = loc[~s]
             within = within[within > 0]
             without = without[without > 0]
-
             buildings[f'{service_type}_service_demand_left_value_{valuation_type}'] = buildings[f'{service_type}_service_demand_left_value_{valuation_type}'].sub(within.add(without, fill_value= 0), fill_value = 0)
             buildings[f'{service_type}_supplyed_demands_within'] = buildings[f'{service_type}_supplyed_demands_within'].add(within, fill_value = 0)
             buildings[f'{service_type}_supplyed_demands_without'] = buildings[f'{service_type}_supplyed_demands_without'].add(without, fill_value = 0)
@@ -1135,14 +1116,12 @@ class City_Provisions(BaseMethod):
                                                                                                                                      self.user_selection_zone,
                                                                                                                                      self.valuation_type)
             self.new_Provisions[service_type]['buildings'], self.new_Provisions[service_type]['services'] = self._get_provisions_delta(service_type)
-
         cols_to_drop = [x for x in self.user_changes_buildings.columns for service_type in self.service_types if service_type in x]
         self.user_changes_buildings = self.user_changes_buildings.drop(columns = cols_to_drop)
         for service_type in self.service_types:
             self.user_changes_buildings = self.user_changes_buildings.merge(self.new_Provisions[service_type]['buildings'], 
                                                                             left_on = 'functional_object_id', 
-                                                                            right_on = 'functional_object_id')
-                                                                          
+                                                                            right_on = 'functional_object_id')                                                             
         to_rename_x = [x for x in self.user_changes_buildings.columns if '_x' in x]
         to_rename_y = [x for x in self.user_changes_buildings.columns if '_y' in x]
         self.user_changes_buildings = self.user_changes_buildings.rename(columns = dict(zip(to_rename_x, [x.split('_x')[0] for x in to_rename_x])))
@@ -1150,18 +1129,13 @@ class City_Provisions(BaseMethod):
         self.user_changes_buildings = self.user_changes_buildings.loc[:,~self.user_changes_buildings.columns.duplicated()].copy()
 
         self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
-        
-
-
-        self.user_changes_buildings = self.user_changes_buildings.to_crs(4326)
         self.user_changes_services = pd.concat([self.new_Provisions[service_type]['services'] for service_type in self.service_types])
-        self.user_changes_services = self.user_changes_services.to_crs(4326)
-
         self.user_changes_buildings, self.user_changes_services = self._is_shown(self.user_changes_buildings,self.user_changes_services, self.new_Provisions)
         self.user_changes_buildings = self._provisions_impotancy(self.user_changes_buildings)
-
         self.user_changes_services = self.user_changes_services.fillna(0)
         self.user_changes_buildings = self.user_changes_buildings.fillna(0)
+        self.user_changes_services = self.user_changes_services.to_crs(4326)
+        self.user_changes_buildings = self.user_changes_buildings.to_crs(4326)
 
         return {"houses": eval(self.user_changes_buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
                 "services": eval(self.user_changes_services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
@@ -1208,7 +1182,7 @@ class City_Provisions(BaseMethod):
     def _provision_matrix_transform(destination_matrix):
         def subfunc(loc):
             try:
-                return [{"service_id":int(k),"demand":int(v), "house_id": int(loc.name)} for k,v in loc.to_dict().items()]
+                return [{"house_id":int(k),"demand":int(v), "service_id": int(loc.name)} for k,v in loc.to_dict().items()]
             except:
                 return np.NaN
         flat_matrix = destination_matrix.transpose().apply(lambda x: subfunc(x[x>0]), result_type = "reduce")
