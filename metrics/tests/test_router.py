@@ -389,7 +389,7 @@ class TestProvision:
         url = self.URL + "/get_provision"
 
         data = {
-            "city": "Saint_Petersburg",
+            "city": enums.CitiesEnum.SAINT_PETERSBURG,
             "service_types": ["kindergartens"],
             "valuation_type": "normative",
             "year": 2022,
@@ -408,7 +408,7 @@ class TestProvision:
         url = self.URL + "/recalculate_provisions"
 
         data = {
-            "city": "Saint_Petersburg",
+            "city": enums.CitiesEnum.SAINT_PETERSBURG,
             "service_types": ["kindergartens"],
             "valuation_type": "normative",
             "year": 2022,
