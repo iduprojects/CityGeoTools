@@ -442,14 +442,14 @@ class TestCityContextGetContext:
 
     def test_city_context_get_context(self, client):
         """ Тестирование city context matrix для городов. """
-        url = self.URL + "/collocation_matrix"
+        url = self.URL + "/get_context"
 
         data = {
-            "city": "Saint_Petersburg",
+            "city": enums.CitiesEnum.SAINT_PETERSBURG,
             "service_types": ["schools", "kindergartens",'colleges', 'saunas', 'zoos','optics'],
             "valuation_type": "normative",
             "year": 2022,
         }
 
-        resp = client.post(url, data=data)
+        resp = client.post(url, json=data)
         assert resp.status_code == 200
