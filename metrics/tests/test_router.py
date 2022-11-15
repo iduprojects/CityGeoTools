@@ -435,3 +435,21 @@ class TestCollocationMatrix:
 
         resp = client.get(url, params=params)
         assert resp.status_code == 200
+
+
+class TestCityContextGetContext:
+    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/city_context"
+
+    def test_city_context_get_context(self, client):
+        """ Тестирование city context matrix для городов. """
+        url = self.URL + "/collocation_matrix"
+
+        data = {
+            "city": "Saint_Petersburg",
+            "service_types": ["schools", "kindergartens",'colleges', 'saunas', 'zoos','optics'],
+            "valuation_type": "normative",
+            "year": 2022,
+        }
+
+        resp = client.post(url, data=data)
+        assert resp.status_code == 200
