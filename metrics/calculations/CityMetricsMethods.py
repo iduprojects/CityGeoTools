@@ -1364,11 +1364,18 @@ class City_context(City_Provisions):
 class Urban_Quality(BaseMethod):
 
     def __init__(self, city_model):
+        '''
+        >>> Urban_Quality(city_model).get_urban_quality_index(city_model, get_index=True)
+        >>> get_index=True to return median index, get_index=False to return raw data
+        >>> metric calculates different quantity parameters of urban environment (share of emergent houses, number of cultural objects, etc.)
+        >>> and returns rank of urban quality for each city block (from 1 to 10, and 0 is for missing data)
+        '''
         BaseMethod.__init__(self, city_model)
         self.buildings = city_model.Buildings.copy()
         self.services = city_model.Services.copy()
         self.blocks = city_model.Blocks.copy()
         self.greenery = city_model.RecreationalAreas.copy()
+        self.city_crs = city_model.city_crs
         
         self.main_services_id = [172, 130, 131, 132, 163, 183, 174, 165, 170, 176, 175, 161, 173, 88, 124, 51, 47, 46, 45, 41, 40,
         39, 37, 35, 55, 34, 29, 27, 26, 20, 18, 17, 14, 13, 11, 33, 62, 65, 66, 121, 120, 113, 106, 102, 97, 94, 93, 92, 90, 189,
@@ -1377,13 +1384,8 @@ class Urban_Quality(BaseMethod):
         22, 163, 84, 32, 15, 24, 26, 46, 11, 53, 190, 172, 89, 92, 29, 48, 81, 161, 162, 147, 165, 148, 170, 168, 37, 178,
         54, 179, 51, 156, 169, 176]
         self.drive_graph = nx.Graph(((u, v, e) for u,v,e in city_model.MobilityGraph.edges(data=True) if e['type'] == 'car'))
-        '''
-        >>> Urban_Quality(city_model).get_urban_quality_index(city_model, get_index=True)
-        >>> get_index=True to return median index, get_index=False to return raw data
-        >>> Urban_Quality(city_model).ind1()
-        >>> returns two Series: first one with rank, second one with raw data
-        '''
-    def ind1(self):
+        
+    def _ind1(self):
 
         local_blocks = self.blocks.copy()
         local_buildings = self.buildings.copy()
@@ -1403,7 +1405,7 @@ class Urban_Quality(BaseMethod):
         print('Indicator 1 done')
         return local_blocks['IND'], local_blocks['IND_data']
 
-    def ind2(self):
+    def _ind2(self):
 
         local_blocks = self.blocks.copy()
         local_buildings = self.buildings.copy()
@@ -1428,7 +1430,7 @@ class Urban_Quality(BaseMethod):
         print('Indicator 2 done')
         return local_blocks['IND'], local_blocks['IND_data']
 
-    def ind4(self):
+    def _ind4(self):
 
         houses = self.buildings.copy()
         houses = houses[houses['is_living']]
@@ -1448,7 +1450,7 @@ class Urban_Quality(BaseMethod):
         print('Indicator 4 done')
         return local_blocks['IND'], local_blocks['IND_data']
 
-    def ind5(self):
+    def _ind5(self):
 
         local_blocks = self.blocks.copy()
         houses = self.buildings.copy()
@@ -1469,19 +1471,13 @@ class Urban_Quality(BaseMethod):
         print('Indicator 5 done')
         return local_blocks['IND'], local_blocks['IND_data']
 
-    def ind10(self):
-
-        def get_links(street_graph):
-            links = nx.to_pandas_edgelist(street_graph)
-            links['geometry'] = gpd.GeoSeries.from_wkt(links['geometry'])
-            links = gpd.GeoDataFrame(links, geometry='geometry').set_crs(32636)
-            return links
+    def _ind10(self):
 
         local_blocks = self.blocks.copy()
         local_buildings = self.buildings.copy()
         local_services = self.services.copy()
         local_services = local_services[local_services['city_service_type_id'].isin(self.street_services_id)]
-        walk_links = get_links(self.drive_graph)
+        walk_links = get_links(self.drive_graph, self.city_crs)
 
         walk_links['geometry'] = walk_links.geometry.buffer(40)
         walk_links['link_id'] = walk_links.index
@@ -1514,7 +1510,7 @@ class Urban_Quality(BaseMethod):
         print('Indicator 10 done')
         return local_blocks['IND'], local_blocks['IND_data']
 
-    def ind14_15(self):
+    def _ind14_15(self):
 
         local_blocks = self.blocks.copy()
         local_greenery = self.greenery.copy()
@@ -1539,7 +1535,7 @@ class Urban_Quality(BaseMethod):
         print('Indicator 15 done')
         return local_blocks['IND_14'], local_blocks['IND_14_data'], local_blocks['IND_15'], local_blocks['IND_15_data']
 
-    def ind17(self):
+    def _ind17(self):
 
         local_blocks = self.blocks.copy()
         local_services = self.services.copy()
@@ -1562,7 +1558,7 @@ class Urban_Quality(BaseMethod):
         print('Indicator 17 done')
         return local_blocks['IND'], local_blocks['IND_data']
 
-    def ind22(self):
+    def _ind22(self):
 
         local_blocks = self.blocks.copy()
         local_okn = self.services.copy()
@@ -1578,7 +1574,7 @@ class Urban_Quality(BaseMethod):
         print('Indicator 22 done')
         return local_blocks['IND'], local_blocks['IND_data']
 
-    def ind23(self):
+    def _ind23(self):
 
         local_blocks = self.blocks.copy()
         local_services = self.services.copy()
@@ -1607,10 +1603,10 @@ class Urban_Quality(BaseMethod):
         print('Indicator 23 done')
         return local_blocks['IND'], local_blocks['IND_data']
 
-    def ind30(self, city_model):
+    def _ind30(self):
 
         local_blocks = self.blocks.copy()
-        Provision_class = City_Provisions(city_model,service_types = ["kindergartens"], valuation_type = "normative", year = 2022,\
+        Provision_class = City_Provisions(self.city_model, service_types = ["kindergartens"], valuation_type = "normative", year = 2022,\
             user_provisions=None, user_changes_buildings=None, user_changes_services=None, user_selection_zone=None, service_impotancy=None)
         kindergartens_provision = Provision_class.get_provisions()
         kindergartens_provision = gpd.GeoDataFrame.from_features(kindergartens_provision['houses']['features'])
@@ -1623,38 +1619,32 @@ class Urban_Quality(BaseMethod):
         print('Indicator 30 done')
         return local_blocks['IND'], local_blocks['IND_data']
 
-    def get_urban_quality(self, city_model: Any, get_index: bool):
+    def get_urban_quality(self):
 
-        urban_quality = self.blocks.copy()
-        urban_quality_raw = self.blocks.copy()
+        urban_quality = self.blocks.copy().to_crs(4326)
+        urban_quality_raw = self.blocks.copy().to_crs(4326)
 
-        urban_quality['ind1'], urban_quality_raw['ind1'] = self.ind1()
-        urban_quality['ind2'], urban_quality_raw['ind2'] = self.ind2()
-        urban_quality['ind4'], urban_quality_raw['ind4'] = self.ind4()
-        urban_quality['ind5'], urban_quality_raw['ind5'] = self.ind5()
-        urban_quality['ind10'], urban_quality_raw['idn10'] = self.ind10()
-        #urban_quality['ind11'], urban_quality_raw['ind11'] = ind11() #too long >15 min
-        #urban_quality['ind13'], urban_quality_raw['ind13'] = ind13() #recreational areas problem
+        urban_quality['ind1'], urban_quality_raw['ind1'] = self._ind1()
+        urban_quality['ind2'], urban_quality_raw['ind2'] = self._ind2()
+        urban_quality['ind4'], urban_quality_raw['ind4'] = self._ind4()
+        urban_quality['ind5'], urban_quality_raw['ind5'] = self._ind5()
+        urban_quality['ind10'], urban_quality_raw['idn10'] = self._ind10()
+        #urban_quality['ind11'], urban_quality_raw['ind11'] = self._ind_11() #too long >15 min
+        #urban_quality['ind13'], urban_quality_raw['ind13'] = self._ind_13() #recreational areas problem
         urban_quality['ind14'], urban_quality_raw['ind14'],\
-            urban_quality['ind15'], urban_quality_raw['ind15'] = self.ind14_15()
-        urban_quality['ind17'], urban_quality_raw['ind17'] = self.ind17()
-        #urban_quality['ind18'], urban_quality_raw['ind18'] = ind18() #recreational areas problem
-        #urban_quality['ind20'], urban_quality_raw['ind20'] = ind20() #too much in RAM
-        urban_quality['ind22'], urban_quality_raw['ind22'] = self.ind22()
-        urban_quality['ind23'], urban_quality_raw['ind23'] = self.ind23()
-        #urban_quality['ind25'], urban_quality_raw['ind25'] = ind25() #no crosswalks provision in database
-        #urban_quality['ind30'], urban_quality_raw['ind30'] = self.ind30(city_model) #kindergartens not loaded
-        #urban_quality['ind32'], urban_quality_raw['ind32'] = ind32() #no stops provision in database
+            urban_quality['ind15'], urban_quality_raw['ind15'] = self._ind14_15()
+        urban_quality['ind17'], urban_quality_raw['ind17'] = self._ind17()
+        #urban_quality['ind18'], urban_quality_raw['ind18'] = self._ind18() #recreational areas problem
+        #urban_quality['ind20'], urban_quality_raw['ind20'] = self._ind20() #too much in RAM
+        urban_quality['ind22'], urban_quality_raw['ind22'] = self._ind22()
+        urban_quality['ind23'], urban_quality_raw['ind23'] = self._ind23()
+        #urban_quality['ind25'], urban_quality_raw['ind25'] = self._ind25() #no crosswalks provision in database
+        #urban_quality['ind30'], urban_quality_raw['ind30'] = self._ind30(city_model) #kindergartens not loaded
+        #urban_quality['ind32'], urban_quality_raw['ind32'] = self._ind32() #no stops provision in database
 
         urban_quality = urban_quality.replace(0, np.NaN)
         urban_quality['urban_quality_value'] = urban_quality.filter(regex='ind.*').median(axis=1).round(0)
         urban_quality = urban_quality.fillna(0)
-
-        if get_index:
-            result = urban_quality
-            print('urban quality index ready')
-        else:
-            result = urban_quality_raw
-            print('urban quality data ready')
-
-        return result
+        
+        return {'urban_quality': json.loads(urban_quality.to_json()),
+                'urban_quality_data': json.loads(urban_quality_raw.to_json())}
