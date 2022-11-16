@@ -16,7 +16,7 @@ services:
 
   idu_metrics:
     build: metrics/
-    image: oneonwar/idu_metrics:2.3.0
+    image: oneonwar/idu_metrics:2.3.1
     container_name: metrics
     env_file:
       - .env

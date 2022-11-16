@@ -12,6 +12,7 @@ cache/
 # C extensions
 *.so
 notebook_examples/develop.ipynb
+notebook_examples/graphs_for_margareth.ipynb
 # Distribution / packaging
 .Python
 build/

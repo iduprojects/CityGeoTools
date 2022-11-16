@@ -32,7 +32,7 @@ if __name__ == "__main__":
     ready_for_metrics = [city for city, model in city_models.items() if pickle.loads(model.readiness)]
     logger.warning(", ".join(ready_for_metrics) + " are ready for metrics.")
 
-    t = ThreadedServer(MyService, port=18862
+    t = ThreadedServer(MyService, port=18861
                                 , protocol_config={"allow_public_attrs": True, 
                                                    "allow_pickle": True})
     print('starting')

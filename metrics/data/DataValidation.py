@@ -21,6 +21,7 @@ class DataValidation:
         self.accessibility_isochrones = AccessibilityIsochronesData()
         self.diversity = DiversityData()
         self.collocation_matrix = CollocationMatrixData()
+        self.masterplan = MasterplanData()
 
     def check_methods(self, layer_name, validate_object, validation_func, cwd):
 
@@ -139,4 +140,10 @@ class CollocationMatrixData(DataValidation):
     def __init__(self):
         self.specification_folder = "data_specification/collocation_matrix"
         self.Services = None
+        self.message = {}
+
+class MasterplanData(DataValidation):
+    def __init__(self):
+        self.specification_folder = "data_specification/masterplan"
+        self.Buildings = None
         self.message = {}

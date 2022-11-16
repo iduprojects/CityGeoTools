@@ -825,7 +825,7 @@ class City_Provisions(BaseMethod):
     def __init__(self, city_model: Any, service_types: list, valuation_type: str, year: int,
                  user_provisions: Optional[dict[str, list[dict]]], user_changes_buildings: Optional[dict],
                  user_changes_services: Optional[dict], user_selection_zone: Optional[dict], service_impotancy: Optional[list],
-                 return_jsons: bool
+                 return_jsons: bool = False
                  ):
         '''
         >>> City_Provisions(city_model,service_types = "kindergartens", valuation_type = "normative", year = 2022).get_provisons()
@@ -845,25 +845,19 @@ class City_Provisions(BaseMethod):
         self.graph_nk_length = city_model.graph_nk_length
         self.graph_nk_time =  city_model.graph_nk_time
         self.nx_graph =  city_model.MobilityGraph
-                                         
         self.buildings = city_model.Buildings.copy(deep = True)
-        #self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
-        self.buildings.index = range(0, len(self.buildings))
-
+        self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
         self.services = city_model.Services[city_model.Services['service_code'].isin(service_types)].copy(deep = True)
-        #self.services.index = self.services['id'].values.astype(int)
-        self.services.index = range(len(self.buildings) + 1, len(self.buildings) + len(self.services) + 1)
+        self.services.index = self.services['id'].values.astype(int)
         try:
             self.services_impotancy = dict(zip(service_types, service_impotancy))
         except:
             self.services_impotancy = None
-
         self.user_provisions = {}
         self.user_changes_buildings = {}
         self.user_changes_services = {}
         self.buildings_old_values = None
         self.services_old_values = None
-
         self.errors = []
         for service_type in service_types:
             try:
@@ -877,9 +871,7 @@ class City_Provisions(BaseMethod):
                 self.errors.append(service_type)
         self.service_types= [x for x in service_types if x not in self.errors]
         self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
-        
         self.services['capacity_left'] = self.services['capacity']
-
         self.Provisions = {service_type:{'destination_matrix': None, 
                                          'distance_matrix': None,
                                          'normative_distance':None,
@@ -901,11 +893,9 @@ class City_Provisions(BaseMethod):
             self.user_changes_services['capacity_left'] = self.user_changes_services['capacity']
             self.services_old_values = self.user_changes_services[['capacity','capacity_left','carried_capacity_within','carried_capacity_without']]
             self.user_changes_services = self.user_changes_services.set_crs(self.city_crs)
-            #
             self.user_changes_services.index = range(0, len(self.user_changes_services))
         else:
             self.user_changes_services = self.services.copy(deep = True)
-        
         if user_changes_buildings:
             old_cols = []
             self.user_changes_buildings = gpd.GeoDataFrame.from_features(user_changes_buildings['features']).set_crs(4326).to_crs(self.city_crs)
@@ -922,7 +912,6 @@ class City_Provisions(BaseMethod):
             self.buildings_old_values = self.user_changes_buildings[old_cols]
             self.user_changes_buildings = self.user_changes_buildings.set_crs(self.city_crs)
             self.user_changes_buildings.index = range(len(self.user_changes_services) + 1, len(self.user_changes_services) + len(self.user_changes_buildings) + 1)
-
         else:
             self.user_changes_buildings = self.buildings.copy()
         if user_provisions:
@@ -932,7 +921,6 @@ class City_Provisions(BaseMethod):
                 self.user_provisions[service_type] = (self.user_provisions[service_type] + self._restore_user_provisions(user_provisions[service_type])).fillna(0)
         else:
             self.user_provisions = None
-
         if user_selection_zone:
             gdf = gpd.GeoDataFrame(data = {"id":[1]}, 
                                     geometry = [shapely.geometry.shape(user_selection_zone)],
@@ -974,7 +962,6 @@ class City_Provisions(BaseMethod):
                                                                                                                                     self.valuation_type)
         cols_to_drop = [x for x in self.buildings.columns for service_type in self.service_types if service_type in x]
         self.buildings = self.buildings.drop(columns = cols_to_drop)
-
         for service_type in self.service_types: 
             self.buildings = self.buildings.merge(self.Provisions[service_type]['buildings'], 
                                                     left_on = 'functional_object_id', 
@@ -984,17 +971,14 @@ class City_Provisions(BaseMethod):
         self.buildings = self.buildings.rename(columns = dict(zip(to_rename_x, [x.split('_x')[0] for x in to_rename_x])))
         self.buildings = self.buildings.rename(columns = dict(zip(to_rename_y, [y.split('_y')[0] for y in to_rename_y])))
         self.buildings = self.buildings.loc[:,~self.buildings.columns.duplicated()].copy()
-
-        self.buildings, self.services = self._is_shown(self.buildings,self.services, self.Provisions)
-
-        self.buildings = self.buildings.to_crs(4326)
+        self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
         self.services = pd.concat([self.Provisions[service_type]['services'] for service_type in self.service_types])
-        self.services = self.services.to_crs(4326)
-
+        self.buildings, self.services = self._is_shown(self.buildings,self.services, self.Provisions)
+        self.buildings = self._provisions_impotancy(self.buildings)
         self.buildings = self.buildings.fillna(0)
         self.services = self.services.fillna(0)
-
-        self.buildings = self._provisions_impotancy(self.buildings)
+        self.services = self.services.to_crs(4326)
+        self.buildings = self.buildings.to_crs(4326)
         if self.return_jsons == True:  
             return {"houses": eval(self.buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
                     "services": eval(self.services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
@@ -1017,11 +1001,11 @@ class City_Provisions(BaseMethod):
     def _is_shown(self, buildings, services, Provisions):
         if self.user_selection_zone:
             buildings['is_shown'] = buildings.within(self.user_selection_zone)
-            a = buildings['is_shown'].copy()
+            a = buildings['is_shown'].copy() 
+            t = []
             for service_type in self.service_types:
-                t = Provisions[service_type]['destination_matrix'][[c for c in Provisions[service_type]['destination_matrix'].columns if c in list(a[a].index.values)]]
-                t['is_shown'] = t.apply(lambda x: len(x[x > 0])>0, axis = 1)
-                services['is_shown'] = t['is_shown']
+                t.append(Provisions[service_type]['destination_matrix'][a[a].index.values].apply(lambda x: len(x[x > 0])>0, axis = 1))
+            services['is_shown'] = pd.concat([a[a] for a in t])
         else:
             buildings['is_shown'] = True
             services['is_shown'] = True
@@ -1036,10 +1020,8 @@ class City_Provisions(BaseMethod):
         to_services = self.graph_gdf['geometry'].sindex.nearest(Provisions['services']['geometry'], 
                                                                 return_distance = True, 
                                                                 return_all = False)
-
         Provisions['distance_matrix'] = pd.DataFrame(0, index = to_services[0][1], 
                                                         columns = from_houses[0][1])
-        
         nk_dists = nk.distance.SPSP(G = Provisions['selected_graph'], sources = Provisions['distance_matrix'].index.values).run()
         Provisions['distance_matrix'] =  Provisions['distance_matrix'].apply(lambda x: self._get_nk_distances(nk_dists,x), axis =1)
         Provisions['distance_matrix'].index = Provisions['services'].index
@@ -1078,8 +1060,7 @@ class City_Provisions(BaseMethod):
                                 errors = 'irgonre')
         destination_matrix = destination_matrix.drop(index=rows_to_drop, 
                                     columns=cols_to_drop, 
-                                    errors = 'irgonre')
-                                                
+                                    errors = 'irgonre')                             
         #bad performance 
         #bad code
         #rewrite to vector operations [for col in ****]
@@ -1096,7 +1077,6 @@ class City_Provisions(BaseMethod):
             without = loc[~s]
             within = within[within > 0]
             without = without[without > 0]
-
             buildings[f'{service_type}_service_demand_left_value_{valuation_type}'] = buildings[f'{service_type}_service_demand_left_value_{valuation_type}'].sub(within.add(without, fill_value= 0), fill_value = 0)
             buildings[f'{service_type}_supplyed_demands_within'] = buildings[f'{service_type}_supplyed_demands_within'].add(within, fill_value = 0)
             buildings[f'{service_type}_supplyed_demands_without'] = buildings[f'{service_type}_supplyed_demands_without'].add(without, fill_value = 0)
@@ -1136,30 +1116,26 @@ class City_Provisions(BaseMethod):
                                                                                                                                      self.user_selection_zone,
                                                                                                                                      self.valuation_type)
             self.new_Provisions[service_type]['buildings'], self.new_Provisions[service_type]['services'] = self._get_provisions_delta(service_type)
-
         cols_to_drop = [x for x in self.user_changes_buildings.columns for service_type in self.service_types if service_type in x]
         self.user_changes_buildings = self.user_changes_buildings.drop(columns = cols_to_drop)
         for service_type in self.service_types:
             self.user_changes_buildings = self.user_changes_buildings.merge(self.new_Provisions[service_type]['buildings'], 
                                                                             left_on = 'functional_object_id', 
-                                                                            right_on = 'functional_object_id')
-                                                                          
+                                                                            right_on = 'functional_object_id')                                                             
         to_rename_x = [x for x in self.user_changes_buildings.columns if '_x' in x]
         to_rename_y = [x for x in self.user_changes_buildings.columns if '_y' in x]
         self.user_changes_buildings = self.user_changes_buildings.rename(columns = dict(zip(to_rename_x, [x.split('_x')[0] for x in to_rename_x])))
         self.user_changes_buildings = self.user_changes_buildings.rename(columns = dict(zip(to_rename_y, [y.split('_y')[0] for y in to_rename_y])))
         self.user_changes_buildings = self.user_changes_buildings.loc[:,~self.user_changes_buildings.columns.duplicated()].copy()
 
-        self.user_changes_buildings, self.user_changes_services = self._is_shown(self.user_changes_buildings,self.user_changes_services, self.new_Provisions)
-
-        self.user_changes_buildings = self.user_changes_buildings.to_crs(4326)
+        self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
         self.user_changes_services = pd.concat([self.new_Provisions[service_type]['services'] for service_type in self.service_types])
-        self.user_changes_services = self.user_changes_services.to_crs(4326)
-
+        self.user_changes_buildings, self.user_changes_services = self._is_shown(self.user_changes_buildings,self.user_changes_services, self.new_Provisions)
+        self.user_changes_buildings = self._provisions_impotancy(self.user_changes_buildings)
         self.user_changes_services = self.user_changes_services.fillna(0)
         self.user_changes_buildings = self.user_changes_buildings.fillna(0)
-
-        self.user_changes_buildings = self._provisions_impotancy(self.user_changes_buildings)
+        self.user_changes_services = self.user_changes_services.to_crs(4326)
+        self.user_changes_buildings = self.user_changes_buildings.to_crs(4326)
 
         return {"houses": eval(self.user_changes_buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
                 "services": eval(self.user_changes_services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
@@ -1206,7 +1182,7 @@ class City_Provisions(BaseMethod):
     def _provision_matrix_transform(destination_matrix):
         def subfunc(loc):
             try:
-                return [{"service_id":int(k),"demand":int(v), "house_id": int(loc.name)} for k,v in loc.to_dict().items()]
+                return [{"house_id":int(k),"demand":int(v), "service_id": int(loc.name)} for k,v in loc.to_dict().items()]
             except:
                 return np.NaN
         flat_matrix = destination_matrix.transpose().apply(lambda x: subfunc(x[x>0]), result_type = "reduce")
@@ -1216,10 +1192,12 @@ class City_Provisions(BaseMethod):
     def _provision_loop(self, houses_table, services_table, distance_matrix, selection_range, destination_matrix, service_type): 
         select = distance_matrix[distance_matrix.iloc[:] <= selection_range]
         select = select.apply(lambda x: 1/(x+1), axis = 1)
+
+        select = select.loc[:, ~select.columns.duplicated()].copy(deep = True)
+        select = select.loc[~select.index.duplicated(),: ].copy(deep = True) 
+
         variables = select.apply(lambda x: self._declare_varables(x), axis = 1)
-        variables = variables.join(pd.DataFrame(np.NaN, 
-                                                columns = list(set(select.columns) - set(select.columns)), 
-                                                index = select.index))
+
         prob = pulp.LpProblem("problem", pulp.LpMaximize)
         for col in variables.columns:
             t = variables[col].dropna().values
@@ -1275,10 +1253,8 @@ class City_Provisions(BaseMethod):
             print(houses_table[f'{service_type}_service_demand_left_value_{self.valuation_type}'].sum(), services_table['capacity_left'].sum(),selection_range)
             return destination_matrix
 
-
 # ######################################### City context #################################################
 class City_context(City_Provisions): 
-
     def __init__(self, city_model: Any, service_types: list, 
                  valuation_type: str, year: int, 
                  user_context_zone: Optional[dict]):
@@ -1357,7 +1333,93 @@ class City_context(City_Provisions):
 
             return {"context_unit": eval(self.AdministrativeUnits.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')),
                     "additional_data": extras}
+
+# ######################################### Masterplan indicators #################################################
+
+class Masterplan(BaseMethod):
+
+    def __init__(self, city_model):
+        BaseMethod.__init__(self, city_model)
+        super().validation("masterplan")
+        self.buildings = self.city_model.Buildings.copy()
+
+    def get_masterplan(self, polygon,  land_area: float , dev_land_procent: float, dev_land_area: float, dev_land_density: float, land_living_area: float, 
+    dev_living_density: float, population: int, population_density: float, living_area_provision: float, land_business_area: float, building_height_mode: float, 
+    living: float, commerce: float):
+        """The function calculates the indicators of the master plan for a certain territory.
+
+        :param polygon: the territory within which indicators will be calculated in GeoJSON format.
+        :param land_area... building_height_mode: the value of the indicators that the user can set.
+        :param living: the percentage of the territory that will be occupied by residential buildings.
+        :param commerce: the percentage of the territory that will be occupied by commercial buildings.
         
+        :return: dictionary with the name of the indicator and its value in JSON format.
+        """
+
+        polygon = gpd.GeoDataFrame.from_features([polygon]).set_crs(4326).to_crs(self.city_model.city_crs)
+        land_with_buildings = gpd.sjoin(self.buildings, polygon, how='inner')
+        land_with_buildings_living = land_with_buildings[land_with_buildings['is_living'] == True]
+        hectare = 10000
+
+        if living is None:
+            living = 80
+        if commerce is None:
+            commerce = 20                                                                             
+        
+        if land_area is None: 
+            
+            land_area =  polygon.area / hectare
+            land_area =  land_area.squeeze()
+ 
+        if dev_land_procent is None:
+            buildings_area = land_with_buildings['basement_area'].sum()
+            dev_land_procent = ((buildings_area / hectare) / land_area) * 100
+
+        if dev_land_area is None:
+            dev_land_area = land_with_buildings['basement_area'] * land_with_buildings['storeys_count']
+            dev_land_area = dev_land_area.sum() / hectare
+    
+        if dev_land_density is None:
+            dev_land_density = dev_land_area / land_area
+
+        if land_living_area is None:
+            land_living_area = land_with_buildings_living['basement_area'] * land_with_buildings_living['storeys_count']
+            land_living_area = ((land_living_area.sum() / hectare) / 100 * living)
+            
+        else:
+     
+            land_living_area = (land_living_area / 100 * living)
+
+        if dev_living_density is None:
+            dev_living_density = land_living_area / land_area
+
+        if population is None:
+            population =  land_with_buildings['population'].sum().squeeze() 
+            
+        if population_density is None:
+            population_density = population / land_area.squeeze()
+
+        if living_area_provision is None:
+            living_area_provision = (land_living_area * hectare) / population
+
+        if land_business_area is None:
+            land_business_area = ((land_living_area / living) * commerce) 
+
+        if building_height_mode is None:
+            building_height_mode = land_with_buildings['storeys_count'].mode().squeeze()
+            
+        data = [[land_area], [dev_land_procent], [dev_land_area], [dev_land_density], [land_living_area],
+                    [dev_living_density], [population], [population_density], [living_area_provision], 
+                    [land_business_area], [building_height_mode]]   
+        columns = ['indicators']
+        index = ['land_area', 'dev_land_procent',
+                'dev_land_area', 'dev_land_density', 'land_living_area', 
+                'dev_living_density', 'population', 
+                'population_density', 'living_area_provision', 
+                'land_business_area', 'building_height_mode']
+        df_indicators = pd.DataFrame(data, index, columns)
+
+        return json.loads(df_indicators.to_json())
 
 # ########################################  Urban quality index  ####################################################
 
@@ -1365,8 +1427,8 @@ class Urban_Quality(BaseMethod):
 
     def __init__(self, city_model):
         '''
-        >>> Urban_Quality(city_model).get_urban_quality_index(city_model, get_index=True)
-        >>> get_index=True to return median index, get_index=False to return raw data
+        >>> Urban_Quality(city_model).get_urban_quality()
+        >>> returns urban quality index and raw data for it
         >>> metric calculates different quantity parameters of urban environment (share of emergent houses, number of cultural objects, etc.)
         >>> and returns rank of urban quality for each city block (from 1 to 10, and 0 is for missing data)
         '''
