@@ -1255,7 +1255,6 @@ class City_Provisions(BaseMethod):
 
 # ######################################### City context #################################################
 class City_context(City_Provisions): 
-
     def __init__(self, city_model: Any, service_types: list, 
                  valuation_type: str, year: int, 
                  user_context_zone: Optional[dict]):
@@ -1334,4 +1333,91 @@ class City_context(City_Provisions):
 
             return {"context_unit": eval(self.AdministrativeUnits.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')),
                     "additional_data": extras}
+
+
+# ######################################### Masterplan indicators #################################################
+
+class Masterplan(BaseMethod):
+
+    def __init__(self, city_model):
+        BaseMethod.__init__(self, city_model)
+        super().validation("masterplan")
+        self.buildings = self.city_model.Buildings.copy()
+
+    def get_masterplan(self, polygon,  land_area: float , dev_land_procent: float, dev_land_area: float, dev_land_density: float, land_living_area: float, 
+    dev_living_density: float, population: int, population_density: float, living_area_provision: float, land_business_area: float, building_height_mode: float, 
+    living: float, commerce: float):
+        """The function calculates the indicators of the master plan for a certain territory.
+
+        :param polygon: the territory within which indicators will be calculated in GeoJSON format.
+        :param land_area... building_height_mode: the value of the indicators that the user can set.
+        :param living: the percentage of the territory that will be occupied by residential buildings.
+        :param commerce: the percentage of the territory that will be occupied by commercial buildings.
         
+        :return: dictionary with the name of the indicator and its value in JSON format.
+        """
+
+        polygon = gpd.GeoDataFrame.from_features([polygon]).set_crs(4326).to_crs(self.city_model.city_crs)
+        land_with_buildings = gpd.sjoin(self.buildings, polygon, how='inner')
+        land_with_buildings_living = land_with_buildings[land_with_buildings['is_living'] == True]
+        hectare = 10000
+
+        if living is None:
+            living = 80
+        if commerce is None:
+            commerce = 20                                                                             
+        
+        if land_area is None: 
+            
+            land_area =  polygon.area / hectare
+            land_area =  land_area.squeeze()
+ 
+        if dev_land_procent is None:
+            buildings_area = land_with_buildings['basement_area'].sum()
+            dev_land_procent = ((buildings_area / hectare) / land_area) * 100
+
+        if dev_land_area is None:
+            dev_land_area = land_with_buildings['basement_area'] * land_with_buildings['storeys_count']
+            dev_land_area = dev_land_area.sum() / hectare
+    
+        if dev_land_density is None:
+            dev_land_density = dev_land_area / land_area
+
+        if land_living_area is None:
+            land_living_area = land_with_buildings_living['basement_area'] * land_with_buildings_living['storeys_count']
+            land_living_area = ((land_living_area.sum() / hectare) / 100 * living)
+            
+        else:
+     
+            land_living_area = (land_living_area / 100 * living)
+
+        if dev_living_density is None:
+            dev_living_density = land_living_area / land_area
+
+        if population is None:
+            population =  land_with_buildings['population'].sum().squeeze() 
+            
+        if population_density is None:
+            population_density = population / land_area.squeeze()
+
+        if living_area_provision is None:
+            living_area_provision = (land_living_area * hectare) / population
+
+        if land_business_area is None:
+            land_business_area = ((land_living_area / living) * commerce) 
+
+        if building_height_mode is None:
+            building_height_mode = land_with_buildings['storeys_count'].mode().squeeze()
+            
+        data = [[land_area], [dev_land_procent], [dev_land_area], [dev_land_density], [land_living_area],
+                    [dev_living_density], [population], [population_density], [living_area_provision], 
+                    [land_business_area], [building_height_mode]]   
+        columns = ['indicators']
+        index = ['land_area', 'dev_land_procent',
+                'dev_land_area', 'dev_land_density', 'land_living_area', 
+                'dev_living_density', 'population', 
+                'population_density', 'living_area_provision', 
+                'land_business_area', 'building_height_mode']
+        df_indicators = pd.DataFrame(data, index, columns)
+
+        return json.loads(df_indicators.to_json())
