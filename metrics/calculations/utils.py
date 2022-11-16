@@ -56,3 +56,10 @@ def nx_routes_between_two_points(G_nx, p1, p2, weight, exact_geometry=False):
     else:
         route_geometry =  shapely.geometry.LineString([p1, p2])
     return {"route_geometry": route_geometry, "route_len": route_len}
+
+def get_links(street_graph, set_crs):
+
+    links = nx.to_pandas_edgelist(street_graph)
+    links['geometry'] = gpd.GeoSeries.from_wkt(links['geometry'])
+    links = gpd.GeoDataFrame(links, geometry='geometry').set_crs(set_crs)
+    return links
