@@ -38,7 +38,7 @@ class CityInformationModel:
         self.methods = DataValidation() if self.mode == "user_mode" else None
 
     def __new__(cls, *args, **kwargs):
-        if kwargs["mode"] == "general_mode" and cls._validate(*args, **kwargs):
+        if (kwargs["mode"] == "user_mode") or (kwargs["mode"] == "general_mode" and cls._validate(*args, **kwargs)):
             return super().__new__(cls)
 
     @classmethod
