@@ -19,6 +19,7 @@ from sqlalchemy import create_engine
 
 from jsonschema.exceptions import ValidationError
 from .utils import nk_routes_between_two_points
+from .utils import get_links
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
