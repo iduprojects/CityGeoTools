@@ -35,7 +35,7 @@ class PedastrianWalkTrafficsCalculationIn(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "city": "Saint_Petersburg",
+                "city": "saint-petersburg",
                 "geojson": {
                 "type": "FeatureCollection",
                 "name": "test_area",
@@ -81,7 +81,7 @@ class MobilityAnalysisIsochronesQueryParams:
         schema_extra = {
             'example': [
                 {
-                    'city': 'Saint_Petersburg',
+                    'city': 'saint-petersburg',
                     'travel_type': 'public_transport',
                     'weight_type': 'time',
                     'weight_value': 15,
@@ -128,7 +128,7 @@ class WeightedVoronoiCalculationIn(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "city": "Saint_Petersburg",
+                "city": "saint-petersburg",
                 "geojson": {
                     "type": "FeatureCollection", "name": "test",
                     "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:EPSG::3857"}},
@@ -163,7 +163,7 @@ class BlocksClusterizationGetBlocks(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "city": "Saint_Petersburg",
+                "city": "saint-petersburg",
                 "clusters_number": None,
                 "service_types": [
                         "garbage_containers",
@@ -199,7 +199,7 @@ class ServicesClusterizationGetClustersPolygonsIn(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "city": "Saint_Petersburg",
+                "city": "saint-petersburg",
                 "service_types": [
                         "schools",
                         "kindergartens",
@@ -228,7 +228,7 @@ class SpacematrixIn(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "city": "Saint_Petersburg",
+                "city": "saint-petersburg",
                 "clusters_number": 11,
                 "area_type": "administrative_unit",
                 "area_id": 61
@@ -277,20 +277,25 @@ class DiversityGetBuildingsQueryParams:
         self.service_type = service_type
 
 
+ProvisionsDestinationMatrix = dict[str, list[dict]]  # матрица назначений
+
+
 class ProvisionInBase(BaseModel):
+    """Базовый класс схемы входных параметров для обеспеченности. """
     city: str
-    service_type: str
+    service_types: conlist(str, min_items=1)
     valuation_type: str
     year: int
     user_selection_zone: Optional[Polygon] = None
+    service_impotancy: Optional[list] = None
 
 
 class ProvisionGetProvisionIn(ProvisionInBase):
     class Config:
         schema_extra = {
             "example": {
-                "city": "Saint_Petersburg",
-                "service_type": "kindergartens",
+                "city": "saint-petersburg",
+                "service_types": ["kindergartens"],
                 "valuation_type": "normative",
                 "year": 2022,
             }
@@ -298,7 +303,7 @@ class ProvisionGetProvisionIn(ProvisionInBase):
 
 
 class ProvisionRecalculateProvisionsIn(ProvisionInBase):
-    user_provisions: list[dict]
+    user_provisions: ProvisionsDestinationMatrix
     user_changes_buildings: Optional[dict] = None
     user_changes_services: Optional[dict] = None
 
@@ -306,11 +311,28 @@ class ProvisionRecalculateProvisionsIn(ProvisionInBase):
 class ProvisionOutBase(BaseModel):
     houses: FeatureCollection
     services: FeatureCollection
-    provisions: list
+    provisions: ProvisionsDestinationMatrix
 
 
 class ProvisionGetProvisionOut(ProvisionOutBase):
     ...
+
+
+class CityContextGetContextIn(ProvisionInBase):
+    class Config:
+        schema_extra = {
+            "example": {
+                "city": "saint-petersburg",
+                "service_types": ["schools", "kindergartens",'colleges', 'saunas', 'zoos','optics'],
+                "valuation_type": "normative",
+                "year": 2022,
+            }
+        }
+
+
+class CityContextGetContextOut(BaseModel):
+    context_unit: FeatureCollection
+    additional_data: dict[str, dict]
 
 
 class ProvisionGetInfoIn(BaseModel):
@@ -385,3 +407,10 @@ class WellbeingGetWellbeingInfoIn(WellbeingInBase):
 
 class WellbeingGetWellbeingInfoOut(ProvisionOutBase):
     isochrone: Optional[FeatureCollection]
+
+
+class CollocationMatrixQueryParams:
+    def __init__(self,
+                 city: enums.CitiesEnum,
+                 ):
+        self.city = city

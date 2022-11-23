@@ -389,8 +389,8 @@ class TestProvision:
         url = self.URL + "/get_provision"
 
         data = {
-            "city": "Saint_Petersburg",
-            "service_type": "kindergartens",
+            "city": enums.CitiesEnum.SAINT_PETERSBURG,
+            "service_types": ["kindergartens"],
             "valuation_type": "normative",
             "year": 2022,
         }
@@ -408,13 +408,47 @@ class TestProvision:
         url = self.URL + "/recalculate_provisions"
 
         data = {
-            "city": "Saint_Petersburg",
-            "service_type": "kindergartens",
+            "city": enums.CitiesEnum.SAINT_PETERSBURG,
+            "service_types": ["kindergartens"],
             "valuation_type": "normative",
             "year": 2022,
             "user_changes_buildings": user_changes_buildings,
             "user_changes_services": user_changes_services,
             "user_provisions": provision_geojson_examples.provisions_tests_kinders_provisions,
+        }
+
+        resp = client.post(url, json=data)
+        assert resp.status_code == 200
+
+
+class TestCollocationMatrix:
+    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/collocation_matrix"
+
+    @pytest.mark.parametrize("city", enums.CitiesEnum)
+    def test_get_collocation_matrix(self, client, city):
+        """ Тестирование collocation matrix для городов. """
+        url = self.URL + "/collocation_matrix"
+
+        params = {
+            "city": city,
+        }
+
+        resp = client.get(url, params=params)
+        assert resp.status_code == 200
+
+
+class TestCityContextGetContext:
+    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/city_context"
+
+    def test_city_context_get_context(self, client):
+        """ Тестирование city context matrix для городов. """
+        url = self.URL + "/get_context"
+
+        data = {
+            "city": enums.CitiesEnum.SAINT_PETERSBURG,
+            "service_types": ["schools", "kindergartens",'colleges', 'saunas', 'zoos','optics'],
+            "valuation_type": "normative",
+            "year": 2022,
         }
 
         resp = client.post(url, json=data)
