@@ -893,7 +893,8 @@ class City_Provisions(BaseMethod):
             self.user_changes_services['capacity_left'] = self.user_changes_services['capacity']
             self.services_old_values = self.user_changes_services[['capacity','capacity_left','carried_capacity_within','carried_capacity_without']]
             self.user_changes_services = self.user_changes_services.set_crs(self.city_crs)
-            self.user_changes_services.index = range(0, len(self.user_changes_services))
+            #self.user_changes_services.index = range(0, len(self.user_changes_services))
+            self.user_changes_services.index = self.user_changes_services['id'].values.astype(int)
         else:
             self.user_changes_services = self.services.copy(deep = True)
         if user_changes_buildings:
@@ -911,7 +912,8 @@ class City_Provisions(BaseMethod):
                 self.user_changes_buildings[f'{service_type}_service_demand_left_value_{self.valuation_type}'] = self.user_changes_buildings[f'{service_type}_service_demand_value_{self.valuation_type}'].values
             self.buildings_old_values = self.user_changes_buildings[old_cols]
             self.user_changes_buildings = self.user_changes_buildings.set_crs(self.city_crs)
-            self.user_changes_buildings.index = range(len(self.user_changes_services) + 1, len(self.user_changes_services) + len(self.user_changes_buildings) + 1)
+            #self.user_changes_buildings.index = range(len(self.user_changes_services) + 1, len(self.user_changes_services) + len(self.user_changes_buildings) + 1)
+            self.user_changes_buildings.index = self.user_changes_buildings['functional_object_id'].values.astype(int)
         else:
             self.user_changes_buildings = self.buildings.copy()
         if user_provisions:
@@ -941,25 +943,24 @@ class City_Provisions(BaseMethod):
                 self.Provisions[service_type]['selected_graph'] = self.graph_nk_time
             
             try:
-                self.Provisions[service_type]['services'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision//{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_services').content))
-                self.Provisions[service_type]['buildings'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision//{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_buildings').content))
-                self.Provisions[service_type]['distance_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision//{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_distance_matrix').content))
-                self.Provisions[service_type]['destination_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision//{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_destination_matrix').content))
+                self.Provisions[service_type]['services'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_services').content))
+                self.Provisions[service_type]['buildings'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_buildings').content))
+                self.Provisions[service_type]['distance_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_distance_matrix').content))
+                self.Provisions[service_type]['destination_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_destination_matrix').content))
                 print(service_type + ' loaded')
             except:
                 print(service_type + ' not loaded')
                 self.Provisions[service_type]['buildings'] = self.buildings.copy(deep = True)
-                self.Provisions[service_type]['services'] = self.services[self.services['service_code'] == service_type].copy(deep = True)
-                
+                self.Provisions[service_type]['services'] = self.services[self.services['service_code'] == service_type].copy(deep = True)    
                 self.Provisions[service_type] =  self._calculate_provisions(self.Provisions[service_type], service_type)
                 self.Provisions[service_type]['buildings'], self.Provisions[service_type]['services'] = self._additional_options(self.Provisions[service_type]['buildings'].copy(), 
                                                                                                                                     self.Provisions[service_type]['services'].copy(),
-                                                                                                                                    self.Provisions[service_type]['distance_matrix'].copy(),
-                                                                                                                                    self.Provisions[service_type]['destination_matrix'].copy(),
-                                                                                                                                    self.Provisions[service_type]['normative_distance'],
-                                                                                                                                    service_type,
-                                                                                                                                    self.user_selection_zone,
-                                                                                                                                    self.valuation_type)
+                                                                                                                                     self.Provisions[service_type]['distance_matrix'].copy(),
+                                                                                                                                     self.Provisions[service_type]['destination_matrix'].copy(),
+                                                                                                                                     self.Provisions[service_type]['normative_distance'],
+                                                                                                                                     service_type,
+                                                                                                                                     self.user_selection_zone,
+                                                                                                                                     self.valuation_type)
         cols_to_drop = [x for x in self.buildings.columns for service_type in self.service_types if service_type in x]
         self.buildings = self.buildings.drop(columns = cols_to_drop)
         for service_type in self.service_types: 
@@ -1128,7 +1129,7 @@ class City_Provisions(BaseMethod):
         self.user_changes_buildings = self.user_changes_buildings.rename(columns = dict(zip(to_rename_y, [y.split('_y')[0] for y in to_rename_y])))
         self.user_changes_buildings = self.user_changes_buildings.loc[:,~self.user_changes_buildings.columns.duplicated()].copy()
 
-        self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
+        self.user_changes_buildings.index = self.user_changes_buildings['functional_object_id'].values.astype(int)
         self.user_changes_services = pd.concat([self.new_Provisions[service_type]['services'] for service_type in self.service_types])
         self.user_changes_buildings, self.user_changes_services = self._is_shown(self.user_changes_buildings,self.user_changes_services, self.new_Provisions)
         self.user_changes_buildings = self._provisions_impotancy(self.user_changes_buildings)
