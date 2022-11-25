@@ -1273,7 +1273,7 @@ class City_context(City_Provisions):
         if user_context_zone:
             gdf = gpd.GeoDataFrame(data = {"id":[1]}, 
                                     geometry = [shapely.geometry.shape(user_context_zone)],
-                                    crs = 4326)
+                                    crs = city_model.city_crs)
             self.user_context_zone = gdf['geometry'][0]
         else:
             self.user_context_zone = None
@@ -1308,13 +1308,15 @@ class City_context(City_Provisions):
             selection_services = self.services.loc[a[a].index]
             services_grouped = selection_services.groupby(by = ['service_code'])
 
-            services_self_data = pd.concat([services_grouped.sum().loc[s_t][['capacity','capacity_left']].rename({'capacity':s_t + '_capacity', 'capacity_left':s_t + '_capacity_left'}) for s_t in self.service_types])
+            services_self_data = pd.concat([services_grouped.sum().loc[s_t][['capacity','capacity_left']].rename({'capacity':s_t + '_capacity', 
+                                                                                                                  'capacity_left':s_t + '_capacity_left'}) for s_t in self.service_types])
             self.zone_context = gpd.GeoDataFrame(data = [pd.concat([selection_buildings.mean()[selection_cols_means],
                                                                     selection_buildings.sum()[selection_cols_sums],
                                                                     services_self_data])], 
                                                  geometry = [self.user_context_zone], 
-                                                 crs = 4326)
+                                                 crs = self.user_context_zone.crs)
             extras = self._extras(selection_buildings, services_grouped, extras, self.service_types)
+            self.zone_context = self.zone_context.to_crs(4326)
             return {"context_unit": eval(self.zone_context.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')),
                     "additional_data": extras}
         else:
@@ -1322,16 +1324,19 @@ class City_context(City_Provisions):
             services_grouped = self.services.groupby(by = ['service_code','administrative_unit_id'])
             grouped_buildings_means = grouped_buildings.mean()
             grouped_buildings_sums = grouped_buildings.sum()
-            self.AdministrativeUnits = self.AdministrativeUnits.merge(pd.concat([grouped_buildings_means[selection_cols_means],
-                                                                                 grouped_buildings_sums[selection_cols_sums]]), left_on = 'id', right_index = True)
+            self.AdministrativeUnits = self.AdministrativeUnits.merge(pd.merge(grouped_buildings_means[selection_cols_means], 
+                                                                               grouped_buildings_sums[selection_cols_sums], 
+                                                                               left_index = True, 
+                                                                               right_index = True), left_on = 'id', right_index = True)
             #services original capacity and left capacity 
-            services_context_data = pd.concat([services_grouped.sum().loc[s_t][['capacity','capacity_left']].rename(columns = {'capacity':s_t + '_capacity', 'capacity_left':s_t + '_capacity_left'}) for s_t in self.service_types], axis = 1)
+            services_context_data = pd.concat([services_grouped.sum().loc[s_t][['capacity','capacity_left']].rename(columns = {'capacity':s_t + '_capacity', 
+                                                                                                                               'capacity_left':s_t + '_capacity_left'}) for s_t in self.service_types], axis = 1)
             self.AdministrativeUnits = self.AdministrativeUnits.merge(services_context_data, left_on = 'id', right_index = True)
             self.AdministrativeUnits = self.AdministrativeUnits.fillna(0)
 
             services_grouped = self.services.groupby(by = ['service_code'])
             extras = self._extras(self.buildings, services_grouped, extras, self.service_types)
-
+            self.AdministrativeUnits = self.AdministrativeUnits.to_crs(4326)
             return {"context_unit": eval(self.AdministrativeUnits.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')),
                     "additional_data": extras}
 
