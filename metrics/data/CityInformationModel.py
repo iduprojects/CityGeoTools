@@ -23,6 +23,10 @@ class CityInformationModel:
 
         self.city_name = city_name
         self.city_crs = city_crs
+
+        self.attr_names = ['MobilityGraph', 'Buildings', 'Services', 'PublicTransportStops', 'ServiceTypes',
+                    'RecreationalAreas', 'Blocks', 'Municipalities','AdministrativeUnits']
+                    
         self.city_id = cities_db_id
         self.cwd = cwd
         self.mode = mode
@@ -32,13 +36,12 @@ class CityInformationModel:
             self.rpyc_adr = rpyc_adr
             self.rpyc_port = rpyc_port
 
-        self.attr_names = ['MobilityGraph', 'Buildings', 'Services', 'PublicTransportStops', 'ServiceTypes',
-                            'RecreationalAreas', 'Blocks', 'Municipalities','AdministrativeUnits']
         self.set_city_layers()
         self.methods = DataValidation() if self.mode == "user_mode" else None
 
     def __new__(cls, *args, **kwargs):
-        if (kwargs["mode"] == "user_mode") or (kwargs["mode"] == "general_mode" and cls._validate(*args, **kwargs)):
+        if ("mode" not in kwargs or kwargs["mode"] == "user_mode") \
+        or (kwargs["mode"] == "general_mode" and cls._validate(*args, **kwargs)):
             return super().__new__(cls)
 
     @classmethod
