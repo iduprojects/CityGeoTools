@@ -1317,6 +1317,7 @@ class City_context(City_Provisions):
                                                  crs = self.user_context_zone.crs)
             extras = self._extras(selection_buildings, services_grouped, extras, self.service_types)
             self.zone_context = self.zone_context.to_crs(4326)
+            self.zone_context = self.zone_context.drop(columns = [x for x in self.zone_context.columns if x.split('_')[0] in self.service_types if not '_provison_value' in x])
             return {"context_unit": eval(self.zone_context.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')),
                     "additional_data": extras}
         else:
@@ -1337,6 +1338,7 @@ class City_context(City_Provisions):
             services_grouped = self.services.groupby(by = ['service_code'])
             extras = self._extras(self.buildings, services_grouped, extras, self.service_types)
             self.AdministrativeUnits = self.AdministrativeUnits.to_crs(4326)
+            self.AdministrativeUnits = self.AdministrativeUnits.drop(columns = [x for x in self.AdministrativeUnits.columns if x.split('_')[0] in self.service_types if not '_provison_value' in x])
             return {"context_unit": eval(self.AdministrativeUnits.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')),
                     "additional_data": extras}
 
