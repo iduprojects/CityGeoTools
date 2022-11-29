@@ -88,7 +88,7 @@ class DataQueryInterface(QueryInterface):
 
         # Districts
         self.AdministrativeUnits = self.get_territorial_units(
-            "administrative_units", ["id", "geometry"], place_slice=place_slice
+            "administrative_units", ["id", "geometry", "name"], place_slice=place_slice
         )
         self.AdministrativeUnits = pickle.dumps(self.AdministrativeUnits.to_crs(self.city_crs))
 
