@@ -189,11 +189,14 @@ class ServicesClusterizationGetClustersPolygonsIn(BaseModel):
 
     @root_validator
     def validate_condition_value(cls, values):
-        if values["condition"] == "distance":
-            values["condition_value"] = 4000
-            return values
+        if values["condition_value"] is None:
+            if values["condition"] == "distance":
+                values["condition_value"] = 4000
+                return values
+            else:
+                values["condition_value"] = 10
+                return values
         else:
-            values["condition_value"] = 10
             return values
 
     class Config:
