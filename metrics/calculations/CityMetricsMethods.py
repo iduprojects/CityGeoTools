@@ -243,12 +243,12 @@ class BlocksClusterization(BaseMethod):
         self.services = self.city_model.Services.copy()
         self.blocks = self.city_model.Blocks.copy()
 
-    def clusterize(self, service_types):
+    def clusterize(self, selected_services):
 
-        if sum(self.services["service_code"].isin(service_types)) == 0:
+        if len(selected_services) == 0:
             raise SelectedValueError("services", service_types, "service_code")
 
-        service_in_blocks = self.services.groupby(["block_id", "service_code"])["id"].count().unstack(fill_value=0)
+        service_in_blocks = selected_services.groupby(["block_id", "service_code"])["id"].count().unstack(fill_value=0)
         without_services = self.blocks["id"][~self.blocks["id"].isin(service_in_blocks.index)].values
         without_services = pd.DataFrame(columns=service_in_blocks.columns, index=without_services).fillna(0)
         service_in_blocks = pd.concat([without_services, service_in_blocks])
@@ -271,7 +271,8 @@ class BlocksClusterization(BaseMethod):
 
     def get_blocks(self, service_types, clusters_number=None, area_type=None, area_id=None, geojson=None):
 
-        clusterization, service_in_blocks = self.clusterize(service_types)
+        selected_services = self.services[self.services["service_code"].isin(service_types)]
+        clusterization, service_in_blocks = self.clusterize(selected_services)
         
         # If user doesn't specified the number of clusters, use default value.
         # The default value is determined with the rate of change in the distance between clusters
@@ -280,16 +281,14 @@ class BlocksClusterization(BaseMethod):
 
         service_in_blocks["cluster_labels"] = fcluster(clusterization, t=int(clusters_number), criterion="maxclust")
         blocks = self.blocks.join(service_in_blocks, on="id")
-        mean_services_number = service_in_blocks.groupby("cluster_labels")[service_types].mean().round()
+        mean_services_number = service_in_blocks.groupby("cluster_labels").mean().round()
         mean_services_number = service_in_blocks[["cluster_labels"]].join(mean_services_number, on="cluster_labels")
-        deviations_services_number = service_in_blocks[service_types] - mean_services_number[service_types]
+        deviations_services_number = service_in_blocks - mean_services_number
         blocks = blocks.join(deviations_services_number, on="id", rsuffix="_deviation")
-
         if area_type and area_id:
             blocks = self.get_territorial_select(area_type, area_id, blocks)[0]
         elif geojson:
             blocks = self.get_custom_polygon_select(geojson, self.city_crs, blocks)[0]
-
         return json.loads(blocks.to_crs(4326).to_json())
 
     def get_dendrogram(self, service_types):
