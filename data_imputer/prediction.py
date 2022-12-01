@@ -39,7 +39,7 @@ def build_model(x_learn: DataFrame, y_learn: Series, is_categorical: bool, score
                 save_model: bool, save_log: bool):
 
     path = os.getcwd()
-    with open(path + "/data_imputer/config/config_learning.json") as f:
+    with open(path + "/CityGeoTools/data_imputer/config/config_learning.json") as f:
         config = json.load(f)
 
     method = "classification" if is_categorical else "regression"
@@ -72,7 +72,7 @@ def predict_by_model(model, x_predict: DataFrame, is_positive: bool):
 
 def parse_config_models(columns: list) -> dict:
     path = os.getcwd()
-    with open(path + "/data_imputer/config/config_prediction.json") as f:
+    with open(path + "/CityGeoTools/data_imputer/config/config_prediction.json") as f:
         config = json.load(f)
 
     folder = os.path.join(path, config["folder"])
@@ -84,13 +84,13 @@ def parse_config_models(columns: list) -> dict:
 
 def save_logs_object(model, model_name: str) -> None:
     cv_result = pd.DataFrame(model.cv_results_)
-    last_created_folder = max(glob.glob(os.path.join(os.getcwd(), "data_imputer/logs", "*/")), key=os.path.getmtime)
+    last_created_folder = max(glob.glob(os.path.join(os.getcwd(), "/CityGeoTools/data_imputer/logs", "*/")), key=os.path.getmtime)
     log_file = os.path.join(last_created_folder, model_name + ".xlsx")
     cv_result.to_excel(log_file, engine="openpyxl")
 
 
 def save_model_object(model, model_name: str) -> None:
-    last_created_folder = max(glob.glob(os.path.join(os.getcwd(), "data_imputer/fitted_model", "*/")), 
+    last_created_folder = max(glob.glob(os.path.join(os.getcwd(), "/CityGeoTools/data_imputer/fitted_model", "*/")), 
                                 key=os.path.getmtime)
     path = os.path.join(last_created_folder, model_name + "_GBDT.joblib")
     dump(model, path)
