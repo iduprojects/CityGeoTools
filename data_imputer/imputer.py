@@ -22,7 +22,7 @@ class DataImputer:
 
     def __init__(self, data_path: str):
 
-        with open(os.getcwd() + "/data_imputer/config/config_imputation.json") as f:
+        with open(os.getcwd() + "/CityGeoTools/data_imputer/config/config_imputation.json") as f:
             self.config_imputation = json.load(f)
 
         self.projection = self.config_imputation["epsg_projection"]
@@ -79,7 +79,7 @@ class DataImputer:
         self.data = damaged_data
         self.nans_position = utils.define_nans_positions(damaged_data)
         save_file_name = "_".join([self.file_name, self.time_start])
-        utils.save_to_file(damaged_data.reset_index(), "data_imputer/simulations", save_file_name) if save else None
+        utils.save_to_file(damaged_data.reset_index(), "CityGeoTools/data_imputer/simulations", save_file_name) if save else None
 
     def add_neighbors_features(self) -> GeoDataFrame:
 
@@ -131,7 +131,7 @@ class DataImputer:
         imputed_data = imputed_data.astype(self.dtypes.to_dict())
         imputed_data = imputed_data.join(self.add_flag_columns())
         imputed_data = gpd.GeoDataFrame(imputed_data.join(data.geometry)).set_crs(self.projection)
-        utils.save_to_file(imputed_data.reset_index(), "data_imputer/imputed_data", "_".join([self.file_name, self.time_start]))
+        utils.save_to_file(imputed_data.reset_index(), "CityGeoTools/data_imputer/imputed_data", "_".join([self.file_name, self.time_start]))
         self.imputed_data = imputed_data
         self.mean_score = {k: np.mean(v) for k, v in self.bunch_scores.items()}
 
@@ -191,9 +191,9 @@ class DataImputer:
         self.save_logs, self.save_models = save_options if self.num_iter == self.iter_counter else (False, False)
         file_name = f"{self.file_name}_{self.time_start}_{self.imput_counter}"
         if self.save_models:
-            os.mkdir(os.path.join(os.getcwd(), "data_imputer/fitted_model", file_name))
+            os.mkdir(os.path.join(os.getcwd(), "CityGeoTools/data_imputer/fitted_model", file_name))
         if self.save_logs:
-            os.mkdir(os.path.join(os.getcwd(), "data_imputer/logs", file_name))
+            os.mkdir(os.path.join(os.getcwd(), "CityGeoTools/data_imputer/logs", file_name))
 
     def add_flag_columns(self):
         flag_column = self.input_data.drop(["geometry"], axis=1).columns
@@ -225,7 +225,7 @@ class DataImputer:
         imputation = imputation[base_semantic_columns]
         imputed_data = imputation.astype(self.dtypes.to_dict())
         imputed_data = gpd.GeoDataFrame(imputed_data.join(data.geometry)).set_crs(self.projection)
-        utils.save_to_file(imputed_data.reset_index(), "data_imputer/imputed_data", "_".join([self.file_name, self.time_start]))
+        utils.save_to_file(imputed_data.reset_index(), "CityGeoTools/data_imputer/imputed_data", "_".join([self.file_name, self.time_start]))
 
         return imputed_data
 
