@@ -22,6 +22,8 @@ class DataValidation:
         self.diversity = DiversityData()
         self.collocation_matrix = CollocationMatrixData()
         self.masterplan = MasterplanData()
+        self.accessibility_isochrones_v2 = AccessibilityIsochronesV2Data()
+        self.coverage_zones = CoverageZonesData()
 
     def check_methods(self, layer_name, validate_object, validation_func, cwd):
 
@@ -147,3 +149,17 @@ class MasterplanData(DataValidation):
         self.specification_folder = "data_specification/masterplan"
         self.Buildings = None
         self.message = {}
+
+class AccessibilityIsochronesV2Data(DataValidation):
+    def __init__(self):
+        self.specification_folder = "data_specification/accessibility_isochrones"
+        self.MobilityGraph = None
+        self.message = {}
+
+class CoverageZonesData(DataValidation):
+    def __init__(self):
+        self.specification_folder = "data_specification/coverage_zones"
+        self.Services = None
+        self.ServiceTypes = None
+        self.message = {}
+
