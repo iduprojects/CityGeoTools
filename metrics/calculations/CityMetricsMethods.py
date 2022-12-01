@@ -702,6 +702,52 @@ class Diversity(BaseMethod):
             "blocks": json.loads(blocks.to_crs(4326).fillna("None").to_json())
                     }
 
+    def get_diversity_v2(self, service_type, return_jsons, valuation_type = 'normative', travel_type = None, limit_value = None):
+        
+        houses = self.living_buildings
+
+        if valuation_type == 'normative':
+            services = self.services[self.services["service_code"] == service_type]
+            if len(services) == 0:
+                raise SelectedValueError("services", service_type, "service_code")
+            travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
+
+        if valuation_type == 'custom':
+            if type(service_type) == str:
+                service_type = [service_type]
+            if travel_type == None or limit_value == None:
+                raise ValueError("Travel type or limit value is empty")
+            services = self.services[self.services["service_code"].isin(service_type)]
+            if len(services) == 0:
+                raise SelectedValueError("services", service_type, "service_code")
+            if travel_type == "walk":
+                weigth = "length_meter"
+                graph = self.mobility_graph_length
+            elif travel_type == 'public_transport':
+                weigth = "time_min"
+                graph = self.mobility_graph_time
+            else:
+                raise ValueError("Not valid type of travel")
+            
+        dist_matrix = self.get_distance_matrix(houses, services, graph, limit_value)
+        houses = self.calculate_diversity(houses, dist_matrix)
+
+        blocks = self.blocks.dropna(subset=["municipality_id"]) # TEMPORARY
+        blocks = self.blocks.join(houses.groupby(["block_id"])["diversity"].mean().round(2), on="id")
+        municipalities = self.municipalities.join(
+            houses.groupby(["municipality_id"])["diversity"].mean().round(2), on="id"
+            )
+        self.buildings = houses
+        self.blocks = blocks
+        self.municipalities = municipalities
+        if return_jsons == True:
+            return {
+                "municipalities": json.loads(municipalities.to_crs(4326).fillna("None").to_json()),
+                "blocks": json.loads(blocks.to_crs(4326).fillna("None").to_json())
+                        }
+        else:
+            return self
+
     def get_houses(self, block_id, service_type):
 
         services = self.services[self.services["service_code"] == service_type]
@@ -1699,13 +1745,18 @@ class Urban_Quality(BaseMethod):
 
     def _ind30(self):
 
-        local_blocks = self.blocks.copy()
-        Provision_class = City_Provisions(self.city_model, service_types = ["kindergartens"], valuation_type = "normative", year = 2022,\
-            user_provisions=None, user_changes_buildings=None, user_changes_services=None, user_selection_zone=None, service_impotancy=None)
-        kindergartens_provision = Provision_class.get_provisions()
-        kindergartens_provision = gpd.GeoDataFrame.from_features(kindergartens_provision['houses']['features'])
-
-        local_blocks['IND_data'] = local_blocks.merge(kindergartens_provision.groupby('block_id').mean().reset_index(),\
+        local_blocks = self.blocks
+        Provisions_class = City_Provisions(self.city_model,
+                                    service_types = ['kindergartens'],
+                                    valuation_type = "normative",
+                                    year = 2022, 
+                                    user_changes_buildings = None,
+                                    user_changes_services = None,
+                                    user_provisions = None,
+                                    user_selection_zone = None,
+                                    service_impotancy = None)
+        local_provision = Provisions_class.get_provisions().buildings
+        local_blocks['IND_data'] = local_blocks.merge(local_provision.groupby('block_id').mean().reset_index(),\
             left_on='id', right_on='block_id', how='left')['kindergartens_provison_value']
 
         local_blocks['IND'] = pd.cut(local_blocks['IND_data'], 10, labels=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], right=False)
@@ -1733,7 +1784,7 @@ class Urban_Quality(BaseMethod):
         urban_quality['ind22'], urban_quality_raw['ind22'] = self._ind22()
         urban_quality['ind23'], urban_quality_raw['ind23'] = self._ind23()
         #urban_quality['ind25'], urban_quality_raw['ind25'] = self._ind25() #no crosswalks provision in database
-        #urban_quality['ind30'], urban_quality_raw['ind30'] = self._ind30(city_model) #kindergartens not loaded
+        urban_quality['ind30'], urban_quality_raw['ind30'] = self._ind30()
         #urban_quality['ind32'], urban_quality_raw['ind32'] = self._ind32() #no stops provision in database
 
         urban_quality = urban_quality.replace(0, np.NaN)
@@ -1742,3 +1793,155 @@ class Urban_Quality(BaseMethod):
         
         return {'urban_quality': json.loads(urban_quality.to_json()),
                 'urban_quality_data': json.loads(urban_quality_raw.to_json())}
+
+# ########################################   Infrastructure provision index  ####################################################
+
+class Infrastructure_Provision_Index(BaseMethod):
+    '''
+    >>> Infrastructure_Provision_Index(city_model).get_ip_index()
+    >>> returns infrastructure provision index and raw data for it
+    >>> metric calculates provision and diversity for several groups of services
+    >>> and returns rank of infrastructure provision for each city block (from 1 to 5, and 0 is for missing data)
+    '''
+    def __init__(self, city_model):
+        BaseMethod.__init__(self, city_model)
+        self.blocks = city_model.Blocks.copy()
+        self.greenery = city_model.RecreationalAreas.copy()
+
+    def _ipi1(self):
+        local_blocks = self.blocks
+        Provisions_class = City_Provisions(self.city_model,
+                                    service_types = ['schools'],
+                                    valuation_type = "normative",
+                                    year = 2022, 
+                                    user_changes_buildings = None,
+                                    user_changes_services = None,
+                                    user_provisions = None,
+                                    user_selection_zone = None,
+                                    service_impotancy = None)
+        local_provision = Provisions_class.get_provisions().buildings
+
+        local_blocks['IND_data'] = local_blocks.merge(local_provision.groupby('block_id').mean().reset_index(),\
+            left_on='id', right_on='block_id', how='left')['schools_provison_value']
+
+        local_blocks['IND'] = pd.cut(local_blocks['IND_data'], 5, labels=[1, 2, 3, 4, 5], right=False)
+        local_blocks['IND'] = pd.to_numeric(local_blocks['IND']).fillna(0).astype(int)
+        print('Indicator 1 done')
+        return local_blocks['IND'], local_blocks['IND_data']
+
+    def _ipi2(self):
+        local_blocks = self.blocks
+        Provisions_class = City_Provisions(self.city_model,
+                                    service_types = ['kindergartens'],
+                                    valuation_type = "normative",
+                                    year = 2022, 
+                                    user_changes_buildings = None,
+                                    user_changes_services = None,
+                                    user_provisions = None,
+                                    user_selection_zone = None,
+                                    service_impotancy = None)
+        local_provision = Provisions_class.get_provisions().buildings
+
+        local_blocks['IPI_data'] = local_blocks.merge(local_provision.groupby('block_id').mean().reset_index(),\
+            left_on='id', right_on='block_id', how='left')['kindergartens_provison_value']
+
+        local_blocks['IPI'] = pd.cut(local_blocks['IPI_data'], 5, labels=[1, 2, 3, 4, 5], right=False)
+        local_blocks['IPI'] = pd.to_numeric(local_blocks['IND']).fillna(0).astype(int)
+        print('Indicator 2 done')
+        return local_blocks['IPI'], local_blocks['IPI_data']
+
+    def _ipi3(self):
+        local_blocks = self.blocks
+        objects = 'policlinics'
+
+        Div_class = Diversity(self.city_model)
+        local_diversity = Div_class.get_diversity_v2(objects, return_jsons=False, valuation_type='custom',\
+             travel_type='walk', limit_value=1000)
+        local_blocks['IPI_data'] = local_diversity.blocks.diversity
+        local_blocks['IPI'] = pd.cut(local_blocks['IPI_data'], 5, labels=[1, 2, 3, 4, 5], right=False) 
+        local_blocks['IPI'] = pd.to_numeric(local_blocks['IPI']).fillna(0).astype(int)
+        print('Indicator 3 done')
+        return local_blocks['IPI'], local_blocks['IPI_data']
+
+    def _ipi4(self):
+        local_blocks = self.blocks
+        objects = ['swimming_pools', 'aquaparks', 'fitness_clubs', 'sport_centers', 'sport_clubs',
+        'stadiums', 'sport_section']
+
+        Div_class = Diversity(self.city_model)
+        local_diversity = Div_class.get_diversity_v2(objects, return_jsons=False, valuation_type='custom',\
+             travel_type='walk', limit_value=1000)
+        local_blocks['IPI_data'] = local_diversity.blocks.diversity
+        local_blocks['IPI'] = pd.cut(local_blocks['IPI_data'], 5, labels=[1, 2, 3, 4, 5], right=False) 
+        local_blocks['IPI'] = pd.to_numeric(local_blocks['IPI']).fillna(0).astype(int)
+        print('Indicator 4 done')
+        return local_blocks['IPI'], local_blocks['IPI_data']
+
+    def _ipi5(self):
+        local_blocks = self.blocks
+        objects = ['art_spaces', 'zoos', 'libraries', 'theaters', 'museums', 'cinemas', 'shopping_centers', 'bowlings',
+        'clubs', 'child_teenager_club', 'culture_house', 'quest', 'circus', 'art_gallery', 'music_school', 'amusement_park']
+
+        Div_class = Diversity(self.city_model)
+        local_diversity = Div_class.get_diversity_v2(objects, return_jsons=False, valuation_type='custom',\
+             travel_type='public_transport', limit_value=15)
+        local_blocks['IPI_data'] = local_diversity.blocks.diversity
+        local_blocks['IPI'] = pd.cut(local_blocks['IPI_data'], 5, labels=[1, 2, 3, 4, 5], right=False) 
+        local_blocks['IPI'] = pd.to_numeric(local_blocks['IPI']).fillna(0).astype(int)
+        print('Indicator 5 done')
+        return local_blocks['IPI'], local_blocks['IPI_data']
+
+    def _ipi6(self):
+        local_blocks = self.blocks
+        objects = ['clothing_repairings', 'photo_studios', 'watch_repairings', 'bookmaker_offices', 'rituals', 'services', 'notary',
+        'recruitment_agency', 'insurance', 'property_appraisal', 'legal_services', 'charitable_foundations', 'copy_center', 'real_estate_agency',
+        'wedding_agency', 'tourist_agency']
+        #need to add food, goods and mean result
+        Div_class = Diversity(self.city_model)
+        local_diversity = Div_class.get_diversity_v2(objects, return_jsons=False, valuation_type='custom',\
+             travel_type='public_transport', limit_value=15)
+        local_blocks['IPI_data'] = local_diversity.blocks.diversity
+        local_blocks['IPI'] = pd.cut(local_blocks['IPI_data'], 5, labels=[1, 2, 3, 4, 5], right=False) 
+        local_blocks['IPI'] = pd.to_numeric(local_blocks['IPI']).fillna(0).astype(int)
+        print('Indicator 6 done')
+        return local_blocks['IPI'], local_blocks['IPI_data']
+
+    def _ipi8(self):
+        '''
+        :param blocks: file with city blocks, block id needed --> str
+        :param greenery: file with polygons of greenery with NDVI index --> str
+        '''
+        local_blocks = self.blocks
+        local_greenery = self.greenery
+
+        local_blocks.geometry = local_blocks.centroid.buffer(1000)
+        greenery_in_blocks = gpd.overlay(local_blocks, local_greenery, how='intersection')
+        greenery_in_blocks['green_area'] = greenery_in_blocks.area
+
+        local_blocks['IPI_data'] = local_blocks.merge(greenery_in_blocks.groupby('block_id').sum().reset_index(),\
+            left_on='id', right_on='block_id', how='left')['green_area']
+        local_blocks['IPI'] = pd.cut(local_blocks['IPI_data'], 5, labels=[1, 2, 3, 4, 5], right=False) 
+        local_blocks['IPI'] = pd.to_numeric(local_blocks['IPI']).fillna(0).astype(int)
+        print('Indicator 8 done')
+        return local_blocks['IPI'], local_blocks['IPI_data']
+
+    def get_ip_index(self):
+
+        ipi_blocks = self.blocks.copy().to_crs(4326)
+        ipi_blocks_raw = self.blocks.copy().to_crs(4326)
+
+        ipi_blocks['ind1'], ipi_blocks_raw['ind1'] = self._ipi1()
+        ipi_blocks['ind2'], ipi_blocks_raw['ind2'] = self._ipi2()
+        ipi_blocks['ind3'], ipi_blocks_raw['ind3'] = self._ipi3()
+        ipi_blocks['ind4'], ipi_blocks_raw['ind4'] = self._ipi4()
+        ipi_blocks['ind5'], ipi_blocks_raw['idn5'] = self._ipi5()
+        ipi_blocks['ind6'], ipi_blocks_raw['ind6'] = self._ipi6()
+        #ipi_blocks['ind7'], ipi_blocks_raw['ind7'] = self._ipi7() #crosses with ind 4, ind5 --> waiting for public spaces as distinct objects
+        ipi_blocks['ind8'], ipi_blocks_raw['ind8'] = self._ipi8()
+
+        ipi_blocks = ipi_blocks.replace(0, np.NaN)
+        ipi_blocks['infrastructure_provision_index'] = ipi_blocks.filter(regex='ind.*').median(axis=1).round(0)
+        ipi_blocks = ipi_blocks.fillna(0)
+        
+        return {'infrastructure_provision_index': json.loads(ipi_blocks.to_json()),
+                'infrastructure_provision_index_data': json.loads(ipi_blocks_raw.to_json())}
