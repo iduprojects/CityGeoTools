@@ -942,6 +942,7 @@ class Coverage_Zones(BaseMethod):
         super().validation("coverage_zones")
         self.service_types = self.city_model.ServiceTypes.copy()
         self.services = self.city_model.Services.copy()
+        self.walk_speed = 4 * 1000 / 60
 
     def get_coverage_zone(self, service_type, method: Literal['radius', 'isochrone'], radius=None, travel_type = None, weight_value = None, _routes = False):
 
@@ -954,10 +955,13 @@ class Coverage_Zones(BaseMethod):
                 radius = radius
             else:
                 try:
-                    radius = service_types[service_types['code'] == service_type].iloc[0]['walking_radius_normative']
+                    if service_types[service_types['code'] == service_type].iloc[0]['walking_radius_normative'] != 0:
+                        radius = service_types[service_types['code'] == service_type].iloc[0]['walking_radius_normative']
+                    
+                    elif service_types[service_types['code'] == service_type].iloc[0]['public_transport_time_normative'] != 0:
+                        radius = service_types[service_types['code'] == service_type].iloc[0]['public_transport_time_normative'] * self.walk_speed
                 except:
-                    raise TypeError
-
+                    raise ValueError('radius')
 
             services['geometry'] = services.geometry.buffer(radius) 
 
@@ -970,9 +974,6 @@ class Coverage_Zones(BaseMethod):
             isochrone = AccessibilityIsochrones_v2(self.city_model).get_isochrone(
                             travel_type, x_from, y_from, weight_value, weight_type = 'time_min', routes = _routes)
             return isochrone
-
-        else:
-            raise ValueError('method')
         
         return 
 
@@ -981,7 +982,7 @@ class Coverage_Zones(BaseMethod):
 class City_Provisions(BaseMethod): 
 
     def __init__(self, city_model: Any, service_types: list, valuation_type: str, year: int,
-                 user_provisions, user_changes_buildings: Optional[dict],
+                 user_provisions: Optional[dict[str, list[dict]]], user_changes_buildings: Optional[dict],
                  user_changes_services: Optional[dict], user_selection_zone: Optional[dict], service_impotancy: Optional[list],
                  return_jsons: bool = False
                  ):
