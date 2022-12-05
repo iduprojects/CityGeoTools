@@ -30,6 +30,7 @@ class Tags(str, enums.AutoName):
     well_being = auto()
     collocation_matrix = auto()
     city_context = auto()
+    master_plan = auto()
 
 
 @router.get("/")
@@ -258,3 +259,16 @@ def city_context_get_context(
         year=user_request.year,
         user_context_zone=user_request.user_selection_zone
     ).get_context()
+
+
+@router.post(
+    "/master_plan/get_master_plan",
+    response_model=schemas.MasterPlanOut, tags=[Tags.master_plan],
+)
+def master_plan_get_master_plan(
+        user_request: schemas.MasterPlanIn
+):
+    city_model = city_models[user_request.city]
+    master_plan_params = user_request.dict(exclude={"city"})
+    master_plan = Masterplan(city_model)
+    return master_plan.get_masterplan(**master_plan_params)["indicators"]
