@@ -2,7 +2,7 @@ from typing import Union, Optional, Dict
 
 from fastapi import Query
 from pydantic import BaseModel, validator, Field, conint, conlist, confloat, root_validator
-from geojson_pydantic import LineString, FeatureCollection, Polygon
+from geojson_pydantic import LineString, FeatureCollection, Polygon, Feature
 from geojson_pydantic.geometries import Geometry
 from geojson_pydantic.features import Props
 
@@ -24,8 +24,10 @@ def _check_longitude_epsg_4326(lon):
 
     return lon
 
+
 class FeatureCollectionWithCRS(FeatureCollection):
     crs: dict
+
 
 # /pedastrian_walk_traffics/pedastrian_walk_traffics_calculation
 class PedastrianWalkTrafficsCalculationIn(BaseModel):
@@ -37,20 +39,21 @@ class PedastrianWalkTrafficsCalculationIn(BaseModel):
             "example": {
                 "city": "saint-petersburg",
                 "geojson": {
-                "type": "FeatureCollection",
-                "name": "test_area",
-                "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}},
-                "features": [
-                    {"type": "Feature", "properties": {},
-                     "geometry": {"type": "Polygon",
-                                  "coordinates": [[[30.253654233376736, 59.952160447703385],
-                                                   [30.255163054210676, 59.95547985353806],
-                                                   [30.26592597615947, 59.954205738167175],
-                                                   [30.268843029771755, 59.95102044973996],
-                                                   [30.266428916437448, 59.94884104186871],
-                                                   [30.258013049119235, 59.94833810159073],
-                                                   [30.253654233376736, 59.952160447703385]]]}}]}}
+                    "type": "FeatureCollection",
+                    "name": "test_area",
+                    "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}},
+                    "features": [
+                        {"type": "Feature", "properties": {},
+                         "geometry": {"type": "Polygon",
+                                      "coordinates": [[[30.253654233376736, 59.952160447703385],
+                                                       [30.255163054210676, 59.95547985353806],
+                                                       [30.26592597615947, 59.954205738167175],
+                                                       [30.268843029771755, 59.95102044973996],
+                                                       [30.266428916437448, 59.94884104186871],
+                                                       [30.258013049119235, 59.94833810159073],
+                                                       [30.253654233376736, 59.952160447703385]]]}}]}}
         }
+
 
 class PedastrianWalkTrafficsCalculationOut(BaseModel):
     buildings: FeatureCollection
@@ -94,18 +97,22 @@ class MobilityAnalysisIsochronesQueryParams:
 
 
 MobilityAnalysisIsochronesGeometry = Geometry
+
+
 class MobilityAnalysisIsochronesProperties(BaseModel):
     travel_type: enums.MobilityAnalysisIsochronesTravelTypeLabelEnum
     weight_type: enums.MobilityAnalysisIsochronesWeightTypeEnum
     weight_value: conint(ge=1)
 
+
 class MobilityAnalysisIsochronesOut(BaseModel):
     isochrone: FeatureCollection[
-    MobilityAnalysisIsochronesGeometry,
-    MobilityAnalysisIsochronesProperties
-]
+        MobilityAnalysisIsochronesGeometry,
+        MobilityAnalysisIsochronesProperties
+    ]
     stops: Optional[FeatureCollection]
     routes: Optional[FeatureCollection]
+
 
 # /Visibility_analysis/Visibility_analysis
 class VisibilityAnalisysQueryParams:
@@ -119,6 +126,7 @@ class VisibilityAnalisysQueryParams:
         self.y_from = y_from
         self.city = city
         self.view_distance = view_distance
+
 
 # /voronoi/Weighted_voronoi_calculation
 class WeightedVoronoiCalculationIn(BaseModel):
@@ -145,16 +153,19 @@ class WeightedVoronoiCalculationIn(BaseModel):
             }
         }
 
+
 class WeightedVoronoiCalculationOut(BaseModel):
     voronoi_polygons: FeatureCollection
     deficit_zones: FeatureCollection
 
+
 ServicesList = conlist(str, min_items=1, unique_items=True)
+
 
 # /blocks_clusterization/get_blocks
 class BlocksClusterizationGetBlocks(BaseModel):
     city: enums.CitiesEnum
-    service_types: ServicesList # todo service types as enumerate
+    service_types: ServicesList  # todo service types as enumerate
     clusters_number: Optional[int]
     area_type: Optional[enums.TerritorialEnum]
     area_id: Optional[int]
@@ -166,16 +177,17 @@ class BlocksClusterizationGetBlocks(BaseModel):
                 "city": "saint-petersburg",
                 "clusters_number": None,
                 "service_types": [
-                        "garbage_containers",
-                        "bakeries",
-                        "dentists",
-                        "parkings",
-                        "pet_shops"
-                    ],
+                    "garbage_containers",
+                    "bakeries",
+                    "dentists",
+                    "parkings",
+                    "pet_shops"
+                ],
                 "area_type": "administrative_unit",
                 "area_id": 61
-                }
             }
+        }
+
 
 class ServicesClusterizationGetClustersPolygonsIn(BaseModel):
     city: enums.CitiesEnum
@@ -204,22 +216,24 @@ class ServicesClusterizationGetClustersPolygonsIn(BaseModel):
             "example": {
                 "city": "saint-petersburg",
                 "service_types": [
-                        "schools",
-                        "kindergartens",
-                        "colleges",
-                        "universities"
-                    ],
+                    "schools",
+                    "kindergartens",
+                    "colleges",
+                    "universities"
+                ],
                 "condition": "distance",
                 "condition_value": 4000,
                 "n_std": 2,
                 "area_type": "administrative_unit",
                 "area_id": 61
-                }
             }
+        }
+
 
 class ServicesClusterizationGetClustersPolygonsOut(BaseModel):
     polygons: FeatureCollection
     services: FeatureCollection
+
 
 class SpacematrixIn(BaseModel):
     city: enums.CitiesEnum
@@ -235,8 +249,8 @@ class SpacematrixIn(BaseModel):
                 "clusters_number": 11,
                 "area_type": "administrative_unit",
                 "area_id": 61
-                }
             }
+        }
 
 
 class DiversityQueryParams:
@@ -262,6 +276,7 @@ class DiversityGetInfoQueryParams:
         self.city = city
         self.house_id = house_id
         self.service_type = service_type
+
 
 class DiversityGetInfoOut(BaseModel):
     house: FeatureCollection
@@ -326,7 +341,7 @@ class CityContextGetContextIn(ProvisionInBase):
         schema_extra = {
             "example": {
                 "city": "saint-petersburg",
-                "service_types": ["schools", "kindergartens",'colleges', 'saunas', 'zoos','optics'],
+                "service_types": ["schools", "kindergartens", 'colleges', 'saunas', 'zoos', 'optics'],
                 "valuation_type": "normative",
                 "year": 2022,
             }
@@ -417,3 +432,97 @@ class CollocationMatrixQueryParams:
                  city: enums.CitiesEnum,
                  ):
         self.city = city
+
+
+class MasterPlanIn(BaseModel):
+    city: enums.CitiesEnum
+    polygon: Feature[Polygon, dict]
+    add_building: Optional[FeatureCollection[Polygon, dict]]
+    delet_building: Optional[conlist(int, min_items=1)]
+    land_area: Optional[float]
+    dev_land_procent: Optional[float]
+    dev_land_area: Optional[float]
+    dev_land_density: Optional[float]
+    land_living_area: Optional[float]
+    dev_living_density: Optional[float]
+    population: Optional[int]
+    population_density: Optional[float]
+    living_area_provision: Optional[float]
+    land_business_area: Optional[float]
+    building_height_mode: Optional[float]
+    living: Optional[float]
+    commerce: Optional[float]
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "city": "saint-petersburg",
+                "polygon": {
+                    "type": "Feature",
+                    "geometry": {
+                        "coordinates": [
+                            [
+                                [
+                                    30.28236360437208,
+                                    59.94259995775951
+                                ],
+                                [
+                                    30.274335607213317,
+                                    59.94683560022031
+                                ],
+                                [
+                                    30.262799655918656,
+                                    59.943476595267526
+                                ],
+                                [
+                                    30.261458266233234,
+                                    59.93769831060115
+                                ],
+                                [
+                                    30.273799051338784,
+                                    59.934472783622056
+                                ],
+                                [
+                                    30.28935917168954,
+                                    59.934472783622056
+                                ],
+                                [
+                                    30.2982123436135,
+                                    59.939848487642536
+                                ],
+                                [
+                                    30.294456452493648,
+                                    59.94307349180241
+                                ],
+                                [
+                                    30.28236360437208,
+                                    59.94259995775951
+                                ]
+                            ]
+                        ],
+                        "type": "Polygon"
+                    },
+                    "properties": {
+                        "name": "Василеостровская",
+                        "cities_id": 1,
+                        "description": "Моя любимая станция"
+                    },
+                    "id": "524a0867fabe66a657e220e50549e604",
+
+                }
+            }
+        }
+
+
+class MasterPlanOut(BaseModel):
+    land_area: float
+    dev_land_procent: float
+    dev_land_area: float
+    dev_land_density: float
+    land_living_area: float
+    dev_living_density: float
+    population: float
+    population_density: float
+    living_area_provision: float
+    land_business_area: float
+    building_height_mode: float
