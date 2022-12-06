@@ -434,6 +434,11 @@ class CollocationMatrixQueryParams:
         self.city = city
 
 
+class UrbanQualityOut(BaseModel):
+    urban_quality: dict
+    urban_quality_data: dict
+
+
 class MasterPlanIn(BaseModel):
     city: enums.CitiesEnum
     polygon: Feature[Polygon, dict]

@@ -30,6 +30,7 @@ class Tags(str, enums.AutoName):
     well_being = auto()
     collocation_matrix = auto()
     city_context = auto()
+    urban_quality = auto()
     master_plan = auto()
 
 
@@ -259,6 +260,15 @@ def city_context_get_context(
         year=user_request.year,
         user_context_zone=user_request.user_selection_zone
     ).get_context()
+
+
+@router.get(
+    "/urban_quality/get_urban_quality",
+    response_model=schemas.UrbanQualityOut, tags=[Tags.urban_quality],
+)
+def urban_quality_get_urban_quality(city: enums.CitiesEnum):
+    city_model = city_models[city]
+    return Urban_Quality(city_model).get_urban_quality()
 
 
 @router.post(
