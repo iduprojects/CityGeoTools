@@ -82,3 +82,8 @@ class ProvisionOptionEnum(Enum):  # todo int inheritance
 class ProvisionGetInfoObjectTypeEnum(str, AutoName):
     house = auto()
     service = auto()
+
+
+class CoverageZonesMethodEnum(str, AutoName):
+    radius = auto()
+    isochrone = auto()
