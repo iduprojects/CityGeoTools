@@ -1617,10 +1617,11 @@ class Urban_Quality(BaseMethod):
 
     def __init__(self, city_model):
         '''
+        returns urban quality index and raw data for it
+        metric calculates different quantity parameters of urban environment (share of emergent houses, number of cultural objects, etc.)
+        and returns rank of urban quality for each city block (from 1 to 10, and 0 is for missing data)
         >>> Urban_Quality(city_model).get_urban_quality()
-        >>> returns urban quality index and raw data for it
-        >>> metric calculates different quantity parameters of urban environment (share of emergent houses, number of cultural objects, etc.)
-        >>> and returns rank of urban quality for each city block (from 1 to 10, and 0 is for missing data)
+
         '''
         BaseMethod.__init__(self, city_model)
         self.buildings = city_model.Buildings.copy()
