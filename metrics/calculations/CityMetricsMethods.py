@@ -2,6 +2,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 from typing import Any, Optional, Literal
+from traceback import print_exc
 import geopandas as gpd
 import shapely
 import pandas as pd
@@ -943,14 +944,13 @@ class Coverage_Zones(BaseMethod):
         self.services = self.city_model.Services.copy()
         self.walk_speed = 4 * 1000 / 60
 
-    def get_coverage_zone(self, service_type, method: Literal['radius', 'isochrone'], radius=None, travel_type = None, weight_value = None, _routes = False):
+    def get_coverage_zone(self, service_type, method: Literal['radius', 'isochrone'], radius=None, travel_type=None, weight_value=None, routes=False):
 
         services = self.services[self.services["service_code"] == service_type].reset_index(drop=True)
         service_types = self.service_types
 
         if method == 'radius':
-
-            if radius != None:
+            if radius is not None:
                 radius = radius
             else:
                 try:
@@ -960,6 +960,7 @@ class Coverage_Zones(BaseMethod):
                     elif service_types[service_types['code'] == service_type].iloc[0]['public_transport_time_normative'] != 0:
                         radius = service_types[service_types['code'] == service_type].iloc[0]['public_transport_time_normative'] * self.walk_speed
                 except:
+                    print_exc()
                     raise ValueError('radius')
 
             services['geometry'] = services.geometry.buffer(radius) 
@@ -971,7 +972,7 @@ class Coverage_Zones(BaseMethod):
             x_from = services['geometry'].x
             y_from = services['geometry'].y
             isochrone = AccessibilityIsochrones_v2(self.city_model).get_isochrone(
-                            travel_type, x_from, y_from, weight_value, weight_type = 'time_min', routes = _routes)
+                            travel_type, x_from, y_from, weight_value, weight_type='time_min', routes=routes)
             return isochrone
         
         return 
