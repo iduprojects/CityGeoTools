@@ -978,6 +978,10 @@ class Coverage_Zones(BaseMethod):
         -------
         FeatureCollection
 
+        Errors
+        ------
+        Raises NormativeError if radius (with given radius=None) cannot be defined from ServiceTypes.
+
         Example
         -------
         Get coverage zones for schools with radius of 50 meters.
@@ -990,7 +994,7 @@ class Coverage_Zones(BaseMethod):
         if not radius:
             if service_types[service_types['code'] == service_type]['walking_radius_normative'].notna().iloc[0]:
                     radius = service_types[service_types['code'] == service_type].iloc[0]['walking_radius_normative']
-            elif service_types[service_types['code'] == service_type]['walking_radius_normative'].isna().iloc[0] & service_types[service_types['code'] == service_type]['public_transport_time_normative'].notna().iloc[0]:
+            elif service_types[service_types['code'] == service_type]['public_transport_time_normative'].notna().iloc[0]:
                     radius = service_types[service_types['code'] == service_type].iloc[0]['public_transport_time_normative'] * self.walk_speed
             else:
                 raise NormativeError("radius", service_type)
