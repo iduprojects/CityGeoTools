@@ -1023,7 +1023,7 @@ class Coverage_Zones(BaseMethod):
         
         Returns
         -------
-        List
+        JSON-file with FeatureCollection
 
         Example
         -------
