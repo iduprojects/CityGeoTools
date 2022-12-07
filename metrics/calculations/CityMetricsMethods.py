@@ -26,7 +26,7 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from matplotlib import pyplot as plt
 from scipy import spatial
-from .errors import TerritorialSelectError, SelectedValueError, ImplementationError
+from .errors import TerritorialSelectError, SelectedValueError, ImplementationError, NormativeError
 from itertools import product
 from inspect import signature
 
@@ -987,18 +987,14 @@ class Coverage_Zones(BaseMethod):
         service_types  = self.service_types
         services = self.services[self.services['service_code'] == service_type].reset_index(drop=True)
 
-        if radius is not None:
-            radius = radius
-        else:
-            try:
-                if service_types[service_types['code'] == service_type].iloc[0]['walking_radius_normative'] != 0:
+        if not radius:
+            if service_types[service_types['code'] == service_type]['walking_radius_normative'].notna().iloc[0]:
                     radius = service_types[service_types['code'] == service_type].iloc[0]['walking_radius_normative']
-
-                elif service_types[service_types['code'] == service_type].iloc[0]['public_transport_time_normative'] != 0:
+            elif service_types[service_types['code'] == service_type]['walking_radius_normative'].isna().iloc[0] & service_types[service_types['code'] == service_type]['public_transport_time_normative'].notna().iloc[0]:
                     radius = service_types[service_types['code'] == service_type].iloc[0]['public_transport_time_normative'] * self.walk_speed
-            except:
-                print_exc()
-                raise ValueError('radius')
+            else:
+                raise NormativeError("radius", service_type)
+        
         
         services['geometry'] = services['geometry'].buffer(radius)
 
