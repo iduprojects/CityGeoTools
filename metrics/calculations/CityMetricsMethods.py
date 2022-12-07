@@ -1509,13 +1509,17 @@ class Masterplan(BaseMethod):
         super().validation("masterplan")
         self.buildings = self.city_model.Buildings.copy()
 
-    def get_masterplan(self, polygon: json, add_building: json, delet_building: list[int]):
+    def get_masterplan(self, polygon: json, add_building: json, delet_building: list[int]) -> json:
 
         """The function calculates the indicators of the master plan for a certain territory.
 
         :param polygon: the territory within which indicators will be calculated in GeoJSON format.
         :param add_building: the building that will be added to the territory in GeoJSON format.
-        :param delet_building: the building that will be deleted from the territory in GeoJSON format.
+        :param delet_building: the building that will be deleted from the territory in List format.
+
+        city_model = CityInformationModel(city_name="saint-petersburg", city_crs=32636)
+        
+        :example: Masterplan(city_model).get_masterplan(polygon, add_building, delet_building=[1, 2, 3])
         
         :return: dictionary with the name of the indicator and its value in JSON format.
         """
@@ -1576,16 +1580,15 @@ class Masterplan(BaseMethod):
         building_height_mode = land_with_buildings['storeys_count'].mode().squeeze()
         building_height_mode = building_height_mode.astype(int)
             
-        data = [[land_area], [dev_land_procent], [dev_land_area], [dev_land_density], [land_living_area],
-                    [dev_living_density], [population], [population_density], [living_area_provision], 
-                    [land_business_area], [building_height_mode]]   
-        columns = ['indicators']
+        data = [land_area, dev_land_procent, dev_land_area, dev_land_density, land_living_area,
+                    dev_living_density, population, population_density, living_area_provision, 
+                    land_business_area, building_height_mode]   
         index = ['land_area', 'dev_land_procent',
                 'dev_land_area', 'dev_land_density', 'land_living_area', 
                 'dev_living_density', 'population', 
                 'population_density', 'living_area_provision', 
                 'land_business_area', 'building_height_mode']
-        df_indicators = pd.DataFrame(data, index, columns)
+        df_indicators = pd.Series(data, index=index)
 
         return json.loads(df_indicators.to_json())
 
