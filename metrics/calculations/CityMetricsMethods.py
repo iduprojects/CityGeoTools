@@ -781,8 +781,8 @@ class Diversity(BaseMethod):
         dist_matrix = dist_matrix[:, target[0]] + target_dist[0] + np.vstack(np.array(source_dist[0]))
         dist_matrix = np.where(dist_matrix > limit_value, dist_matrix, 1)
         dist_matrix = np.where(dist_matrix <= limit_value, dist_matrix, 0)
-
-        return dist_matrix
+    
+        return dist_matrix if len(services_nodes[0]) < len(houses_nodes[0]) else dist_matrix.T
 
     @staticmethod
     def calculate_diversity(houses, dist_matrix):
@@ -796,21 +796,24 @@ class Diversity(BaseMethod):
         houses = houses.join(houses_diversity, on="id")
         return houses
 
-    def get_diversity(self, service_type):
+    def get_diversity(self, service_type, geojson):
+        services_select = self.services[self.services["service_code"] == service_type]
+        if len(services_select) == 0: raise SelectedValueError("services", service_type, "service_code") 
 
-        services = self.services[self.services["service_code"] == service_type]
-        if len(services) == 0:
-            raise SelectedValueError("services", service_type, "service_code")
         houses = self.living_buildings
+        if geojson: houses = self.get_custom_polygon_select(geojson, self.city_crs, houses)[0]
+        if len(houses) == 0: raise TerritorialSelectError("houses") 
 
         travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
-        dist_matrix = self.get_distance_matrix(houses, services, graph, limit_value)
+        dist_matrix = self.get_distance_matrix(houses, services_select, graph, limit_value)
+        print(len(houses), len(services_select), len(dist_matrix))
+        print(len(dist_matrix[0]))
         houses = self.calculate_diversity(houses, dist_matrix)
 
         blocks = self.blocks.dropna(subset=["municipality_id"]) # TEMPORARY
-        blocks = self.blocks.join(houses.groupby(["block_id"])["diversity"].mean().round(2), on="id")
+        blocks = self.blocks.join(houses.groupby(["block_id"])["diversity"].mean().round(2), on="id", how="inner")
         municipalities = self.municipalities.join(
-            houses.groupby(["municipality_id"])["diversity"].mean().round(2), on="id"
+            houses.groupby(["municipality_id"])["diversity"].mean().round(2), on="id", how="inner"
             )
         return {
             "municipalities": json.loads(municipalities.to_crs(4326).fillna("None").to_json()),
