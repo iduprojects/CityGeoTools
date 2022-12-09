@@ -1024,7 +1024,7 @@ class Coverage_Zones(BaseMethod):
         
         Returns
         -------
-        JSON-file with FeatureCollection
+        FeatureCollection
 
         Example
         -------
@@ -1039,7 +1039,7 @@ class Coverage_Zones(BaseMethod):
         
         isochrone = AccessibilityIsochrones_v2(self.city_model).get_isochrone(travel_type, x_from, y_from, weight_value, weight_type = 'time_min')
         
-        return isochrone
+        return isochrone["isochrone"]
 
 
 # ######################################### New Provisions #################################################
