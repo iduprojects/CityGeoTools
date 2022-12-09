@@ -293,14 +293,32 @@ def master_plan_get_master_plan(
     return master_plan.get_masterplan(**master_plan_params)
 
 
-@router.post(
-    "/coverage_zone/get_coverage_zone",
-    response_model=dict, tags=[Tags.coverage_zone],
+# Check during refactor
+@router.get(
+    "/coverage_zone/get_radius_zone",
+    response_model=FeatureCollection, tags=[Tags.coverage_zone],
 )
-def master_plan_get_master_plan(
-        user_request: schemas.CoverageZonesIn
+def coverage_zone_get_radius(
+        user_request: schemas.CoverageZonesRadiusQueryParams=Depends()
+):
+    try:
+        city_model = city_models[user_request.city]
+        return Coverage_Zones(city_model).get_radius_zone(user_request.service_type, user_request.radius)
+    except errors.NormativeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
+
+# Check during refactor
+@router.get(
+    "/coverage_zone/get_isochrone_zone",
+    response_model=FeatureCollection, tags=[Tags.coverage_zone],
+)
+def coverage_zone_get_isochrone(
+        user_request: schemas.CoverageZonesIsochroneQueryParams=Depends()
 ):
     city_model = city_models[user_request.city]
-    coverage_zone = Coverage_Zones(city_model)
-    coverage_zone_params = user_request.dict(exclude={"city"})
-    return coverage_zone.get_coverage_zone(**coverage_zone_params)
+    return Coverage_Zones(city_model).get_isochrone_zone(
+        user_request.service_type, user_request.travel_type, user_request.weight_value
+        )

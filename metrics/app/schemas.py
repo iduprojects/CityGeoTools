@@ -539,22 +539,22 @@ class MasterPlanOut(BaseModel):
     building_height_mode: float
 
 
-class CoverageZonesIn(BaseModel):
-    city: enums.CitiesEnum
-    service_type: str
-    method: enums.CoverageZonesMethodEnum
-    radius: Optional[float] = None
-    travel_type: Optional[enums.MobilityAnalysisIsochronesTravelTypeEnum] = None
-    weight_value: Optional[conint(ge=1)] = None
-    routes: bool = False
+class CoverageZonesRadiusQueryParams:
+    def __init__(self, 
+                city: enums.CitiesEnum,
+                service_type: str = Query(..., example='schools'),
+                radius: Optional[float] = 50):
+        self.city = city
+        self.service_type = service_type
+        self.radius = radius
 
-    class Config:
-        schema_extra = {
-            "example": {
-                "city": "saint-petersburg",
-                "service_type": "schools",
-                "method": "radius",
-                "radius": 1000,
-                "routes": False
-            }
-        }
+class CoverageZonesIsochroneQueryParams:
+    def __init__(self, 
+                city: enums.CitiesEnum,
+                travel_type: enums.MobilityAnalysisIsochronesTravelTypeEnum = Query(..., example='walk'),
+                service_type: str = Query(..., example='dentists'),
+                weight_value: conint(ge=1) = Query(..., example=10)):
+        self.city = city
+        self.service_type = service_type
+        self.travel_type = travel_type
+        self.weight_value = weight_value
