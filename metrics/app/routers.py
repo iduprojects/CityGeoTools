@@ -32,6 +32,7 @@ class Tags(str, enums.AutoName):
     city_context = auto()
     urban_quality = auto()
     master_plan = auto()
+    coverage_zone = auto()
 
 
 @router.get("/")
@@ -289,3 +290,16 @@ def master_plan_get_master_plan(
     master_plan_params = user_request.dict(exclude={"city"})
     master_plan = Masterplan(city_model)
     return master_plan.get_masterplan(**master_plan_params)["indicators"]
+
+
+@router.post(
+    "/coverage_zone/get_coverage_zone",
+    response_model=dict, tags=[Tags.coverage_zone],
+)
+def master_plan_get_master_plan(
+        user_request: schemas.CoverageZonesIn
+):
+    city_model = city_models[user_request.city]
+    coverage_zone = Coverage_Zones(city_model)
+    coverage_zone_params = user_request.dict(exclude={"city"})
+    return coverage_zone.get_coverage_zone(**coverage_zone_params)

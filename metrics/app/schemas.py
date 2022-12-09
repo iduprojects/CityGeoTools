@@ -552,3 +552,24 @@ class MasterPlanOut(BaseModel):
     living_area_provision: float
     land_business_area: float
     building_height_mode: float
+
+
+class CoverageZonesIn(BaseModel):
+    city: enums.CitiesEnum
+    service_type: str
+    method: enums.CoverageZonesMethodEnum
+    radius: Optional[float] = None
+    travel_type: Optional[enums.MobilityAnalysisIsochronesTravelTypeEnum] = None
+    weight_value: Optional[conint(ge=1)] = None
+    routes: bool = False
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "city": "saint-petersburg",
+                "service_type": "schools",
+                "method": "radius",
+                "radius": 1000,
+                "routes": False
+            }
+        }

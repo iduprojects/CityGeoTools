@@ -1,6 +1,5 @@
 import warnings
 warnings.filterwarnings('ignore')
-
 from typing import Any, Optional
 import geopandas as gpd
 import shapely
