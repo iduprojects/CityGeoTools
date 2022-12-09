@@ -847,7 +847,7 @@ class Diversity(BaseMethod):
         travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
         dist_matrix = self.get_distance_matrix(house, services, graph, limit_value)
         house = self.calculate_diversity(house, np.vstack(dist_matrix[0]))
-        selected_services = services[dist_matrix[0] == 1]
+        selected_services = services[dist_matrix[:, 0] == 1]
         isochrone = AccessibilityIsochrones(self.city_model).get_accessibility_isochrone(
             travel_type, house_x, house_y, limit_value, weigth)
         return {
