@@ -1732,7 +1732,7 @@ class Urban_Quality(BaseMethod):
     def _ind4(self):
 
         houses = self.buildings.copy()
-        houses = houses[houses['is_living']]
+        houses = houses[houses['is_living'] == True]
         local_blocks = self.blocks.copy()
         modern_houses = houses.query('1956 <= building_year')
 
@@ -1753,7 +1753,7 @@ class Urban_Quality(BaseMethod):
 
         local_blocks = self.blocks.copy()
         houses = self.buildings.copy()
-        houses = houses.query('is_living')
+        houses = houses[houses['is_living'] == True]
         local_services = self.services.copy()
         local_services = local_services[local_services['city_service_type_id'].isin(self.main_services_id)]
 
@@ -1808,11 +1808,37 @@ class Urban_Quality(BaseMethod):
         local_blocks['IND'] = pd.to_numeric(local_blocks['IND']).fillna(0).astype(int)
         print('Indicator 10 done')
         return local_blocks['IND'], local_blocks['IND_data']
+    def _ind14(self):
+        local_blocks = self.blocks.copy()
+        local_greenery = self.greenery.copy()
+        local_greenery = local_greenery.explode(ignore_index=True)
+        local_greenery = local_greenery[local_greenery.geometry.type =="Polygon"]
 
-    def _ind14_15(self):
+        local_blocks['area'] = local_blocks.area
+        greenery_in_blocks = gpd.overlay(local_blocks, local_greenery, how='intersection')
+        greenery_in_blocks['green_area'] = greenery_in_blocks.area
+        share_of_green = greenery_in_blocks.groupby('block_id').sum('green_area').reset_index()
+        share_of_green['share'] = share_of_green['green_area'] / share_of_green['area']
+
+        local_blocks['IND_14_data']  = local_blocks.merge(share_of_green, how='left')['share'] 
+        local_blocks['IND_14'] = pd.cut(local_blocks['IND_14_data'], 10, labels=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], right=False)
+        local_blocks['IND_14'] = pd.to_numeric(local_blocks['IND_14']).fillna(0).astype(int)
+        print('Indicator 14 done')
+        return local_blocks['IND_14'], local_blocks['IND_14_data']
+
+    def _ind15(self):
 
         local_blocks = self.blocks.copy()
         local_greenery = self.greenery.copy()
+
+        if len(local_greenery.vegetation_index) == local_greenery.vegetation_index.isna().sum():
+            local_blocks['IND_15_data'] = 0
+            local_blocks['IND_15'] = 0
+            print('IND15: vegetation index is not loaded')
+            return local_blocks['IND_15'], local_blocks['IND_15_data']
+
+        local_greenery = local_greenery.explode(ignore_index=True)
+        local_greenery = local_greenery[local_greenery.geometry.type =="Polygon"]
 
         local_blocks['area'] = local_blocks.area
         greenery_in_blocks = gpd.overlay(local_blocks, local_greenery, how='intersection')
@@ -1824,15 +1850,12 @@ class Urban_Quality(BaseMethod):
         share_of_green_grouped = share_of_green.groupby('block_id').sum().reset_index()
         share_of_green_grouped['quality'] = share_of_green_grouped.vw / share_of_green_grouped.share
 
-        local_blocks[['IND_14_data', 'IND_15_data']]  = local_blocks.merge(share_of_green_grouped, how='left')[['share', 'quality']] 
+        local_blocks['IND_15_data']  = local_blocks.merge(share_of_green_grouped, how='left')['quality'] 
 
-        local_blocks['IND_14'] = pd.cut(local_blocks['IND_14_data'], 10, labels=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], right=False)
-        local_blocks['IND_14'] = pd.to_numeric(local_blocks['IND_14']).fillna(0).astype(int)
-        print('Indicator 14 done')
         local_blocks['IND_15'] = pd.cut(local_blocks['IND_15_data'], 10, labels=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], right=False)
         local_blocks['IND_15'] = pd.to_numeric(local_blocks['IND_15']).fillna(0).astype(int)
         print('Indicator 15 done')
-        return local_blocks['IND_14'], local_blocks['IND_14_data'], local_blocks['IND_15'], local_blocks['IND_15_data']
+        return local_blocks['IND_15'], local_blocks['IND_15_data']
 
     def _ind17(self):
 
@@ -1840,6 +1863,8 @@ class Urban_Quality(BaseMethod):
         local_services = self.services.copy()
         local_services = local_services[local_services['city_service_type_id'].isin(self.main_services_id)]
         local_greenery = self.greenery.copy()
+        local_greenery = local_greenery.explode(ignore_index=True)
+        local_greenery = local_greenery[local_greenery.geometry.type =="Polygon"]
 
         greenery_in_blocks = gpd.overlay(local_blocks, local_greenery[['geometry', 'service_code', 'block_id']], how='intersection')
         greenery_in_blocks['green_area'] = greenery_in_blocks.area
@@ -1862,6 +1887,12 @@ class Urban_Quality(BaseMethod):
         local_blocks = self.blocks.copy()
         local_okn = self.services.copy()
         local_okn = local_okn[local_okn['service_code'] =='culture_object']
+
+        if len(local_okn) == 0:
+            local_blocks['IND_22_data'] = 0
+            local_blocks['IND_22'] = 0
+            print('IND22: culture objects are not loaded')
+            return local_blocks['IND_22'], local_blocks['IND_22_data']
 
         local_blocks['area'] = local_blocks.area
         okn_in_blocks = gpd.sjoin(local_okn[['geometry', 'service_code']], local_blocks, how='inner')
@@ -1930,8 +1961,8 @@ class Urban_Quality(BaseMethod):
         urban_quality['ind10'], urban_quality_raw['idn10'] = self._ind10()
         #urban_quality['ind11'], urban_quality_raw['ind11'] = self._ind_11() #too long >15 min
         #urban_quality['ind13'], urban_quality_raw['ind13'] = self._ind_13() #recreational areas problem
-        urban_quality['ind14'], urban_quality_raw['ind14'],\
-            urban_quality['ind15'], urban_quality_raw['ind15'] = self._ind14_15()
+        urban_quality['ind14'], urban_quality_raw['ind14'] = self._ind14()
+        urban_quality['ind15'], urban_quality_raw['ind15'] = self._ind15()
         urban_quality['ind17'], urban_quality_raw['ind17'] = self._ind17()
         #urban_quality['ind18'], urban_quality_raw['ind18'] = self._ind18() #recreational areas problem
         #urban_quality['ind20'], urban_quality_raw['ind20'] = self._ind20() #too much in RAM
@@ -1942,7 +1973,7 @@ class Urban_Quality(BaseMethod):
         #urban_quality['ind32'], urban_quality_raw['ind32'] = self._ind32() #no stops provision in database
 
         urban_quality = urban_quality.replace(0, np.NaN)
-        urban_quality['urban_quality_value'] = urban_quality.filter(regex='ind.*').median(axis=1).round(0)
+        urban_quality['urban_quality_value'] = urban_quality.filter(regex='ind.*').mean(axis=1).round(0)
         urban_quality = urban_quality.fillna(0)
         
         return {'urban_quality': json.loads(urban_quality.to_json()),
