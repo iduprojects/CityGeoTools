@@ -245,9 +245,6 @@ class BlocksClusterization(BaseMethod):
 
     def clusterize(self, selected_services):
 
-        if len(selected_services) == 0:
-            raise SelectedValueError("services", service_types, "service_code")
-
         service_in_blocks = selected_services.groupby(["block_id", "service_code"])["id"].count().unstack(fill_value=0)
         without_services = self.blocks["id"][~self.blocks["id"].isin(service_in_blocks.index)].values
         without_services = pd.DataFrame(columns=service_in_blocks.columns, index=without_services).fillna(0)
@@ -272,6 +269,7 @@ class BlocksClusterization(BaseMethod):
     def get_blocks(self, service_types, clusters_number=None, area_type=None, area_id=None, geojson=None):
 
         selected_services = self.services[self.services["service_code"].isin(service_types)]
+        if len(selected_services) == 0: raise SelectedValueError("services", service_types, "service_code")
         clusterization, service_in_blocks = self.clusterize(selected_services)
         
         # If user doesn't specified the number of clusters, use default value.
@@ -293,7 +291,9 @@ class BlocksClusterization(BaseMethod):
 
     def get_dendrogram(self, service_types):
             
-            clusterization, service_in_blocks = self.clusterize(service_types)
+            selected_services = self.services[self.services["service_code"].isin(service_types)]
+            if len(selected_services) == 0: raise SelectedValueError("services", service_types, "service_code")
+            clusterization, service_in_blocks = self.clusterize(selected_services)
 
             img = io.BytesIO()
             plt.figure(figsize=(20, 10))
@@ -805,8 +805,6 @@ class Diversity(BaseMethod):
 
         travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
         dist_matrix = self.get_distance_matrix(houses, services_select, graph, limit_value)
-        print(len(houses), len(services_select), len(dist_matrix))
-        print(len(dist_matrix[0]))
         houses = self.calculate_diversity(houses, dist_matrix)
 
         blocks = self.blocks.dropna(subset=["municipality_id"]) # TEMPORARY
@@ -831,7 +829,6 @@ class Diversity(BaseMethod):
 
         travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
         dist_matrix = self.get_distance_matrix(houses_in_block, services, graph, limit_value)
-        dist_matrix = np.transpose(dist_matrix) if len(houses_in_block) <= len(services) else dist_matrix
         houses_in_block = self.calculate_diversity(houses_in_block, dist_matrix)
 
         return json.loads(houses_in_block.to_crs(4326).to_json())
@@ -852,8 +849,7 @@ class Diversity(BaseMethod):
         house = self.calculate_diversity(house, np.vstack(dist_matrix[0]))
         selected_services = services[dist_matrix[0] == 1]
         isochrone = AccessibilityIsochrones(self.city_model).get_accessibility_isochrone(
-            travel_type, house_x, house_y, limit_value, weigth
-        )
+            travel_type, house_x, house_y, limit_value, weigth)
         return {
             "house": json.loads(house.to_crs(4326).to_json()),
             "services": json.loads(selected_services.to_crs(4326).to_json()),
