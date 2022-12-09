@@ -279,6 +279,7 @@ def urban_quality_get_urban_quality(city: enums.CitiesEnum):
     return Urban_Quality(city_model).get_urban_quality()
 
 
+# Check during refactor
 @router.post(
     "/master_plan/get_master_plan",
     response_model=schemas.MasterPlanOut, tags=[Tags.master_plan],
@@ -289,7 +290,7 @@ def master_plan_get_master_plan(
     city_model = city_models[user_request.city]
     master_plan_params = user_request.dict(exclude={"city"})
     master_plan = Masterplan(city_model)
-    return master_plan.get_masterplan(**master_plan_params)["indicators"]
+    return master_plan.get_masterplan(**master_plan_params)
 
 
 @router.post(

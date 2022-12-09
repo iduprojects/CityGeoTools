@@ -459,24 +459,12 @@ class UrbanQualityOut(BaseModel):
     urban_quality: FeatureCollection
     urban_quality_data: FeatureCollection
 
+# Check during refactor
 class MasterPlanIn(BaseModel):
     city: enums.CitiesEnum
     polygon: Feature[Polygon, dict]
     add_building: Optional[FeatureCollection[Polygon, dict]]
     delet_building: Optional[conlist(int, min_items=1)]
-    land_area: Optional[float]
-    dev_land_procent: Optional[float]
-    dev_land_area: Optional[float]
-    dev_land_density: Optional[float]
-    land_living_area: Optional[float]
-    dev_living_density: Optional[float]
-    population: Optional[int]
-    population_density: Optional[float]
-    living_area_provision: Optional[float]
-    land_business_area: Optional[float]
-    building_height_mode: Optional[float]
-    living: Optional[float]
-    commerce: Optional[float]
 
     class Config:
         schema_extra = {
@@ -487,42 +475,15 @@ class MasterPlanIn(BaseModel):
                     "geometry": {
                         "coordinates": [
                             [
-                                [
-                                    30.28236360437208,
-                                    59.94259995775951
-                                ],
-                                [
-                                    30.274335607213317,
-                                    59.94683560022031
-                                ],
-                                [
-                                    30.262799655918656,
-                                    59.943476595267526
-                                ],
-                                [
-                                    30.261458266233234,
-                                    59.93769831060115
-                                ],
-                                [
-                                    30.273799051338784,
-                                    59.934472783622056
-                                ],
-                                [
-                                    30.28935917168954,
-                                    59.934472783622056
-                                ],
-                                [
-                                    30.2982123436135,
-                                    59.939848487642536
-                                ],
-                                [
-                                    30.294456452493648,
-                                    59.94307349180241
-                                ],
-                                [
-                                    30.28236360437208,
-                                    59.94259995775951
-                                ]
+                                [30.28236360437208, 59.94259995775951],
+                                [30.274335607213317, 59.94683560022031],
+                                [30.262799655918656, 59.943476595267526],
+                                [30.261458266233234, 59.93769831060115],
+                                [30.273799051338784, 59.934472783622056],
+                                [30.28935917168954, 59.934472783622056],
+                                [30.2982123436135, 59.939848487642536],
+                                [30.294456452493648, 59.94307349180241],
+                                [30.28236360437208, 59.94259995775951]
                             ]
                         ],
                         "type": "Polygon"
@@ -533,8 +494,33 @@ class MasterPlanIn(BaseModel):
                         "description": "Моя любимая станция"
                     },
                     "id": "524a0867fabe66a657e220e50549e604",
-
-                }
+                },
+                "delet_buildings": [116063, 115293, 116015, 115152, 115665],
+                "add_building": {
+                        "type": "FeatureCollection",
+                        "name": "123",
+                        "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+                        "features": [
+                            {
+                            "type": "Feature",
+                            "properties": {
+                                "id": -1,
+                                "population": 123,
+                                "living_area": 123.4,
+                                "basement_area": 10,
+                                "storeys_count": 5
+                            },
+                            "geometry": {
+                                "type": "Polygon",
+                                "coordinates": [[
+                                    [30.27197052492032, 59.944428895298373],
+                                    [30.271604694519958, 59.944326506154319],
+                                    [30.271737397704406, 59.944211542528045],
+                                    [30.27214268040284, 59.944313932027114],
+                                    [30.27197052492032, 59.944428895298373]
+                                ]]}
+                            }] 
+                        }
             }
         }
 
