@@ -1,8 +1,6 @@
 import warnings
 warnings.filterwarnings('ignore')
-
-from typing import Any, Optional, Literal
-from traceback import print_exc
+from typing import Any, Optional
 import geopandas as gpd
 import shapely
 import pandas as pd
@@ -17,6 +15,7 @@ import networkit as nk
 import pandas.core.indexes as pd_index
 import pulp
 from sqlalchemy import create_engine
+from traceback import print_exc
 
 from jsonschema.exceptions import ValidationError
 from .utils import nk_routes_between_two_points
@@ -26,7 +25,7 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from matplotlib import pyplot as plt
 from scipy import spatial
-from .errors import TerritorialSelectError, SelectedValueError, ImplementationError
+from .errors import TerritorialSelectError, SelectedValueError, ImplementationError, NormativeError
 from itertools import product
 from inspect import signature
 
@@ -690,7 +689,7 @@ class AccessibilityIsochrones_v2(BaseMethod):
         
         stops, routes = self.get_routes(graph_gdf, source['isochrone_nodes'], travel_type, weight_type) if routes else ([None], [None])
         
-        return [{"isochrone": json.loads(isochrones.to_json()), "routes": [x], "stops": [y]} for x,y in list(zip(routes, stops))]
+        return {"isochrone": json.loads(isochrones.to_json()), "routes": routes, "stops": stops}
 
     def get_routes(self, graph_gdf, selected_nodes, travel_type, weight_type):
         
@@ -781,8 +780,8 @@ class Diversity(BaseMethod):
         dist_matrix = dist_matrix[:, target[0]] + target_dist[0] + np.vstack(np.array(source_dist[0]))
         dist_matrix = np.where(dist_matrix > limit_value, dist_matrix, 1)
         dist_matrix = np.where(dist_matrix <= limit_value, dist_matrix, 0)
-
-        return dist_matrix
+    
+        return dist_matrix if len(services_nodes[0]) < len(houses_nodes[0]) else dist_matrix.T
 
     @staticmethod
     def calculate_diversity(houses, dist_matrix):
@@ -796,21 +795,24 @@ class Diversity(BaseMethod):
         houses = houses.join(houses_diversity, on="id")
         return houses
 
-    def get_diversity(self, service_type):
+    def get_diversity(self, service_type, geojson):
+        services_select = self.services[self.services["service_code"] == service_type]
+        if len(services_select) == 0: raise SelectedValueError("services", service_type, "service_code") 
 
-        services = self.services[self.services["service_code"] == service_type]
-        if len(services) == 0:
-            raise SelectedValueError("services", service_type, "service_code")
         houses = self.living_buildings
+        if geojson: houses = self.get_custom_polygon_select(geojson, self.city_crs, houses)[0]
+        if len(houses) == 0: raise TerritorialSelectError("houses") 
 
         travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
-        dist_matrix = self.get_distance_matrix(houses, services, graph, limit_value)
+        dist_matrix = self.get_distance_matrix(houses, services_select, graph, limit_value)
+        print(len(houses), len(services_select), len(dist_matrix))
+        print(len(dist_matrix[0]))
         houses = self.calculate_diversity(houses, dist_matrix)
 
         blocks = self.blocks.dropna(subset=["municipality_id"]) # TEMPORARY
-        blocks = self.blocks.join(houses.groupby(["block_id"])["diversity"].mean().round(2), on="id")
+        blocks = self.blocks.join(houses.groupby(["block_id"])["diversity"].mean().round(2), on="id", how="inner")
         municipalities = self.municipalities.join(
-            houses.groupby(["municipality_id"])["diversity"].mean().round(2), on="id"
+            houses.groupby(["municipality_id"])["diversity"].mean().round(2), on="id", how="inner"
             )
         return {
             "municipalities": json.loads(municipalities.to_crs(4326).fillna("None").to_json()),
@@ -936,6 +938,23 @@ class CollocationMatrix(BaseMethod):
 ################################################ Coverage Zones #################################################
 
 class Coverage_Zones(BaseMethod):
+    """
+    Coverage_Zones provides visual analytics on coverage areas of a chosen type of urban services 
+    via one of given methods: (1) radius or (2) isochrone.
+
+    '''
+    Attributes
+    ------
+    city_model
+            City Information Model
+
+    Methods
+    ------
+    get_radius_zone(service_type, radius)
+            Creates a buffer with a defined radius for each service.
+    get_isochrone_zone(service_type, travel_type, weight_value)
+            Creates an isochrone with defined way of transportation and time to travel (in minutes) for each service. 
+    """
 
     def __init__(self, city_model):
         BaseMethod.__init__(self, city_model)
@@ -944,38 +963,83 @@ class Coverage_Zones(BaseMethod):
         self.services = self.city_model.Services.copy()
         self.walk_speed = 4 * 1000 / 60
 
-    def get_coverage_zone(self, service_type, method: Literal['radius', 'isochrone'], radius=None, travel_type=None, weight_value=None, routes=False):
+    def get_radius_zone(self, service_type: str, radius: Optional[int]):
+        """
+        Creates a buffer with a defined radius for each service.
 
-        services = self.services[self.services["service_code"] == service_type].reset_index(drop=True)
-        service_types = self.service_types
+        Parameters
+        ---------
+        service_type: str
+            The type of services to run the method on.
+        radius: int, optional
+            The radius for the buffer.
+            If radius argument is not defined, it tries to get the value from ServicesTypes's standards.
+        
+        Returns
+        -------
+        FeatureCollection
 
-        if method == 'radius':
-            if radius is not None:
-                radius = radius
+        Errors
+        ------
+        Raises NormativeError if radius (with given radius=None) cannot be defined from ServiceTypes.
+
+        Example
+        -------
+        Get coverage zones for schools with radius of 50 meters.
+            CityMetricsMethods.Coverage_Zones(city_model).get_radius_zone(service_type='schools', radius=50)
+        """
+
+        service_types  = self.service_types
+        services = self.services[self.services['service_code'] == service_type].reset_index(drop=True)
+
+        if not radius:
+            if service_types[service_types['code'] == service_type]['walking_radius_normative'].notna().iloc[0]:
+                    radius = service_types[service_types['code'] == service_type].iloc[0]['walking_radius_normative']
+            elif service_types[service_types['code'] == service_type]['public_transport_time_normative'].notna().iloc[0]:
+                    radius = service_types[service_types['code'] == service_type].iloc[0]['public_transport_time_normative'] * self.walk_speed
             else:
-                try:
-                    if service_types[service_types['code'] == service_type].iloc[0]['walking_radius_normative'] != 0:
-                        radius = service_types[service_types['code'] == service_type].iloc[0]['walking_radius_normative']
-                    
-                    elif service_types[service_types['code'] == service_type].iloc[0]['public_transport_time_normative'] != 0:
-                        radius = service_types[service_types['code'] == service_type].iloc[0]['public_transport_time_normative'] * self.walk_speed
-                except:
-                    print_exc()
-                    raise ValueError('radius')
-
-            services['geometry'] = services.geometry.buffer(radius) 
-
-            return json.loads(services.reset_index().to_crs(4326).to_json())
+                raise NormativeError("radius", service_type)
         
-        elif method == 'isochrone':
-            
-            x_from = services['geometry'].x
-            y_from = services['geometry'].y
-            isochrone = AccessibilityIsochrones_v2(self.city_model).get_isochrone(
-                            travel_type, x_from, y_from, weight_value, weight_type='time_min', routes=routes)
-            return isochrone
         
-        return 
+        services['geometry'] = services['geometry'].buffer(radius)
+
+        return json.loads(services.reset_index().to_crs(4326).to_json())
+
+
+    def get_isochrone_zone(self, service_type: str, travel_type:str, weight_value: int):
+        """
+        Creates an isochrone with defined way of transportation and time to travel (in minutes) for each service.
+        The method calls Accessibility_Isochrones_v2.get_isochrone.
+
+        Parameters
+        ---------
+        service_type: str
+            The type of services to run the method on.
+        travel_type: str
+            From Accessibility_Isochrones_v2. 
+            One of the given ways of transportation: "public_transport", "walk" or "drive".
+        weight_value: int
+            From Accessibility_Isochrones_v2.
+            Minutes to travel.
+        
+        Returns
+        -------
+        JSON-file with FeatureCollection
+
+        Example
+        -------
+        Get coverage zones for dentistries using 10 mins pedestrian-ways isochrone.
+            CityMetricsMethods.Coverage_Zones(city_model).get_isochrone_zone(service_type='dentists', travel_type='walk', weight_value = 10)
+        """
+
+        services = self.services[self.services['service_code'] == service_type].reset_index(drop=True)
+
+        x_from = services['geometry'].x
+        y_from = services['geometry'].y
+        
+        isochrone = AccessibilityIsochrones_v2(self.city_model).get_isochrone(travel_type, x_from, y_from, weight_value, weight_type = 'time_min')
+        
+        return isochrone
 
 
 # ######################################### New Provisions #################################################
@@ -1510,16 +1574,17 @@ class Masterplan(BaseMethod):
         super().validation("masterplan")
         self.buildings = self.city_model.Buildings.copy()
 
-    def get_masterplan(self, polygon: gpd.GeoDataFrame, add_building:gpd.GeoDataFrame, delet_building:gpd.GeoDataFrame, land_area: float , dev_land_procent: float, dev_land_area: float, dev_land_density: float, land_living_area: float, 
-    dev_living_density: float, population: int, population_density: float, living_area_provision: float, land_business_area: float, building_height_mode: float, 
-    living: float, commerce: float):
+    def get_masterplan(self, polygon: json, add_building: json, delet_building: list[int]) -> json:
 
         """The function calculates the indicators of the master plan for a certain territory.
 
         :param polygon: the territory within which indicators will be calculated in GeoJSON format.
-        :param land_area... building_height_mode: the value of the indicators that the user can set.
-        :param living: the percentage of the territory that will be occupied by residential buildings.
-        :param commerce: the percentage of the territory that will be occupied by commercial buildings.
+        :param add_building: the building that will be added to the territory in GeoJSON format.
+        :param delet_building: the building that will be deleted from the territory in List format.
+
+        city_model = CityInformationModel(city_name="saint-petersburg", city_crs=32636)
+        
+        :example: Masterplan(city_model).get_masterplan(polygon, add_building, delet_building=[1, 2, 3])
         
         :return: dictionary with the name of the indicator and its value in JSON format.
         """
@@ -1537,78 +1602,58 @@ class Masterplan(BaseMethod):
             land_with_buildings = land_with_buildings[~land_with_buildings['id'].isin(delet_building['id'])]
             
         land_with_buildings_living = land_with_buildings[land_with_buildings['is_living'] == True]
-        hectare = 10000
-
-        if living is None:
-            living = 80
-            
-        if commerce is None:
-            commerce = 20                                                                             
         
-        if land_area is None: 
-            land_area =  polygon.area / hectare
-            land_area = land_area.squeeze()
-            land_area =  np.around(land_area, decimals = 2)
+        hectare = 10000
+        living = 80
+        commerce = 20                             
+        
+        land_area =  polygon.area / hectare
+        land_area = land_area.squeeze()
+        land_area =  np.around(land_area, decimals = 2)
           
- 
-        if dev_land_procent is None:
-            buildings_area = land_with_buildings['basement_area'].sum()
-            dev_land_procent = ((buildings_area / hectare) / land_area) * 100
-            dev_land_procent = np.around(dev_land_procent, decimals = 2)
+        buildings_area = land_with_buildings['basement_area'].sum()
 
-        if dev_land_area is None:
-            dev_land_area = land_with_buildings['basement_area'] * land_with_buildings['storeys_count']
-            dev_land_area = dev_land_area.sum() / hectare
-            dev_land_area = np.around(dev_land_area, decimals = 2)
+        dev_land_procent = ((buildings_area / hectare) / land_area) * 100
+        dev_land_procent = np.around(dev_land_procent, decimals = 2)
+      
+        dev_land_area = land_with_buildings['basement_area'] * land_with_buildings['storeys_count']
+        dev_land_area = dev_land_area.sum() / hectare
+        dev_land_area = np.around(dev_land_area, decimals = 2)
     
-        if dev_land_density is None:
-            dev_land_density = dev_land_area / land_area
-            dev_land_density = np.around(dev_land_density, decimals = 2)
+        dev_land_density = dev_land_area / land_area
+        dev_land_density = np.around(dev_land_density, decimals = 2)
 
-        if land_living_area is None:
-            land_living_area = land_with_buildings_living['basement_area'] * land_with_buildings_living['storeys_count']
-            land_living_area = ((land_living_area.sum() / hectare) / 100 * living)
-            land_living_area = np.around(land_living_area, decimals = 2)
+        land_living_area = land_with_buildings_living['basement_area'] * land_with_buildings_living['storeys_count']
+        land_living_area = ((land_living_area.sum() / hectare) / 100 * living)
+        land_living_area = np.around(land_living_area, decimals = 2)
+   
+        dev_living_density = land_living_area / land_area
+        dev_living_density = np.around(dev_living_density, decimals = 2)
+
+        population =  land_with_buildings['population'].sum()
+        population = population.astype(int)
             
-        else:
-            land_living_area = (land_living_area / 100 * living)
-            land_living_area = np.around(land_living_area, decimals = 2)
+        population_density = population / land_area.squeeze()
+        population_density = np.around(population_density, decimals = 2)
 
-        if dev_living_density is None:
-            dev_living_density = land_living_area / land_area
-            dev_living_density = np.around(dev_living_density, decimals = 2)
-
-        if population is None:
-            population =  land_with_buildings['population'].sum()
-            population = population.astype(int)
+        living_area_provision = (land_living_area * hectare) / population
+        living_area_provision = np.around(living_area_provision, decimals = 2)
+        
+        land_business_area = ((land_living_area / living) * commerce) 
+        land_business_area = np.around(land_business_area, decimals = 2)
+        
+        building_height_mode = land_with_buildings['storeys_count'].mode().squeeze()
+        building_height_mode = building_height_mode.astype(int)
             
-            
-        if population_density is None:
-            population_density = population / land_area.squeeze()
-            population_density = np.around(population_density, decimals = 2)
-
-        if living_area_provision is None:
-            living_area_provision = (land_living_area * hectare) / population
-            living_area_provision = np.around(living_area_provision, decimals = 2)
-
-        if land_business_area is None:
-            land_business_area = ((land_living_area / living) * commerce) 
-            land_business_area = np.around(land_business_area, decimals = 2)
-
-        if building_height_mode is None:
-            building_height_mode = land_with_buildings['storeys_count'].mode().squeeze()
-            building_height_mode = building_height_mode.astype(int)
-            
-        data = [[land_area], [dev_land_procent], [dev_land_area], [dev_land_density], [land_living_area],
-                    [dev_living_density], [population], [population_density], [living_area_provision], 
-                    [land_business_area], [building_height_mode]]   
-        columns = ['indicators']
+        data = [land_area, dev_land_procent, dev_land_area, dev_land_density, land_living_area,
+                    dev_living_density, population, population_density, living_area_provision, 
+                    land_business_area, building_height_mode]   
         index = ['land_area', 'dev_land_procent',
                 'dev_land_area', 'dev_land_density', 'land_living_area', 
                 'dev_living_density', 'population', 
                 'population_density', 'living_area_provision', 
                 'land_business_area', 'building_height_mode']
-        df_indicators = pd.DataFrame(data, index, columns)
+        df_indicators = pd.Series(data, index=index)
 
         return json.loads(df_indicators.to_json())
 
@@ -1618,10 +1663,11 @@ class Urban_Quality(BaseMethod):
 
     def __init__(self, city_model):
         '''
+        returns urban quality index and raw data for it
+        metric calculates different quantity parameters of urban environment (share of emergent houses, number of cultural objects, etc.)
+        and returns rank of urban quality for each city block (from 1 to 10, and 0 is for missing data)
         >>> Urban_Quality(city_model).get_urban_quality()
-        >>> returns urban quality index and raw data for it
-        >>> metric calculates different quantity parameters of urban environment (share of emergent houses, number of cultural objects, etc.)
-        >>> and returns rank of urban quality for each city block (from 1 to 10, and 0 is for missing data)
+
         '''
         BaseMethod.__init__(self, city_model)
         self.buildings = city_model.Buildings.copy()

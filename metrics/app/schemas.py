@@ -252,15 +252,36 @@ class SpacematrixIn(BaseModel):
             }
         }
 
+# Check during refactor
+class DiversityIn(BaseModel):
+    city: enums.CitiesEnum
+    service_type: str
+    geojson: Optional[FeatureCollectionWithCRS]
 
-class DiversityQueryParams:
-    def __init__(self,
-                 city: enums.CitiesEnum,
-                 service_type: str = Query(..., example="cafes")
-                 ):
-        self.city = city
-        self.service_type = service_type
-
+    class Config:
+        schema_extra = {
+            "example": {
+                "city": "saint-petersburg",
+                "service_type": "cafes",
+                "geojson": {
+                    "type": "FeatureCollection",
+                    "name": "test_area",
+                    "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}},
+                    "features": [
+                        {"type": "Feature", "properties": {},
+                         "geometry": {"type": "Polygon",
+                                      "coordinates": [[
+                                        [30.310845, 59.945431], 
+                                        [30.189368, 59.969446], 
+                                        [30.165860, 59.932500], 
+                                        [30.263008, 59.917023], 
+                                        [30.274934, 59.930412], 
+                                        [30.314616, 59.944886],
+                                        [30.310845, 59.945431]
+                                        ]
+]}}]}
+            }
+        }
 
 class DiversityOut(BaseModel):
     municipalities: FeatureCollection
@@ -432,6 +453,11 @@ class CollocationMatrixQueryParams:
                  city: enums.CitiesEnum,
                  ):
         self.city = city
+
+
+class UrbanQualityOut(BaseModel):
+    urban_quality: dict
+    urban_quality_data: dict
 
 
 class MasterPlanIn(BaseModel):
