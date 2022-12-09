@@ -166,13 +166,20 @@ async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIso
             detail=str(e)
         )
 
-
-@router.get("/diversity/diversity", response_model=schemas.DiversityOut,
+# Check during refactor
+@router.post("/diversity/diversity", response_model=schemas.DiversityOut,
             tags=[Tags.diversity])
-async def get_diversity(query_params: schemas.DiversityQueryParams = Depends()):  # todo validate service_type?
+async def get_diversity(query_params: schemas.DiversityIn):  # todo validate service_type?
     city_model = city_models[query_params.city]
-    result = Diversity(city_model).get_diversity(query_params.service_type)
-    return result
+    geojson = query_params.geojson.dict() if query_params.geojson else None
+    try:
+        result = Diversity(city_model).get_diversity(query_params.service_type, geojson)
+        return result
+    except (errors.TerritorialSelectError, errors.SelectedValueError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
 
 @router.get("/diversity/get_buildings", response_model=FeatureCollection,
             tags=[Tags.diversity])
