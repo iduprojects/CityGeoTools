@@ -893,7 +893,6 @@ class City_Provisions(BaseMethod):
             self.user_changes_services['capacity_left'] = self.user_changes_services['capacity']
             self.services_old_values = self.user_changes_services[['capacity','capacity_left','carried_capacity_within','carried_capacity_without']]
             self.user_changes_services = self.user_changes_services.set_crs(self.city_crs)
-            #self.user_changes_services.index = range(0, len(self.user_changes_services))
             self.user_changes_services.index = self.user_changes_services['id'].values.astype(int)
         else:
             self.user_changes_services = self.services.copy(deep = True)
@@ -912,7 +911,6 @@ class City_Provisions(BaseMethod):
                 self.user_changes_buildings[f'{service_type}_service_demand_left_value_{self.valuation_type}'] = self.user_changes_buildings[f'{service_type}_service_demand_value_{self.valuation_type}'].values
             self.buildings_old_values = self.user_changes_buildings[old_cols]
             self.user_changes_buildings = self.user_changes_buildings.set_crs(self.city_crs)
-            #self.user_changes_buildings.index = range(len(self.user_changes_services) + 1, len(self.user_changes_services) + len(self.user_changes_buildings) + 1)
             self.user_changes_buildings.index = self.user_changes_buildings['functional_object_id'].values.astype(int)
         else:
             self.user_changes_buildings = self.buildings.copy()
@@ -990,7 +988,7 @@ class City_Provisions(BaseMethod):
     def _provisions_impotancy(self, buildings):
         provision_value_columns = [service_type + '_provison_value' for service_type in self.service_types]
         if self.services_impotancy:
-            t = buildings[provision_value_columns].apply(lambda x: self.services_impotancy[x.name.split("_")[0]]*x).sum(axis = 1)
+            t = buildings[provision_value_columns].apply(lambda x: self.services_impotancy[x.name.split("_provison_value")[0]]*x).sum(axis = 1)
         else: 
             t = buildings[provision_value_columns].sum(axis = 1)
         _min = t.min()
