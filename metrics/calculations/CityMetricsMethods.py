@@ -1533,8 +1533,8 @@ class Masterplan(BaseMethod):
 
         if delet_building is not None:
             delet_building = pd.DataFrame(delet_building)
-            delet_building.columns = ['id']
-            land_with_buildings = land_with_buildings[~land_with_buildings['id'].isin(delet_building['id'])]
+            delet_building.columns = ['functional_object_id']
+            land_with_buildings = land_with_buildings[~land_with_buildings['functional_object_id'].isin(delet_building['functional_object_id'])]
             
         land_with_buildings_living = land_with_buildings[land_with_buildings['is_living'] == True]
         
