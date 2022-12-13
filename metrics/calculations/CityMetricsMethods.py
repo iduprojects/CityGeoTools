@@ -1065,9 +1065,15 @@ class City_Provisions(BaseMethod):
         self.graph_nk_time =  city_model.graph_nk_time
         self.nx_graph =  city_model.MobilityGraph
         self.buildings = city_model.Buildings.copy(deep = True)
-        self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
+        self.buildings = self.buildings.dropna(subset = 'functional_object_id')
+        self.buildings['functional_object_id'] = self.buildings['functional_object_id'].astype(int)
+        self.buildings.index = self.buildings['functional_object_id'].values
+
         self.services = city_model.Services[city_model.Services['service_code'].isin(service_types)].copy(deep = True)
         self.services.index = self.services['id'].values.astype(int)
+
+        self.file_server = os.environ['PROVISIONS_DATA_FILE_SERVER']
+
         try:
             self.services_impotancy = dict(zip(service_types, service_impotancy))
         except:
@@ -1078,16 +1084,20 @@ class City_Provisions(BaseMethod):
         self.buildings_old_values = None
         self.services_old_values = None
         self.errors = []
+        #try:
+        self.demands = pd.read_sql(f'''SELECT functional_object_id, {", ".join(f"{service_type}_service_demand_value_{self.valuation_type}" for service_type in service_types)}
+                                FROM social_stats.buildings_load_future
+                                WHERE year = {self.year}
+                                ''', con = self.engine)
+        #self.demands.index = self.demands['functional_object_id'].values
+        self.buildings = self.buildings.merge(self.demands, left_index = True, right_on = 'functional_object_id', how = 'left')
+
+        #except:
+            #self.errors.append(service_type)
         for service_type in service_types:
-            try:
-                self.demands = pd.read_sql(f'''SELECT functional_object_id, {service_type}_service_demand_value_{self.valuation_type} 
-                                        FROM social_stats.buildings_load_future
-                                        WHERE year = {self.year}
-                                        ''', con = self.engine)
-                self.buildings = self.buildings.merge(self.demands, on = 'functional_object_id', how = 'right').dropna()
-                self.buildings[f'{service_type}_service_demand_left_value_{self.valuation_type}'] = self.buildings[f'{service_type}_service_demand_value_{self.valuation_type}']
-            except:
-                self.errors.append(service_type)
+            self.buildings[f'{service_type}_service_demand_left_value_{self.valuation_type}'] = self.buildings[f'{service_type}_service_demand_value_{self.valuation_type}']
+            self.buildings = self.buildings.dropna(subset = f'{service_type}_service_demand_value_{self.valuation_type}')
+            
         self.service_types= [x for x in service_types if x not in self.errors]
         self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
         self.services['capacity_left'] = self.services['capacity']
@@ -1160,10 +1170,10 @@ class City_Provisions(BaseMethod):
                 self.Provisions[service_type]['selected_graph'] = self.graph_nk_time
             
             try:
-                self.Provisions[service_type]['services'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_services').content))
-                self.Provisions[service_type]['buildings'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_buildings').content))
-                self.Provisions[service_type]['distance_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_distance_matrix').content))
-                self.Provisions[service_type]['destination_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_destination_matrix').content))
+                self.Provisions[service_type]['services'] = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_services').content))
+                self.Provisions[service_type]['buildings'] = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_buildings').content))
+                self.Provisions[service_type]['distance_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_distance_matrix').content))
+                self.Provisions[service_type]['destination_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_destination_matrix').content))
                 print(service_type + ' loaded')
             except:
                 print(service_type + ' not loaded')
