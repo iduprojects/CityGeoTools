@@ -1725,6 +1725,7 @@ class Urban_Quality(BaseMethod):
         self.blocks = city_model.Blocks.copy()
         self.greenery = city_model.RecreationalAreas.copy()
         self.city_crs = city_model.city_crs
+        self.city_name = city_model.city_name
         self.engine = city_model.engine
         self.file_server = os.environ['PROVISIONS_DATA_FILE_SERVER']
         
@@ -2037,21 +2038,21 @@ class Urban_Quality(BaseMethod):
 
     def get_urban_quality(self):
         try:
-            urban_quality = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}urban_quality/urban_quality').content))
-            urban_quality_raw = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}urban_quality/urban_quality_raw').content))
-            print('urban quality loaded')
+            urban_quality = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}urban_quality/{self.city_name}_urban_quality').content))
+            urban_quality_raw = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}urban_quality/{self.city_name}_urban_quality_raw').content))
+            print('urban quality loaded for', self.city_name)
         except:
-            print('urban quality not loaded')
+            print('urban quality not loaded for', self.city_name)
             urban_quality, urban_quality_raw = self._calculate_urban_quality()
         return {"urban_quality": json.loads(urban_quality.to_json()),
                 "urban_quality_data": json.loads(urban_quality_raw.to_json())}
 
     def get_urban_quality_context(self):
         try:
-            urban_quality = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}urban_quality/urban_quality').content))
-            print('urban quality loaded')
+            urban_quality = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}urban_quality/{self.city_name}_urban_quality').content))
+            print('urban quality loaded for', self.city_name)
         except:
-            print('urban quality not loaded')
+            print('urban quality not loaded for', self.city_name)
             urban_quality = self._calculate_urban_quality()[0]
         indicators = pd.read_sql(f'''SELECT * FROM urban_quality.indicators_view''', con=self.engine)
         urban_quality = urban_quality.filter(regex='ind.*').replace(0, np.NaN).mean().round(0).reset_index()
