@@ -30,6 +30,9 @@ class Tags(str, enums.AutoName):
     well_being = auto()
     collocation_matrix = auto()
     city_context = auto()
+    urban_quality = auto()
+    master_plan = auto()
+    coverage_zone = auto()
 
 
 @router.get("/")
@@ -165,13 +168,20 @@ async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIso
             detail=str(e)
         )
 
-
-@router.get("/diversity/diversity", response_model=schemas.DiversityOut,
+# Check during refactor
+@router.post("/diversity/diversity", response_model=schemas.DiversityOut,
             tags=[Tags.diversity])
-async def get_diversity(query_params: schemas.DiversityQueryParams = Depends()):  # todo validate service_type?
+async def get_diversity(query_params: schemas.DiversityIn):  # todo validate service_type?
     city_model = city_models[query_params.city]
-    result = Diversity(city_model).get_diversity(query_params.service_type)
-    return result
+    geojson = query_params.geojson.dict() if query_params.geojson else None
+    try:
+        result = Diversity(city_model).get_diversity(query_params.service_type, geojson)
+        return result
+    except (errors.TerritorialSelectError, errors.SelectedValueError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
 
 @router.get("/diversity/get_buildings", response_model=FeatureCollection,
             tags=[Tags.diversity])
@@ -258,3 +268,57 @@ def city_context_get_context(
         year=user_request.year,
         user_context_zone=user_request.user_selection_zone
     ).get_context()
+
+
+@router.get(
+    "/urban_quality/get_urban_quality",
+    response_model=schemas.UrbanQualityOut, tags=[Tags.urban_quality],
+)
+def urban_quality_get_urban_quality(city: enums.CitiesEnum):
+    city_model = city_models[city]
+    return Urban_Quality(city_model).get_urban_quality()
+
+
+# Check during refactor
+@router.post(
+    "/master_plan/get_master_plan",
+    response_model=schemas.MasterPlanOut, tags=[Tags.master_plan],
+)
+def master_plan_get_master_plan(
+        user_request: schemas.MasterPlanIn
+):
+    city_model = city_models[user_request.city]
+    master_plan_params = user_request.dict(exclude={"city"})
+    master_plan = Masterplan(city_model)
+    return master_plan.get_masterplan(**master_plan_params)
+
+
+# Check during refactor
+@router.get(
+    "/coverage_zone/get_radius_zone",
+    response_model=FeatureCollection, tags=[Tags.coverage_zone],
+)
+def coverage_zone_get_radius(
+        user_request: schemas.CoverageZonesRadiusQueryParams=Depends()
+):
+    try:
+        city_model = city_models[user_request.city]
+        return Coverage_Zones(city_model).get_radius_zone(user_request.service_type, user_request.radius)
+    except errors.NormativeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
+
+# Check during refactor
+@router.get(
+    "/coverage_zone/get_isochrone_zone",
+    response_model=FeatureCollection, tags=[Tags.coverage_zone],
+)
+def coverage_zone_get_isochrone(
+        user_request: schemas.CoverageZonesIsochroneQueryParams=Depends()
+):
+    city_model = city_models[user_request.city]
+    return Coverage_Zones(city_model).get_isochrone_zone(
+        user_request.service_type, user_request.travel_type, user_request.weight_value
+        )

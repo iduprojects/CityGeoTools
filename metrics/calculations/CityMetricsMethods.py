@@ -1,6 +1,5 @@
 import warnings
 warnings.filterwarnings('ignore')
-
 from typing import Any, Optional
 import geopandas as gpd
 import shapely
@@ -16,6 +15,7 @@ import networkit as nk
 import pandas.core.indexes as pd_index
 import pulp
 from sqlalchemy import create_engine
+from traceback import print_exc
 
 from jsonschema.exceptions import ValidationError
 from .utils import nk_routes_between_two_points
@@ -25,7 +25,7 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from matplotlib import pyplot as plt
 from scipy import spatial
-from .errors import TerritorialSelectError, SelectedValueError, ImplementationError
+from .errors import TerritorialSelectError, SelectedValueError, ImplementationError, NormativeError
 from itertools import product
 from inspect import signature
 
@@ -245,9 +245,6 @@ class BlocksClusterization(BaseMethod):
 
     def clusterize(self, selected_services):
 
-        if len(selected_services) == 0:
-            raise SelectedValueError("services", service_types, "service_code")
-
         service_in_blocks = selected_services.groupby(["block_id", "service_code"])["id"].count().unstack(fill_value=0)
         without_services = self.blocks["id"][~self.blocks["id"].isin(service_in_blocks.index)].values
         without_services = pd.DataFrame(columns=service_in_blocks.columns, index=without_services).fillna(0)
@@ -272,6 +269,7 @@ class BlocksClusterization(BaseMethod):
     def get_blocks(self, service_types, clusters_number=None, area_type=None, area_id=None, geojson=None):
 
         selected_services = self.services[self.services["service_code"].isin(service_types)]
+        if len(selected_services) == 0: raise SelectedValueError("services", service_types, "service_code")
         clusterization, service_in_blocks = self.clusterize(selected_services)
         
         # If user doesn't specified the number of clusters, use default value.
@@ -293,7 +291,9 @@ class BlocksClusterization(BaseMethod):
 
     def get_dendrogram(self, service_types):
             
-            clusterization, service_in_blocks = self.clusterize(service_types)
+            selected_services = self.services[self.services["service_code"].isin(service_types)]
+            if len(selected_services) == 0: raise SelectedValueError("services", service_types, "service_code")
+            clusterization, service_in_blocks = self.clusterize(selected_services)
 
             img = io.BytesIO()
             plt.figure(figsize=(20, 10))
@@ -610,6 +610,120 @@ class AccessibilityIsochrones(BaseMethod):
                 "Route output implemented only with params travel_type='public_transport' and weight_type='time_min'"
                 )
 
+# ######################################### Accessibility isochrones v2 #################################################
+
+class AccessibilityIsochrones_v2(BaseMethod):
+    def __init__(self, city_model):
+        BaseMethod.__init__(self, city_model)
+        super().validation("accessibility_isochrones_v2")
+        self.mobility_graph = self.city_model.MobilityGraph.copy()
+        self.graph_nk_time =  self.city_model.graph_nk_time
+        self.graph_nk_length = self.city_model.graph_nk_length
+        self.walk_speed = 4 * 1000 / 60
+        self.edge_types = {
+            "public_transport": ["subway", "bus", "tram", "trolleybus", "walk"],
+            "walk": ["walk"], 
+            "drive": ["car"]
+            }
+        self.travel_names = {
+            "public_transport": "Общественный транспорт",
+            "walk": "Пешком", 
+            "drive": "Личный транспорт"
+        }
+
+    def get_isochrone(self, travel_type, x_from:list, y_from:list, weight_value:int, weight_type, routes=False):
+
+        def _get_nk_distances(nk_dists, loc):
+            target_nodes = loc.index.astype('int')
+            source_node = loc.name
+            distances = [nk_dists.getDistance(source_node, node) for node in target_nodes]
+            return pd.Series(data = distances, index = target_nodes)
+        
+        source = pd.DataFrame(data = list(zip(range(len(x_from)), x_from, y_from)), columns = ['id', 'x', 'y'])
+        source = gpd.GeoDataFrame(source, geometry = gpd.points_from_xy(source['x'], source['y'], crs=self.city_crs))
+        
+        mobility_graph = self.mobility_graph.edge_subgraph(
+            [(u, v, k) for u, v, k, d in self.mobility_graph.edges(data=True, keys=True) 
+            if d["type"] in self.edge_types[travel_type]
+            ])
+
+        mobility_graph = nx.convert_node_labels_to_integers(mobility_graph)
+        graph_df = pd.DataFrame.from_dict(dict(mobility_graph.nodes(data=True)), orient='index')
+        graph_gdf = gpd.GeoDataFrame(graph_df, geometry = gpd.points_from_xy(graph_df['x'], graph_df['y'])).set_crs(self.city_crs)
+
+        from_services = graph_gdf['geometry'].sindex.nearest(source['geometry'], return_distance = True, return_all = False)
+
+        distances = pd.DataFrame(0, index = from_services[0][1], columns = list(mobility_graph.nodes()))
+        
+        if weight_type == 'time_min':
+            nk_graph = self.graph_nk_time
+        elif weight_type == 'length_meter':
+            nk_graph = self.graph_nk_length
+
+        nk_dists = nk.distance.SPSP(G = nk_graph, sources = distances.index.values).run()
+        distances =  distances.apply(lambda x:_get_nk_distances(nk_dists, x), axis = 1)
+
+        dist_nearest = pd.DataFrame(data = from_services[1], index = from_services[0][1], columns = ['dist'])
+
+        dist_nearest = dist_nearest / self.walk_speed if weight_type == 'time_min' else dist_nearest
+        distances = distances.add(dist_nearest.dist, axis = 0)
+        
+        cols = distances.columns.to_numpy()
+        source['isochrone_nodes'] = [cols[x].tolist() for x in distances.le(weight_value).to_numpy()]
+
+        for x, y in list(zip(from_services[0][1], source['isochrone_nodes'])):
+            y.extend([x])
+        
+        source['isochrone_geometry'] = source['isochrone_nodes'].apply(lambda x: [graph_gdf['geometry'].loc[[y for y in x]]])
+        source['isochrone_geometry'] = [list(x[0].geometry) for x in source['isochrone_geometry']]
+        source['isochrone_geometry'] = [[y.buffer(.01) for y in x] for x in source['isochrone_geometry']]
+        source['isochrone_geometry'] = source['isochrone_geometry'].apply(lambda x: shapely.ops.cascaded_union(x).convex_hull)
+        source['isochrone_geometry'] = gpd.GeoSeries(source['isochrone_geometry'], crs=self.city_crs)
+
+        isochrones = [gpd.GeoDataFrame(
+                {"travel_type": [self.travel_names[travel_type]], "weight_type": [weight_type], 
+                "weight_value": [weight_value], "geometry": [x]}, geometry = [x], crs = self.city_crs).to_crs(4326) 
+                for x in source['isochrone_geometry']]
+
+        isochrones = pd.concat([x for x in isochrones])
+        
+        stops, routes = self.get_routes(graph_gdf, source['isochrone_nodes'], travel_type, weight_type) if routes else ([None], [None])
+        
+        return {"isochrone": json.loads(isochrones.to_json()), "routes": routes, "stops": stops}
+
+    def get_routes(self, graph_gdf, selected_nodes, travel_type, weight_type):
+        
+        if travel_type == 'public_transport' and weight_type == 'time_min':
+            stops = graph_gdf[graph_gdf["stop"] == "True"]
+            stop_types = stops["desc"].apply(
+                    lambda x: pd.Series({t: True for t in x.split(", ")}
+                    ), type).fillna(False)
+            stops = stops.join(stop_types)
+            stops_result = [stops.loc[stops['nodeID'].isin(x)].to_crs(4326) for x in selected_nodes]
+            
+            nodes = [x['nodeID'] for x in stops_result]
+            subgraph = [self.mobility_graph.subgraph(x) for x in nodes]
+            routes = [pd.DataFrame.from_records([e[-1] for e in x.edges(data=True, keys=True)]) for x in subgraph]
+
+            def routes_selection (routes):
+                if len(routes) > 0:
+                    routes_select = routes[routes["type"].isin(self.edge_types['public_transport'][:-1])]
+                    routes_select["geometry"] = routes_select["geometry"].apply(lambda x: shapely.wkt.loads(x))
+                    routes_select = routes_select[["type", "time_min", "length_meter", "geometry"]]
+                    routes_select = gpd.GeoDataFrame(routes_select, crs=32636).to_crs(4326)
+                    return json.loads(routes_select.to_json())
+                else:
+                    return None
+
+            routes_result = list(map(routes_selection, routes))
+
+            return [json.loads(x.to_json()) for x in stops_result], routes_result
+
+        else:
+            raise ImplementationError(
+                "Route output implemented only with params travel_type='public_transport' and weight_type='time_min'"
+                )
+
 
 # ################################################ Diversity ######################################################
 class Diversity(BaseMethod):
@@ -666,8 +780,8 @@ class Diversity(BaseMethod):
         dist_matrix = dist_matrix[:, target[0]] + target_dist[0] + np.vstack(np.array(source_dist[0]))
         dist_matrix = np.where(dist_matrix > limit_value, dist_matrix, 1)
         dist_matrix = np.where(dist_matrix <= limit_value, dist_matrix, 0)
-
-        return dist_matrix
+    
+        return dist_matrix if len(services_nodes[0]) < len(houses_nodes[0]) else dist_matrix.T
 
     @staticmethod
     def calculate_diversity(houses, dist_matrix):
@@ -681,21 +795,22 @@ class Diversity(BaseMethod):
         houses = houses.join(houses_diversity, on="id")
         return houses
 
-    def get_diversity(self, service_type):
+    def get_diversity(self, service_type, geojson):
+        services_select = self.services[self.services["service_code"] == service_type]
+        if len(services_select) == 0: raise SelectedValueError("services", service_type, "service_code") 
 
-        services = self.services[self.services["service_code"] == service_type]
-        if len(services) == 0:
-            raise SelectedValueError("services", service_type, "service_code")
         houses = self.living_buildings
+        if geojson: houses = self.get_custom_polygon_select(geojson, self.city_crs, houses)[0]
+        if len(houses) == 0: raise TerritorialSelectError("houses") 
 
         travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
-        dist_matrix = self.get_distance_matrix(houses, services, graph, limit_value)
+        dist_matrix = self.get_distance_matrix(houses, services_select, graph, limit_value)
         houses = self.calculate_diversity(houses, dist_matrix)
 
         blocks = self.blocks.dropna(subset=["municipality_id"]) # TEMPORARY
-        blocks = self.blocks.join(houses.groupby(["block_id"])["diversity"].mean().round(2), on="id")
+        blocks = self.blocks.join(houses.groupby(["block_id"])["diversity"].mean().round(2), on="id", how="inner")
         municipalities = self.municipalities.join(
-            houses.groupby(["municipality_id"])["diversity"].mean().round(2), on="id"
+            houses.groupby(["municipality_id"])["diversity"].mean().round(2), on="id", how="inner"
             )
         return {
             "municipalities": json.loads(municipalities.to_crs(4326).fillna("None").to_json()),
@@ -760,7 +875,6 @@ class Diversity(BaseMethod):
 
         travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
         dist_matrix = self.get_distance_matrix(houses_in_block, services, graph, limit_value)
-        dist_matrix = np.transpose(dist_matrix) if len(houses_in_block) <= len(services) else dist_matrix
         houses_in_block = self.calculate_diversity(houses_in_block, dist_matrix)
 
         return json.loads(houses_in_block.to_crs(4326).to_json())
@@ -779,10 +893,9 @@ class Diversity(BaseMethod):
         travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
         dist_matrix = self.get_distance_matrix(house, services, graph, limit_value)
         house = self.calculate_diversity(house, np.vstack(dist_matrix[0]))
-        selected_services = services[dist_matrix[0] == 1]
+        selected_services = services[dist_matrix[:, 0] == 1]
         isochrone = AccessibilityIsochrones(self.city_model).get_accessibility_isochrone(
-            travel_type, house_x, house_y, limit_value, weigth
-        )
+            travel_type, house_x, house_y, limit_value, weigth)
         return {
             "house": json.loads(house.to_crs(4326).to_json()),
             "services": json.loads(selected_services.to_crs(4326).to_json()),
@@ -864,6 +977,112 @@ class CollocationMatrix(BaseMethod):
 
         return denominator
 
+################################################ Coverage Zones #################################################
+
+class Coverage_Zones(BaseMethod):
+    """
+    Coverage_Zones provides visual analytics on coverage areas of a chosen type of urban services 
+    via one of given methods: (1) radius or (2) isochrone.
+
+    '''
+    Attributes
+    ------
+    city_model
+            City Information Model
+
+    Methods
+    ------
+    get_radius_zone(service_type, radius)
+            Creates a buffer with a defined radius for each service.
+    get_isochrone_zone(service_type, travel_type, weight_value)
+            Creates an isochrone with defined way of transportation and time to travel (in minutes) for each service. 
+    """
+
+    def __init__(self, city_model):
+        BaseMethod.__init__(self, city_model)
+        super().validation("coverage_zones")
+        self.service_types = self.city_model.ServiceTypes.copy()
+        self.services = self.city_model.Services.copy()
+        self.walk_speed = 4 * 1000 / 60
+
+    def get_radius_zone(self, service_type: str, radius: Optional[int]):
+        """
+        Creates a buffer with a defined radius for each service.
+
+        Parameters
+        ---------
+        service_type: str
+            The type of services to run the method on.
+        radius: int, optional
+            The radius for the buffer.
+            If radius argument is not defined, it tries to get the value from ServicesTypes's standards.
+        
+        Returns
+        -------
+        FeatureCollection
+
+        Errors
+        ------
+        Raises NormativeError if radius (with given radius=None) cannot be defined from ServiceTypes.
+
+        Example
+        -------
+        Get coverage zones for schools with radius of 50 meters.
+            CityMetricsMethods.Coverage_Zones(city_model).get_radius_zone(service_type='schools', radius=50)
+        """
+
+        service_types  = self.service_types
+        services = self.services[self.services['service_code'] == service_type].reset_index(drop=True)
+
+        if not radius:
+            if service_types[service_types['code'] == service_type]['walking_radius_normative'].notna().iloc[0]:
+                    radius = service_types[service_types['code'] == service_type].iloc[0]['walking_radius_normative']
+            elif service_types[service_types['code'] == service_type]['public_transport_time_normative'].notna().iloc[0]:
+                    radius = service_types[service_types['code'] == service_type].iloc[0]['public_transport_time_normative'] * self.walk_speed
+            else:
+                raise NormativeError("radius", service_type)
+        
+        
+        services['geometry'] = services['geometry'].buffer(radius)
+
+        return json.loads(services.reset_index().to_crs(4326).to_json())
+
+
+    def get_isochrone_zone(self, service_type: str, travel_type:str, weight_value: int):
+        """
+        Creates an isochrone with defined way of transportation and time to travel (in minutes) for each service.
+        The method calls Accessibility_Isochrones_v2.get_isochrone.
+
+        Parameters
+        ---------
+        service_type: str
+            The type of services to run the method on.
+        travel_type: str
+            From Accessibility_Isochrones_v2. 
+            One of the given ways of transportation: "public_transport", "walk" or "drive".
+        weight_value: int
+            From Accessibility_Isochrones_v2.
+            Minutes to travel.
+        
+        Returns
+        -------
+        FeatureCollection
+
+        Example
+        -------
+        Get coverage zones for dentistries using 10 mins pedestrian-ways isochrone.
+            CityMetricsMethods.Coverage_Zones(city_model).get_isochrone_zone(service_type='dentists', travel_type='walk', weight_value = 10)
+        """
+
+        services = self.services[self.services['service_code'] == service_type].reset_index(drop=True)
+
+        x_from = services['geometry'].x
+        y_from = services['geometry'].y
+        
+        isochrone = AccessibilityIsochrones_v2(self.city_model).get_isochrone(travel_type, x_from, y_from, weight_value, weight_type = 'time_min')
+        
+        return isochrone["isochrone"]
+
 
 # ######################################### New Provisions #################################################
 class City_Provisions(BaseMethod): 
@@ -892,9 +1111,15 @@ class City_Provisions(BaseMethod):
         self.graph_nk_time =  city_model.graph_nk_time
         self.nx_graph =  city_model.MobilityGraph
         self.buildings = city_model.Buildings.copy(deep = True)
-        self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
+        self.buildings = self.buildings.dropna(subset = 'functional_object_id')
+        self.buildings['functional_object_id'] = self.buildings['functional_object_id'].astype(int)
+        self.buildings.index = self.buildings['functional_object_id'].values
+
         self.services = city_model.Services[city_model.Services['service_code'].isin(service_types)].copy(deep = True)
         self.services.index = self.services['id'].values.astype(int)
+
+        self.file_server = os.environ['PROVISIONS_DATA_FILE_SERVER']
+
         try:
             self.services_impotancy = dict(zip(service_types, service_impotancy))
         except:
@@ -905,16 +1130,20 @@ class City_Provisions(BaseMethod):
         self.buildings_old_values = None
         self.services_old_values = None
         self.errors = []
+        #try:
+        self.demands = pd.read_sql(f'''SELECT functional_object_id, {", ".join(f"{service_type}_service_demand_value_{self.valuation_type}" for service_type in service_types)}
+                                FROM social_stats.buildings_load_future
+                                WHERE year = {self.year}
+                                ''', con = self.engine)
+        #self.demands.index = self.demands['functional_object_id'].values
+        self.buildings = self.buildings.merge(self.demands, left_index = True, right_on = 'functional_object_id', how = 'left')
+
+        #except:
+            #self.errors.append(service_type)
         for service_type in service_types:
-            try:
-                self.demands = pd.read_sql(f'''SELECT functional_object_id, {service_type}_service_demand_value_{self.valuation_type} 
-                                        FROM social_stats.buildings_load_future
-                                        WHERE year = {self.year}
-                                        ''', con = self.engine)
-                self.buildings = self.buildings.merge(self.demands, on = 'functional_object_id', how = 'right').dropna()
-                self.buildings[f'{service_type}_service_demand_left_value_{self.valuation_type}'] = self.buildings[f'{service_type}_service_demand_value_{self.valuation_type}']
-            except:
-                self.errors.append(service_type)
+            self.buildings[f'{service_type}_service_demand_left_value_{self.valuation_type}'] = self.buildings[f'{service_type}_service_demand_value_{self.valuation_type}']
+            self.buildings = self.buildings.dropna(subset = f'{service_type}_service_demand_value_{self.valuation_type}')
+            
         self.service_types= [x for x in service_types if x not in self.errors]
         self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
         self.services['capacity_left'] = self.services['capacity']
@@ -939,7 +1168,6 @@ class City_Provisions(BaseMethod):
             self.user_changes_services['capacity_left'] = self.user_changes_services['capacity']
             self.services_old_values = self.user_changes_services[['capacity','capacity_left','carried_capacity_within','carried_capacity_without']]
             self.user_changes_services = self.user_changes_services.set_crs(self.city_crs)
-            #self.user_changes_services.index = range(0, len(self.user_changes_services))
             self.user_changes_services.index = self.user_changes_services['id'].values.astype(int)
         else:
             self.user_changes_services = self.services.copy(deep = True)
@@ -958,7 +1186,6 @@ class City_Provisions(BaseMethod):
                 self.user_changes_buildings[f'{service_type}_service_demand_left_value_{self.valuation_type}'] = self.user_changes_buildings[f'{service_type}_service_demand_value_{self.valuation_type}'].values
             self.buildings_old_values = self.user_changes_buildings[old_cols]
             self.user_changes_buildings = self.user_changes_buildings.set_crs(self.city_crs)
-            #self.user_changes_buildings.index = range(len(self.user_changes_services) + 1, len(self.user_changes_services) + len(self.user_changes_buildings) + 1)
             self.user_changes_buildings.index = self.user_changes_buildings['functional_object_id'].values.astype(int)
         else:
             self.user_changes_buildings = self.buildings.copy()
@@ -989,10 +1216,10 @@ class City_Provisions(BaseMethod):
                 self.Provisions[service_type]['selected_graph'] = self.graph_nk_time
             
             try:
-                self.Provisions[service_type]['services'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_services').content))
-                self.Provisions[service_type]['buildings'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_buildings').content))
-                self.Provisions[service_type]['distance_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_distance_matrix').content))
-                self.Provisions[service_type]['destination_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'http://10.32.1.60:8090/provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_destination_matrix').content))
+                self.Provisions[service_type]['services'] = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_services').content))
+                self.Provisions[service_type]['buildings'] = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_buildings').content))
+                self.Provisions[service_type]['distance_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_distance_matrix').content))
+                self.Provisions[service_type]['destination_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_destination_matrix').content))
                 print(service_type + ' loaded')
             except:
                 print(service_type + ' not loaded')
@@ -1036,7 +1263,7 @@ class City_Provisions(BaseMethod):
     def _provisions_impotancy(self, buildings):
         provision_value_columns = [service_type + '_provison_value' for service_type in self.service_types]
         if self.services_impotancy:
-            t = buildings[provision_value_columns].apply(lambda x: self.services_impotancy[x.name.split("_")[0]]*x).sum(axis = 1)
+            t = buildings[provision_value_columns].apply(lambda x: self.services_impotancy[x.name.split("_provison_value")[0]]*x).sum(axis = 1)
         else: 
             t = buildings[provision_value_columns].sum(axis = 1)
         _min = t.min()
@@ -1397,16 +1624,17 @@ class Masterplan(BaseMethod):
         super().validation("masterplan")
         self.buildings = self.city_model.Buildings.copy()
 
-    def get_masterplan(self, polygon: gpd.GeoDataFrame, add_building:gpd.GeoDataFrame, delet_building:gpd.GeoDataFrame, land_area: float , dev_land_procent: float, dev_land_area: float, dev_land_density: float, land_living_area: float, 
-    dev_living_density: float, population: int, population_density: float, living_area_provision: float, land_business_area: float, building_height_mode: float, 
-    living: float, commerce: float):
+    def get_masterplan(self, polygon: json, add_building: json, delet_building: list[int]) -> json:
 
         """The function calculates the indicators of the master plan for a certain territory.
 
         :param polygon: the territory within which indicators will be calculated in GeoJSON format.
-        :param land_area... building_height_mode: the value of the indicators that the user can set.
-        :param living: the percentage of the territory that will be occupied by residential buildings.
-        :param commerce: the percentage of the territory that will be occupied by commercial buildings.
+        :param add_building: the building that will be added to the territory in GeoJSON format.
+        :param delet_building: the building that will be deleted from the territory in List format.
+
+        city_model = CityInformationModel(city_name="saint-petersburg", city_crs=32636)
+        
+        :example: Masterplan(city_model).get_masterplan(polygon, add_building, delet_building=[1, 2, 3])
         
         :return: dictionary with the name of the indicator and its value in JSON format.
         """
@@ -1420,82 +1648,62 @@ class Masterplan(BaseMethod):
 
         if delet_building is not None:
             delet_building = pd.DataFrame(delet_building)
-            delet_building.columns = ['id']
-            land_with_buildings = land_with_buildings[~land_with_buildings['id'].isin(delet_building['id'])]
+            delet_building.columns = ['functional_object_id']
+            land_with_buildings = land_with_buildings[~land_with_buildings['functional_object_id'].isin(delet_building['functional_object_id'])]
             
         land_with_buildings_living = land_with_buildings[land_with_buildings['is_living'] == True]
-        hectare = 10000
-
-        if living is None:
-            living = 80
-            
-        if commerce is None:
-            commerce = 20                                                                             
         
-        if land_area is None: 
-            land_area =  polygon.area / hectare
-            land_area = land_area.squeeze()
-            land_area =  np.around(land_area, decimals = 2)
+        hectare = 10000
+        living = 80
+        commerce = 20                             
+        
+        land_area =  polygon.area / hectare
+        land_area = land_area.squeeze()
+        land_area =  np.around(land_area, decimals = 2)
           
- 
-        if dev_land_procent is None:
-            buildings_area = land_with_buildings['basement_area'].sum()
-            dev_land_procent = ((buildings_area / hectare) / land_area) * 100
-            dev_land_procent = np.around(dev_land_procent, decimals = 2)
+        buildings_area = land_with_buildings['basement_area'].sum()
 
-        if dev_land_area is None:
-            dev_land_area = land_with_buildings['basement_area'] * land_with_buildings['storeys_count']
-            dev_land_area = dev_land_area.sum() / hectare
-            dev_land_area = np.around(dev_land_area, decimals = 2)
+        dev_land_procent = ((buildings_area / hectare) / land_area) * 100
+        dev_land_procent = np.around(dev_land_procent, decimals = 2)
+      
+        dev_land_area = land_with_buildings['basement_area'] * land_with_buildings['storeys_count']
+        dev_land_area = dev_land_area.sum() / hectare
+        dev_land_area = np.around(dev_land_area, decimals = 2)
     
-        if dev_land_density is None:
-            dev_land_density = dev_land_area / land_area
-            dev_land_density = np.around(dev_land_density, decimals = 2)
+        dev_land_density = dev_land_area / land_area
+        dev_land_density = np.around(dev_land_density, decimals = 2)
 
-        if land_living_area is None:
-            land_living_area = land_with_buildings_living['basement_area'] * land_with_buildings_living['storeys_count']
-            land_living_area = ((land_living_area.sum() / hectare) / 100 * living)
-            land_living_area = np.around(land_living_area, decimals = 2)
+        land_living_area = land_with_buildings_living['basement_area'] * land_with_buildings_living['storeys_count']
+        land_living_area = ((land_living_area.sum() / hectare) / 100 * living)
+        land_living_area = np.around(land_living_area, decimals = 2)
+   
+        dev_living_density = land_living_area / land_area
+        dev_living_density = np.around(dev_living_density, decimals = 2)
+
+        population =  land_with_buildings['population'].sum()
+        population = population.astype(int)
             
-        else:
-            land_living_area = (land_living_area / 100 * living)
-            land_living_area = np.around(land_living_area, decimals = 2)
+        population_density = population / land_area.squeeze()
+        population_density = np.around(population_density, decimals = 2)
 
-        if dev_living_density is None:
-            dev_living_density = land_living_area / land_area
-            dev_living_density = np.around(dev_living_density, decimals = 2)
-
-        if population is None:
-            population =  land_with_buildings['population'].sum()
-            population = population.astype(int)
+        living_area_provision = (land_living_area * hectare) / population
+        living_area_provision = np.around(living_area_provision, decimals = 2)
+        
+        land_business_area = ((land_living_area / living) * commerce) 
+        land_business_area = np.around(land_business_area, decimals = 2)
+        
+        building_height_mode = land_with_buildings['storeys_count'].mode().squeeze()
+        building_height_mode = building_height_mode.astype(int)
             
-            
-        if population_density is None:
-            population_density = population / land_area.squeeze()
-            population_density = np.around(population_density, decimals = 2)
-
-        if living_area_provision is None:
-            living_area_provision = (land_living_area * hectare) / population
-            living_area_provision = np.around(living_area_provision, decimals = 2)
-
-        if land_business_area is None:
-            land_business_area = ((land_living_area / living) * commerce) 
-            land_business_area = np.around(land_business_area, decimals = 2)
-
-        if building_height_mode is None:
-            building_height_mode = land_with_buildings['storeys_count'].mode().squeeze()
-            building_height_mode = building_height_mode.astype(int)
-            
-        data = [[land_area], [dev_land_procent], [dev_land_area], [dev_land_density], [land_living_area],
-                    [dev_living_density], [population], [population_density], [living_area_provision], 
-                    [land_business_area], [building_height_mode]]   
-        columns = ['indicators']
+        data = [land_area, dev_land_procent, dev_land_area, dev_land_density, land_living_area,
+                    dev_living_density, population, population_density, living_area_provision, 
+                    land_business_area, building_height_mode]   
         index = ['land_area', 'dev_land_procent',
                 'dev_land_area', 'dev_land_density', 'land_living_area', 
                 'dev_living_density', 'population', 
                 'population_density', 'living_area_provision', 
                 'land_business_area', 'building_height_mode']
-        df_indicators = pd.DataFrame(data, index, columns)
+        df_indicators = pd.Series(data, index=index)
 
         return json.loads(df_indicators.to_json())
 
@@ -1505,10 +1713,11 @@ class Urban_Quality(BaseMethod):
 
     def __init__(self, city_model):
         '''
+        returns urban quality index and raw data for it
+        metric calculates different quantity parameters of urban environment (share of emergent houses, number of cultural objects, etc.)
+        and returns rank of urban quality for each city block (from 1 to 10, and 0 is for missing data)
         >>> Urban_Quality(city_model).get_urban_quality()
-        >>> returns urban quality index and raw data for it
-        >>> metric calculates different quantity parameters of urban environment (share of emergent houses, number of cultural objects, etc.)
-        >>> and returns rank of urban quality for each city block (from 1 to 10, and 0 is for missing data)
+
         '''
         BaseMethod.__init__(self, city_model)
         self.buildings = city_model.Buildings.copy()
@@ -1573,7 +1782,7 @@ class Urban_Quality(BaseMethod):
     def _ind4(self):
 
         houses = self.buildings.copy()
-        houses = houses[houses['is_living']]
+        houses = houses[houses['is_living'] == True]
         local_blocks = self.blocks.copy()
         modern_houses = houses.query('1956 <= building_year')
 
@@ -1594,7 +1803,7 @@ class Urban_Quality(BaseMethod):
 
         local_blocks = self.blocks.copy()
         houses = self.buildings.copy()
-        houses = houses.query('is_living')
+        houses = houses[houses['is_living'] == True]
         local_services = self.services.copy()
         local_services = local_services[local_services['city_service_type_id'].isin(self.main_services_id)]
 
@@ -1649,11 +1858,37 @@ class Urban_Quality(BaseMethod):
         local_blocks['IND'] = pd.to_numeric(local_blocks['IND']).fillna(0).astype(int)
         print('Indicator 10 done')
         return local_blocks['IND'], local_blocks['IND_data']
+    def _ind14(self):
+        local_blocks = self.blocks.copy()
+        local_greenery = self.greenery.copy()
+        local_greenery = local_greenery.explode(ignore_index=True)
+        local_greenery = local_greenery[local_greenery.geometry.type =="Polygon"]
 
-    def _ind14_15(self):
+        local_blocks['area'] = local_blocks.area
+        greenery_in_blocks = gpd.overlay(local_blocks, local_greenery, how='intersection')
+        greenery_in_blocks['green_area'] = greenery_in_blocks.area
+        share_of_green = greenery_in_blocks.groupby('block_id').sum('green_area').reset_index()
+        share_of_green['share'] = share_of_green['green_area'] / share_of_green['area']
+
+        local_blocks['IND_14_data']  = local_blocks.merge(share_of_green, how='left')['share'] 
+        local_blocks['IND_14'] = pd.cut(local_blocks['IND_14_data'], 10, labels=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], right=False)
+        local_blocks['IND_14'] = pd.to_numeric(local_blocks['IND_14']).fillna(0).astype(int)
+        print('Indicator 14 done')
+        return local_blocks['IND_14'], local_blocks['IND_14_data']
+
+    def _ind15(self):
 
         local_blocks = self.blocks.copy()
         local_greenery = self.greenery.copy()
+
+        if len(local_greenery.vegetation_index) == local_greenery.vegetation_index.isna().sum():
+            local_blocks['IND_15_data'] = 0
+            local_blocks['IND_15'] = 0
+            print('IND15: vegetation index is not loaded')
+            return local_blocks['IND_15'], local_blocks['IND_15_data']
+
+        local_greenery = local_greenery.explode(ignore_index=True)
+        local_greenery = local_greenery[local_greenery.geometry.type =="Polygon"]
 
         local_blocks['area'] = local_blocks.area
         greenery_in_blocks = gpd.overlay(local_blocks, local_greenery, how='intersection')
@@ -1665,15 +1900,12 @@ class Urban_Quality(BaseMethod):
         share_of_green_grouped = share_of_green.groupby('block_id').sum().reset_index()
         share_of_green_grouped['quality'] = share_of_green_grouped.vw / share_of_green_grouped.share
 
-        local_blocks[['IND_14_data', 'IND_15_data']]  = local_blocks.merge(share_of_green_grouped, how='left')[['share', 'quality']] 
+        local_blocks['IND_15_data']  = local_blocks.merge(share_of_green_grouped, how='left')['quality'] 
 
-        local_blocks['IND_14'] = pd.cut(local_blocks['IND_14_data'], 10, labels=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], right=False)
-        local_blocks['IND_14'] = pd.to_numeric(local_blocks['IND_14']).fillna(0).astype(int)
-        print('Indicator 14 done')
         local_blocks['IND_15'] = pd.cut(local_blocks['IND_15_data'], 10, labels=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], right=False)
         local_blocks['IND_15'] = pd.to_numeric(local_blocks['IND_15']).fillna(0).astype(int)
         print('Indicator 15 done')
-        return local_blocks['IND_14'], local_blocks['IND_14_data'], local_blocks['IND_15'], local_blocks['IND_15_data']
+        return local_blocks['IND_15'], local_blocks['IND_15_data']
 
     def _ind17(self):
 
@@ -1681,6 +1913,8 @@ class Urban_Quality(BaseMethod):
         local_services = self.services.copy()
         local_services = local_services[local_services['city_service_type_id'].isin(self.main_services_id)]
         local_greenery = self.greenery.copy()
+        local_greenery = local_greenery.explode(ignore_index=True)
+        local_greenery = local_greenery[local_greenery.geometry.type =="Polygon"]
 
         greenery_in_blocks = gpd.overlay(local_blocks, local_greenery[['geometry', 'service_code', 'block_id']], how='intersection')
         greenery_in_blocks['green_area'] = greenery_in_blocks.area
@@ -1703,6 +1937,12 @@ class Urban_Quality(BaseMethod):
         local_blocks = self.blocks.copy()
         local_okn = self.services.copy()
         local_okn = local_okn[local_okn['service_code'] =='culture_object']
+
+        if len(local_okn) == 0:
+            local_blocks['IND_22_data'] = 0
+            local_blocks['IND_22'] = 0
+            print('IND22: culture objects are not loaded')
+            return local_blocks['IND_22'], local_blocks['IND_22_data']
 
         local_blocks['area'] = local_blocks.area
         okn_in_blocks = gpd.sjoin(local_okn[['geometry', 'service_code']], local_blocks, how='inner')
@@ -1776,8 +2016,8 @@ class Urban_Quality(BaseMethod):
         urban_quality['ind10'], urban_quality_raw['idn10'] = self._ind10()
         #urban_quality['ind11'], urban_quality_raw['ind11'] = self._ind_11() #too long >15 min
         #urban_quality['ind13'], urban_quality_raw['ind13'] = self._ind_13() #recreational areas problem
-        urban_quality['ind14'], urban_quality_raw['ind14'],\
-            urban_quality['ind15'], urban_quality_raw['ind15'] = self._ind14_15()
+        urban_quality['ind14'], urban_quality_raw['ind14'] = self._ind14()
+        urban_quality['ind15'], urban_quality_raw['ind15'] = self._ind15()
         urban_quality['ind17'], urban_quality_raw['ind17'] = self._ind17()
         #urban_quality['ind18'], urban_quality_raw['ind18'] = self._ind18() #recreational areas problem
         #urban_quality['ind20'], urban_quality_raw['ind20'] = self._ind20() #too much in RAM
@@ -1788,7 +2028,7 @@ class Urban_Quality(BaseMethod):
         #urban_quality['ind32'], urban_quality_raw['ind32'] = self._ind32() #no stops provision in database
 
         urban_quality = urban_quality.replace(0, np.NaN)
-        urban_quality['urban_quality_value'] = urban_quality.filter(regex='ind.*').median(axis=1).round(0)
+        urban_quality['urban_quality_value'] = urban_quality.filter(regex='ind.*').mean(axis=1).round(0)
         urban_quality = urban_quality.fillna(0)
         
         return {'urban_quality': json.loads(urban_quality.to_json()),
