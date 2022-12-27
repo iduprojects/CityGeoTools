@@ -1725,6 +1725,8 @@ class Urban_Quality(BaseMethod):
         self.blocks = city_model.Blocks.copy()
         self.greenery = city_model.RecreationalAreas.copy()
         self.city_crs = city_model.city_crs
+        self.engine = city_model.engine
+        self.file_server = os.environ['PROVISIONS_DATA_FILE_SERVER']
         
         self.main_services_id = [172, 130, 131, 132, 163, 183, 174, 165, 170, 176, 175, 161, 173, 88, 124, 51, 47, 46, 45, 41, 40,
         39, 37, 35, 55, 34, 29, 27, 26, 20, 18, 17, 14, 13, 11, 33, 62, 65, 66, 121, 120, 113, 106, 102, 97, 94, 93, 92, 90, 189,
@@ -2004,7 +2006,7 @@ class Urban_Quality(BaseMethod):
         print('Indicator 30 done')
         return local_blocks['IND'], local_blocks['IND_data']
 
-    def get_urban_quality(self):
+    def _calculate_urban_quality(self):
 
         urban_quality = self.blocks.copy().to_crs(4326)
         urban_quality_raw = self.blocks.copy().to_crs(4326)
@@ -2024,15 +2026,49 @@ class Urban_Quality(BaseMethod):
         urban_quality['ind22'], urban_quality_raw['ind22'] = self._ind22()
         urban_quality['ind23'], urban_quality_raw['ind23'] = self._ind23()
         #urban_quality['ind25'], urban_quality_raw['ind25'] = self._ind25() #no crosswalks provision in database
-        urban_quality['ind30'], urban_quality_raw['ind30'] = self._ind30()
+        #urban_quality['ind30'], urban_quality_raw['ind30'] = self._ind30()
         #urban_quality['ind32'], urban_quality_raw['ind32'] = self._ind32() #no stops provision in database
 
         urban_quality = urban_quality.replace(0, np.NaN)
         urban_quality['urban_quality_value'] = urban_quality.filter(regex='ind.*').mean(axis=1).round(0)
         urban_quality = urban_quality.fillna(0)
         
-        return {'urban_quality': json.loads(urban_quality.to_json()),
-                'urban_quality_data': json.loads(urban_quality_raw.to_json())}
+        return urban_quality, urban_quality_raw
+
+    def get_urban_quality(self):
+        try:
+            urban_quality = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}urban_quality/urban_quality').content))
+            urban_quality_raw = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}urban_quality/urban_quality_raw').content))
+            print('urban quality loaded')
+        except:
+            print('urban quality not loaded')
+            urban_quality, urban_quality_raw = self._calculate_urban_quality()
+        return {"urban_quality": json.loads(urban_quality.to_json()),
+                "urban_quality_data": json.loads(urban_quality_raw.to_json())}
+
+    def get_urban_quality_context(self):
+        try:
+            urban_quality = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}urban_quality/urban_quality').content))
+            print('urban quality loaded')
+        except:
+            print('urban quality not loaded')
+            urban_quality = self._calculate_urban_quality()[0]
+        indicators = pd.read_sql(f'''SELECT * FROM urban_quality.indicators_view''', con=self.engine)
+        urban_quality = urban_quality.filter(regex='ind.*').replace(0, np.NaN).mean().round(0).reset_index()
+        urban_quality.columns = ['indicator_id', 'indicator_value']
+        urban_quality['indicator_id'] = urban_quality.indicator_id.str[3:].astype(int)
+        urban_quality = indicators.merge(urban_quality, how='left')
+        urban_quality['indicator_value'] = urban_quality.indicator_value.fillna(0).astype(int)
+        values = []
+        for space in pd.unique(urban_quality.space_name):
+            values.append({space:json.loads(urban_quality[urban_quality['space_name'] == space][['indicator_id', 'indicator_value']].to_json(orient='records'))})
+        description = []
+        for index, row in indicators.iterrows():
+            description.append({f'Indicator {row.indicator_id}': json.loads(row[['indicator_id', 'description']].to_json())})
+        return {"urban_quality":{"values":values, "description":description}, 
+            "rank": urban_quality.indicator_value.sum().astype(int),
+            "max_rank": len(urban_quality.indicator_value) * 10}
+        
 
 # ########################################   Infrastructure provision index  ####################################################
 
@@ -2183,5 +2219,5 @@ class Infrastructure_Provision_Index(BaseMethod):
         ipi_blocks['infrastructure_provision_index'] = ipi_blocks.filter(regex='ind.*').median(axis=1).round(0)
         ipi_blocks = ipi_blocks.fillna(0)
         
-        return {'infrastructure_provision_index': json.loads(ipi_blocks.to_json()),
-                'infrastructure_provision_index_data': json.loads(ipi_blocks_raw.to_json())}
+        return {"infrastructure_provision_index": json.loads(ipi_blocks.to_json()),
+                "infrastructure_provision_index_data": json.loads(ipi_blocks_raw.to_json())}
