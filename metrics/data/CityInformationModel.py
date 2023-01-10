@@ -1,3 +1,8 @@
+import numpy as np
+
+np.finfo(np.dtype("float32"))
+np.finfo(np.dtype("float64"))
+
 import pandas as pd
 import os
 import pickle
@@ -43,6 +48,7 @@ class CityInformationModel:
         if ("mode" not in kwargs or kwargs["mode"] == "user_mode") \
         or (kwargs["mode"] == "general_mode" and cls._validate(*args, **kwargs)):
             return super().__new__(cls)
+            
 
     @classmethod
     def _validate(cls, *args, **kwargs) -> bool:
