@@ -43,7 +43,7 @@ class QueryInterface:
             elif "geometry" in c:
                 sql_columns.append(c.replace("geometry", "ST_AsGeoJSON(t.geometry) as geometry"))
             else:
-                sql_columns.append("t." + c)
+                sql_columns.append(c)
 
         sql_columns = ", ".join(sql_columns)
         sql_columns = sql_columns.replace("t.geometry", "ST_AsGeoJSON(t.geometry)")

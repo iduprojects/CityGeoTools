@@ -64,7 +64,7 @@ class DataQueryInterface(QueryInterface):
 
         # Recreational Areas
         rec_areas_columns = ["functional_object_id as id", "city_service_type", "geometry", "city_service_type_id", 
-                            "functional_object_properties->>'ndvi' as vegetation_index", 
+                            "cast(functional_object_properties->>'ndvi' as double precision) as vegetation_index",
                             "city_service_type_code as service_code", "service_name",
                             "address", "capacity", "block_id", "administrative_unit_id", "municipality_id"]
                             
