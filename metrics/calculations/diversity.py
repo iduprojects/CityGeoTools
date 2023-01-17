@@ -48,6 +48,52 @@ class Diversity(BaseMethod):
             "blocks": json.loads(blocks.to_crs(4326).fillna("None").to_json())
                     }
 
+    def get_diversity_v2(self, service_type, return_jsons, valuation_type = 'normative', travel_type = None, limit_value = None):
+        
+        houses = self.living_buildings
+
+        if valuation_type == 'normative':
+            services = self.services[self.services["service_code"] == service_type]
+            if len(services) == 0:
+                raise SelectedValueError("services", service_type, "service_code")
+            travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
+
+        if valuation_type == 'custom':
+            if type(service_type) == str:
+                service_type = [service_type]
+            if travel_type == None or limit_value == None:
+                raise ValueError("Travel type or limit value is empty")
+            services = self.services[self.services["service_code"].isin(service_type)]
+            if len(services) == 0:
+                raise SelectedValueError("services", service_type, "service_code")
+            if travel_type == "walk":
+                weigth = "length_meter"
+                graph = self.mobility_graph_length
+            elif travel_type == 'public_transport':
+                weigth = "time_min"
+                graph = self.mobility_graph_time
+            else:
+                raise ValueError("Not valid type of travel")
+            
+        dist_matrix = self._get_distance_matrix(houses, services, graph, limit_value)
+        houses = self._calculate_diversity(houses, dist_matrix)
+
+        blocks = self.blocks.dropna(subset=["municipality_id"]) # TEMPORARY
+        blocks = self.blocks.join(houses.groupby(["block_id"])["diversity"].mean().round(2), on="id")
+        municipalities = self.municipalities.join(
+            houses.groupby(["municipality_id"])["diversity"].mean().round(2), on="id"
+            )
+        self.buildings = houses
+        self.blocks = blocks
+        self.municipalities = municipalities
+        if return_jsons == True:
+            return {
+                "municipalities": json.loads(municipalities.to_crs(4326).fillna("None").to_json()),
+                "blocks": json.loads(blocks.to_crs(4326).fillna("None").to_json())
+                        }
+        else:
+            return self
+
     def get_houses(self, block_id, service_type):
 
         services = self.services[self.services["service_code"] == service_type]
