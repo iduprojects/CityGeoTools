@@ -1,15 +1,29 @@
-from enum import auto
 import faulthandler
-
 from fastapi import APIRouter, HTTPException, status, Body, Depends
 from fastapi.responses import StreamingResponse
 from geojson_pydantic import FeatureCollection
 
+from enum import auto
 from app import enums, schemas
-from calculations.utils import request_points_project
-from calculations.CityMetricsMethods import *
-from calculations import errors
 from data.city_models import city_models, city_names
+from typing import Optional
+
+from calculations import utils, errors
+from calculations import (
+    traffics_calculation, 
+    mobility_analysis,
+    visibility_analysis,
+    weighted_voronoi,
+    blocks_clusterization,
+    services_clusterization,
+    spacematrix,
+    diversity,
+    provision,
+    collocation_matrix,
+    urban_quality,
+    master_plan,
+    coverage_zone
+)
 
 router = APIRouter()
 faulthandler.enable()
@@ -18,7 +32,7 @@ class Tags(str, enums.AutoName):
     def _generate_next_value_(name, start, count, last_values):
         return name
 
-    trafics_calculation = auto()
+    traffics_calculation = auto()
     mobility_analysis = auto()
     visibility_analysis = auto()
     weighted_voronoi = auto()
@@ -45,12 +59,12 @@ async def get_cities_names():
 
 @router.post(
     '/pedastrian_walk_traffics/pedastrian_walk_traffics_calculation',
-    response_model=schemas.PedastrianWalkTrafficsCalculationOut, tags=[Tags.trafics_calculation]
+    response_model=schemas.PedastrianWalkTrafficsCalculationOut, tags=[Tags.traffics_calculation]
 )
 def pedastrian_walk_traffics_calculation(query_params: schemas.PedastrianWalkTrafficsCalculationIn):
     city_model = city_models[query_params.city]
     try:
-        result = TrafficCalculator(city_model).get_trafic_calculation(query_params.geojson.dict())
+        result = traffics_calculation.TrafficCalculator(city_model).get_trafic_calculation(query_params.geojson.dict())
         return result
     except errors.TerritorialSelectError:
         raise HTTPException(
@@ -63,12 +77,13 @@ def pedastrian_walk_traffics_calculation(query_params: schemas.PedastrianWalkTra
     "/visibility_analysis/visibility_analysis",
     response_model=FeatureCollection, tags=[Tags.visibility_analysis]
 )
-async def visibility_analysis(query_params: schemas.VisibilityAnalisysQueryParams = Depends()):
+async def get_visibility_analysis(query_params: schemas.VisibilityAnalisysQueryParams = Depends()):
     city_model = city_models[query_params.city]
     request_points = [[query_params.x_from, query_params.y_from]]
     to_crs = city_models[query_params.city].city_crs
-    request_point = request_points_project(request_points, 4326, to_crs)[0]
-    return VisibilityAnalysis(city_model).get_visibility_result(request_point, query_params.view_distance)
+    request_point = utils.request_points_project(request_points, 4326, to_crs)[0]
+    return visibility_analysis.VisibilityAnalysis(city_model).get_visibility_result(
+        request_point, query_params.view_distance)
 
 
 @router.post(
@@ -77,7 +92,7 @@ async def visibility_analysis(query_params: schemas.VisibilityAnalisysQueryParam
 )
 async def wighted_voronoi_calculation(query_params: schemas.WeightedVoronoiCalculationIn):
     city_model = city_models[query_params.city]
-    return WeightedVoronoi(city_model).get_weighted_voronoi_result(query_params.geojson.dict())
+    return weighted_voronoi.WeightedVoronoi(city_model).get_weighted_voronoi_result(query_params.geojson.dict())
 
 
 @router.post(
@@ -87,7 +102,7 @@ async def wighted_voronoi_calculation(query_params: schemas.WeightedVoronoiCalcu
 async def get_blocks_clusterization(query_params: schemas.BlocksClusterizationGetBlocks):
     city_model = city_models[query_params.city]
     geojson = query_params.geojson.dict() if query_params.geojson else None
-    return BlocksClusterization(city_model).get_blocks(
+    return blocks_clusterization.BlocksClusterization(city_model).get_blocks(
         query_params.service_types, query_params.clusters_number, 
         query_params.area_type, query_params.area_id, geojson
         )
@@ -104,7 +119,7 @@ async def get_blocks_clusterization(query_params: schemas.BlocksClusterizationGe
 )
 async def get_blocks_clusterization_dendrogram(query_params: schemas.BlocksClusterizationGetBlocks):
     city_model = city_models[query_params.city]
-    result = BlocksClusterization(city_model).get_dendrogram(query_params.service_types)
+    result = blocks_clusterization.BlocksClusterization(city_model).get_dendrogram(query_params.service_types)
     return StreamingResponse(content=result, media_type="image/png")
 
 
@@ -116,7 +131,7 @@ async def get_services_clusterization(query_params: schemas.ServicesClusterizati
     geojson = query_params.geojson.dict() if query_params.geojson else None
 
     try:
-        result = ServicesClusterization(city_model).get_clusters_polygon(
+        result = services_clusterization.ServicesClusterization(city_model).get_clusters_polygon(
             query_params.service_types, query_params.area_type, query_params.area_id, geojson,
             query_params.condition, query_params.condition_value, query_params.n_std
             )
@@ -136,10 +151,10 @@ async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
     city_model = city_models[query_params.city]
     geojson = query_params.geojson.dict() if query_params.geojson else None
     try:
-        return Spacematrix(city_model).get_morphotypes(
+        return spacematrix.Spacematrix(city_model).get_morphotypes(
             query_params.clusters_number, query_params.area_type, query_params.area_id, geojson
             )
-    except SelectedValueError as e:
+    except errors.SelectedValueError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e)
@@ -154,9 +169,9 @@ async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIso
     city_model = city_models[query_params.city]
     request_points = [[query_params.x_from, query_params.y_from]]
     to_crs = city_models[query_params.city].city_crs
-    x_from, y_from = request_points_project(request_points, 4326, to_crs)[0]
+    x_from, y_from = utils.request_points_project(request_points, 4326, to_crs)[0]
     try:
-        result = AccessibilityIsochrones(city_model).get_accessibility_isochrone(
+        result = mobility_analysis.AccessibilityIsochrones(city_model).get_accessibility_isochrone(
             travel_type=query_params.travel_type, x_from=x_from, y_from=y_from,
             weight_type=query_params.weight_type, weight_value=query_params.weight_value, routes=query_params.routes
         )
@@ -175,7 +190,7 @@ async def get_diversity(query_params: schemas.DiversityIn):  # todo validate ser
     city_model = city_models[query_params.city]
     geojson = query_params.geojson.dict() if query_params.geojson else None
     try:
-        result = Diversity(city_model).get_diversity(query_params.service_type, geojson)
+        result = diversity.Diversity(city_model).get_diversity(query_params.service_type, geojson)
         return result
     except (errors.TerritorialSelectError, errors.SelectedValueError) as e:
         raise HTTPException(
@@ -188,7 +203,7 @@ async def get_diversity(query_params: schemas.DiversityIn):  # todo validate ser
 async def get_buildings_diversity(query_params: schemas.DiversityGetBuildingsQueryParams = Depends()):
     city_model = city_models[query_params.city]
     try:
-        result = Diversity(city_model).get_houses(query_params.block_id, query_params.service_type)
+        result = diversity.Diversity(city_model).get_houses(query_params.block_id, query_params.service_type)
         return result
     except (errors.TerritorialSelectError, errors.SelectedValueError) as e:
         raise HTTPException(
@@ -202,7 +217,7 @@ async def get_buildings_diversity(query_params: schemas.DiversityGetBuildingsQue
 async def get_diversity_info(query_params: schemas.DiversityGetInfoQueryParams = Depends()):
     city_model = city_models[query_params.city]
     try:
-        result = Diversity(city_model).get_info(query_params.house_id, query_params.service_type)
+        result = diversity.Diversity(city_model).get_info(query_params.house_id, query_params.service_type)
         return result
     except (errors.TerritorialSelectError, errors.SelectedValueError) as e:
 
@@ -218,7 +233,7 @@ async def get_provision(
         user_request: schemas.ProvisionGetProvisionIn,
 ):
     city_model = city_models[user_request.city]
-    result = City_Provisions(
+    result = provision.CityProvision(
         city_model, user_request.service_types,
         user_request.valuation_type, user_request.year,
         user_changes_buildings=None, user_changes_services=None,
@@ -235,7 +250,7 @@ async def recalculate_provisions(
         user_request: schemas.ProvisionRecalculateProvisionsIn,
 ):
     city_model = city_models[user_request.city]
-    result = City_Provisions(
+    result = provision.CityProvision(
         city_model, user_request.service_types,
         user_request.valuation_type, user_request.year,
         user_changes_buildings=user_request.user_changes_buildings, user_changes_services=user_request.user_changes_services,
@@ -243,15 +258,6 @@ async def recalculate_provisions(
         service_impotancy=user_request.service_impotancy
     ).recalculate_provisions()
     return result
-
-
-@router.get(
-    "/collocation_matrix/collocation_matrix",
-    response_model=dict[str, dict[str, Optional[float]]], tags=[Tags.collocation_matrix]
-)
-async def get_collocation_matrix(query_params: schemas.CollocationMatrixQueryParams = Depends()):
-    city_model = city_models[query_params.city]
-    return CollocationMatrix(city_model).get_collocation_matrix()
 
 
 @router.post(
@@ -262,7 +268,7 @@ def city_context_get_context(
         user_request: schemas.CityContextGetContextIn
 ):
     city_model = city_models[user_request.city]
-    return City_context(
+    return provision.CityProvisionContext(
         city_model, service_types=user_request.service_types,
         valuation_type=user_request.valuation_type,
         year=user_request.year,
@@ -271,12 +277,21 @@ def city_context_get_context(
 
 
 @router.get(
+    "/collocation_matrix/collocation_matrix",
+    response_model=dict[str, dict[str, Optional[float]]], tags=[Tags.collocation_matrix]
+)
+async def get_collocation_matrix(query_params: schemas.CollocationMatrixQueryParams = Depends()):
+    city_model = city_models[query_params.city]
+    return collocation_matrix.CollocationMatrix(city_model).get_collocation_matrix()
+
+
+@router.get(
     "/urban_quality/get_urban_quality",
     response_model=schemas.UrbanQualityOut, tags=[Tags.urban_quality],
 )
 def urban_quality_get_urban_quality(city: enums.CitiesEnum):
     city_model = city_models[city]
-    return Urban_Quality(city_model).get_urban_quality()
+    return urban_quality.Urban_Quality(city_model).get_urban_quality()
 
 
 # Check during refactor
@@ -289,7 +304,7 @@ def master_plan_get_master_plan(
 ):
     city_model = city_models[user_request.city]
     master_plan_params = user_request.dict(exclude={"city"})
-    master_plan = Masterplan(city_model)
+    master_plan = masterplan.Masterplan(city_model)
     return master_plan.get_masterplan(**master_plan_params)
 
 
@@ -303,7 +318,7 @@ def coverage_zone_get_radius(
 ):
     try:
         city_model = city_models[user_request.city]
-        return Coverage_Zones(city_model).get_radius_zone(user_request.service_type, user_request.radius)
+        return coverage_zones.Coverage_Zones(city_model).get_radius_zone(user_request.service_type, user_request.radius)
     except errors.NormativeError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -319,6 +334,6 @@ def coverage_zone_get_isochrone(
         user_request: schemas.CoverageZonesIsochroneQueryParams=Depends()
 ):
     city_model = city_models[user_request.city]
-    return Coverage_Zones(city_model).get_isochrone_zone(
+    return coverage_zones.Coverage_Zones(city_model).get_isochrone_zone(
         user_request.service_type, user_request.travel_type, user_request.weight_value
         )
