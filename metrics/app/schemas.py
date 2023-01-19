@@ -327,6 +327,8 @@ class ProvisionInBase(BaseModel):
     year: int
     user_selection_zone: Optional[Polygon] = None
     service_impotancy: Optional[list] = None
+    calculation_type: str = 'gravity'
+
 
 
 class ProvisionGetProvisionIn(ProvisionInBase):
@@ -372,6 +374,16 @@ class CityContextGetContextIn(ProvisionInBase):
 class CityContextGetContextOut(BaseModel):
     context_unit: FeatureCollection
     additional_data: dict[str, dict]
+
+
+class CityValuestGetValuesOut(BaseModel):
+    city_values: dict[str,dict]
+
+class CityValuestGetValuesIn(BaseModel):
+    city: str
+    valuation_type: str
+    year: int
+
 
 
 class ProvisionGetInfoIn(BaseModel):
