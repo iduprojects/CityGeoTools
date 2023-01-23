@@ -23,10 +23,9 @@ from calculations import (
     city_provision, 
     city_provision_context,
     city_values,
-    master_plan,
-    coverage_zone
+    masterplan,
+    coverage_zones
 )
-
 router = APIRouter()
 faulthandler.enable()
 
@@ -337,7 +336,7 @@ def coverage_zone_get_radius(
 ):
     try:
         city_model = city_models[user_request.city]
-        return coverage_zones.Coverage_Zones(city_model).get_radius_zone(user_request.service_type, user_request.radius)
+        return coverage_zones.CoverageZones(city_model).get_radius_zone(user_request.service_type, user_request.radius)
     except errors.NormativeError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -353,6 +352,6 @@ def coverage_zone_get_isochrone(
         user_request: schemas.CoverageZonesIsochroneQueryParams=Depends()
 ):
     city_model = city_models[user_request.city]
-    return coverage_zones.Coverage_Zones(city_model).get_isochrone_zone(
+    return coverage_zones.CoverageZones(city_model).get_isochrone_zone(
         user_request.service_type, user_request.travel_type, user_request.weight_value
         )
