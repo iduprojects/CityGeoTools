@@ -29,8 +29,12 @@ class CityInformationModel:
         self.city_name = city_name
         self.city_crs = city_crs
 
-        self.attr_names = ['MobilityGraph', 'Buildings', 'Services', 'PublicTransportStops', 'ServiceTypes',
-                    'RecreationalAreas', 'Blocks', 'Municipalities','AdministrativeUnits']
+        self.attr_names = ['MobilityGraph', 'Buildings', 'Services', 
+                           'PublicTransportStops', 'ServiceTypes',
+                           'RecreationalAreas', 'Blocks', 'Municipalities',
+                           'AdministrativeUnits', 'ValueTypes', 'SocialGroups', 
+                           'SocialGroupsValueTypesLivingSituations', 
+                           'LivingSituationsCityServiceTypes','LivingSituations']
                     
         self.city_id = cities_db_id
         self.cwd = cwd

@@ -92,5 +92,30 @@ class DataQueryInterface(QueryInterface):
         )
         self.AdministrativeUnits = pickle.dumps(self.AdministrativeUnits.to_crs(self.city_crs))
 
+        self.ValueTypes = pd.read_sql('''SELECT id as value_type_id, name as value_types_name
+                                          FROM maintenance.value_types
+                                          ''', con = self.engine)
+        self.ValueTypes = pickle.dumps(self.ValueTypes)               
+        
+        self.SocialGroups = pd.read_sql('''SELECT id as social_groups_id, name as social_groups_name
+                                            FROM public.social_groups
+                                            ''', con = self.engine)
+        self.SocialGroups = pickle.dumps(self.SocialGroups)   
+
+        self.SocialGroupsValueTypesLivingSituations = pd.read_sql('''SELECT *
+                                                                          FROM maintenance.social_groups_value_types_living_situations
+                                                                          ''', con = self.engine)
+        self.SocialGroupsValueTypesLivingSituations = pickle.dumps(self.SocialGroupsValueTypesLivingSituations)   
+
+        self.LivingSituationsCityServiceTypes = pd.read_sql('''SELECT living_situation_id, city_service_type_id
+                                                                   FROM maintenance.living_situations_city_service_types
+                                                                   ''', con = self.engine)
+        self.LivingSituationsCityServiceTypes = pickle.dumps(self.LivingSituationsCityServiceTypes) 
+
+        self.LivingSituations = pd.read_sql('''SELECT id as living_situation_id, name as living_situations_name
+                                                FROM public.living_situations
+                                                ''', con = self.engine)
+        self.LivingSituations = pickle.dumps(self.LivingSituations)   
+
         self.readiness = all(self.validation.__dict__.values())
         self.readiness = pickle.dumps(self.readiness)

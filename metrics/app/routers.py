@@ -18,13 +18,14 @@ from calculations import (
     services_clusterization,
     spacematrix,
     diversity,
-    provision,
     collocation_matrix,
     urban_quality,
-    master_plan,
-    coverage_zone
+    city_provision, 
+    city_provision_context,
+    city_values,
+    masterplan,
+    coverage_zones
 )
-
 router = APIRouter()
 faulthandler.enable()
 
@@ -40,13 +41,14 @@ class Tags(str, enums.AutoName):
     services_clusterization = auto()
     spacematrix = auto()
     diversity = auto()
-    provision = auto()
+    city_provision = auto()
     well_being = auto()
     collocation_matrix = auto()
-    city_context = auto()
+    city_provision_context = auto()
     urban_quality = auto()
     master_plan = auto()
     coverage_zone = auto()
+    city_values = auto()
 
 
 @router.get("/")
@@ -228,29 +230,30 @@ async def get_diversity_info(query_params: schemas.DiversityGetInfoQueryParams =
 
 
 @router.post("/provision/get_provision", response_model=schemas.ProvisionGetProvisionOut,
-             tags=[Tags.provision])
+             tags=[Tags.city_provision])
 async def get_provision(
         user_request: schemas.ProvisionGetProvisionIn,
 ):
     city_model = city_models[user_request.city]
-    result = provision.CityProvision(
+    result = city_provision.CityProvision(
         city_model, user_request.service_types,
         user_request.valuation_type, user_request.year,
         user_changes_buildings=None, user_changes_services=None,
         user_provisions=None, user_selection_zone=user_request.user_selection_zone,
         service_impotancy=user_request.service_impotancy,
         return_jsons=True,
+        calculation_type = user_request.calculation_type
     ).get_provisions()
     return result
 
 
 @router.post("/provision/recalculate_provisions", response_model=schemas.ProvisionGetProvisionOut,
-             tags=[Tags.provision])
+             tags=[Tags.city_provision])
 async def recalculate_provisions(
         user_request: schemas.ProvisionRecalculateProvisionsIn,
 ):
     city_model = city_models[user_request.city]
-    result = provision.CityProvision(
+    result = city_provision.CityProvision(
         city_model, user_request.service_types,
         user_request.valuation_type, user_request.year,
         user_changes_buildings=user_request.user_changes_buildings, user_changes_services=user_request.user_changes_services,
@@ -262,18 +265,33 @@ async def recalculate_provisions(
 
 @router.post(
     "/city_context/get_context",
-    response_model=schemas.CityContextGetContextOut, tags=[Tags.city_context],
+    response_model=schemas.CityContextGetContextOut, tags=[Tags.city_provision_context],
 )
 def city_context_get_context(
         user_request: schemas.CityContextGetContextIn
 ):
     city_model = city_models[user_request.city]
-    return provision.CityProvisionContext(
+    return city_provision_context.CityProvisionContext(
         city_model, service_types=user_request.service_types,
         valuation_type=user_request.valuation_type,
         year=user_request.year,
         user_context_zone=user_request.user_selection_zone
     ).get_context()
+
+
+@router.post(
+    "/city_values/get_values",
+    response_model = schemas.CityValuestGetValuesOut, tags=[Tags.city_values],
+)
+def city_values_get_values(
+        user_request: schemas.CityValuestGetValuesIn
+):
+    city_model = city_models[user_request.city]
+    return city_values.CityValues(
+        city_model,
+        valuation_type=user_request.valuation_type,
+        year=user_request.year
+    ).get_city_values()
 
 
 @router.get(
@@ -318,7 +336,7 @@ def coverage_zone_get_radius(
 ):
     try:
         city_model = city_models[user_request.city]
-        return coverage_zones.Coverage_Zones(city_model).get_radius_zone(user_request.service_type, user_request.radius)
+        return coverage_zones.CoverageZones(city_model).get_radius_zone(user_request.service_type, user_request.radius)
     except errors.NormativeError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -334,6 +352,6 @@ def coverage_zone_get_isochrone(
         user_request: schemas.CoverageZonesIsochroneQueryParams=Depends()
 ):
     city_model = city_models[user_request.city]
-    return coverage_zones.Coverage_Zones(city_model).get_isochrone_zone(
+    return coverage_zones.CoverageZones(city_model).get_isochrone_zone(
         user_request.service_type, user_request.travel_type, user_request.weight_value
         )
