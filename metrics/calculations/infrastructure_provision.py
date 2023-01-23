@@ -3,7 +3,7 @@ import pandas as pd
 import json
 
 from .base_method import BaseMethod
-from .provision import CityProvision
+from .city_provision import CityProvision
 from .diversity import Diversity
 
 class InfrastructureProvisionIndex(BaseMethod):

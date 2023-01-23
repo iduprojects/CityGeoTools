@@ -9,7 +9,7 @@ import requests
 
 from .utils import get_links
 from .base_method import BaseMethod
-from .provision import CityProvision
+from .city_provision import CityProvision
 
 class UrbanQuality(BaseMethod):
 
@@ -56,7 +56,20 @@ class UrbanQuality(BaseMethod):
     def _greenery_exploder(greenery):
         greenery = greenery.explode(ignore_index=True)
         return greenery[greenery.geometry.type =="Polygon"]
-        
+    
+    def _collect_provision(self, service):
+        Provisions_class = CityProvision(self.city_model,
+                            service_types = [service],
+                            valuation_type = "normative",
+                            year = 2022, 
+                            user_changes_buildings = None,
+                            user_changes_services = None,
+                            user_provisions = None,
+                            user_selection_zone = None,
+                            service_impotancy = None)
+        local_provision = Provisions_class.get_provisions()
+        return local_provision
+
     def _ind1(self):
         '''
         calculates share of living area of emergency houses in total living area by blocks
@@ -174,16 +187,7 @@ class UrbanQuality(BaseMethod):
         calculates recreational areas' usage activity by blocks
         '''
         local_blocks = self.blocks
-        Provisions_class = CityProvision(self.city_model,
-                            service_types = ['recreational_areas'],
-                            valuation_type = "normative",
-                            year = 2022, 
-                            user_changes_buildings = None,
-                            user_changes_services = None,
-                            user_provisions = None,
-                            user_selection_zone = None,
-                            service_impotancy = None)
-        local_provision = Provisions_class.get_provisions().services
+        local_provision = self.provision.services
         local_provision['IND_data'] = local_provision['service_load'] / local_provision['capacity']
         local_blocks = local_blocks.join(local_provision[['block_id', 'IND_data']].groupby('block_id').mean(), on='id')
         local_blocks['IND'] = self._ind_ranking(local_blocks['IND_data'])
@@ -271,16 +275,7 @@ class UrbanQuality(BaseMethod):
         calculates provision of recreational areas by blocks
         '''
         local_blocks = self.blocks
-        Provisions_class = CityProvision(self.city_model,
-                                    service_types = ['recreational_areas'],
-                                    valuation_type = "normative",
-                                    year = 2022, 
-                                    user_changes_buildings = None,
-                                    user_changes_services = None,
-                                    user_provisions = None,
-                                    user_selection_zone = None,
-                                    service_impotancy = None)
-        local_provision = Provisions_class.get_provisions().buildings
+        local_provision = self.provision.buildings
         local_blocks = local_blocks.join(local_provision[['block_id', 'recreational_areas_provison_value']].groupby('block_id').mean(), on='id')
         local_blocks.rename(columns={'recreational_areas_provison_value':'IND_data'}, inplace=True)
 
@@ -344,16 +339,7 @@ class UrbanQuality(BaseMethod):
         calculates provision of crosswalks as a measure of pedestrian safety
         '''
         local_blocks = self.blocks
-        Provisions_class = CityProvision(self.city_model,
-                                    service_types = ['crosswalks'],
-                                    valuation_type = "normative",
-                                    year = 2022, 
-                                    user_changes_buildings = None,
-                                    user_changes_services = None,
-                                    user_provisions = None,
-                                    user_selection_zone = None,
-                                    service_impotancy = None)
-        local_provision = Provisions_class.get_provisions().buildings
+        local_provision = self.provision.buildings
         local_blocks = local_blocks.join(local_provision[['block_id', 'crosswalks_provison_value']].groupby('block_id').mean(), on='id')
         local_blocks.rename(columns={'crosswalks_provison_value':'IND_data'}, inplace=True)
 
@@ -366,16 +352,7 @@ class UrbanQuality(BaseMethod):
         calculates provision of kindergartens
         '''
         local_blocks = self.blocks
-        Provisions_class = CityProvision(self.city_model,
-                                    service_types = ['kindergartens'],
-                                    valuation_type = "normative",
-                                    year = 2022, 
-                                    user_changes_buildings = None,
-                                    user_changes_services = None,
-                                    user_provisions = None,
-                                    user_selection_zone = None,
-                                    service_impotancy = None)
-        local_provision = Provisions_class.get_provisions().buildings
+        local_provision = self.provision.buildings
         local_blocks = local_blocks.join(local_provision[['block_id', 'kindergartens_provison_value']].groupby('block_id').mean(), on='id')
         local_blocks.rename(columns={'kindergartens_provison_value':'IND_data'}, inplace=True)
 
@@ -388,16 +365,7 @@ class UrbanQuality(BaseMethod):
         calculates provision of public transport stops
         '''
         local_blocks = self.blocks
-        Provisions_class = CityProvision(self.city_model,
-                                    service_types = ['stops'],
-                                    valuation_type = "normative",
-                                    year = 2022, 
-                                    user_changes_buildings = None,
-                                    user_changes_services = None,
-                                    user_provisions = None,
-                                    user_selection_zone = None,
-                                    service_impotancy = None)
-        local_provision = Provisions_class.get_provisions().buildings
+        local_provision = self.provision.buildings
         local_blocks = local_blocks.join(local_provision[['block_id', 'stops_provison_value']].groupby('block_id').mean(), on='id')
         local_blocks.rename(columns={'stops_provison_value':'IND_data'}, inplace=True)
 
@@ -415,7 +383,8 @@ class UrbanQuality(BaseMethod):
         urban_quality['ind5'], urban_quality['data_ind5'] = self._ind5()
         urban_quality['ind10'], urban_quality['data_ind10'] = self._ind10()
         #urban_quality['ind11'], urban_quality['data_ind11'] = self._ind_11() #too long >15 min
-        #urban_quality['ind13'], urban_quality['data_ind13'] = self._ind_13() #recreational areas problem
+        #self.provision = self._collect_provision('recreational_areas')
+        #urban_quality['ind13'], urban_quality['data_ind13'] = self._ind13() #recreational areas problem
         urban_quality['ind14'], urban_quality['data_ind14'] = self._ind14()
         urban_quality['ind15'], urban_quality['data_ind15'] = self._ind15()
         urban_quality['ind17'], urban_quality['data_ind17'] = self._ind17()
@@ -424,7 +393,9 @@ class UrbanQuality(BaseMethod):
         urban_quality['ind22'], urban_quality['data_ind22'] = self._ind22()
         urban_quality['ind23'], urban_quality['data_ind23'] = self._ind23()
         #urban_quality['ind25'], urban_quality['data_ind25'] = self._ind25() #no crosswalks provision in database
+        self.provision = self._collect_provision('kindergartens')
         urban_quality['ind30'], urban_quality['data_ind30'] = self._ind30()
+        #self.provision = self._collect_provision('stops')
         #urban_quality['ind32'], urban_quality['data_ind32'] = self._ind32() #no stops provision in database
 
         urban_quality['urban_quality_value'] = urban_quality.filter(regex='^ind.*').mean(axis=1).round(0)
