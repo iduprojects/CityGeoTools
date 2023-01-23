@@ -4,6 +4,7 @@ import pandas as pd
 import json
 import shapely.wkt
 import networkx as nx
+import networkit as nk
 
 from scipy import spatial
 from .errors import ImplementationError
