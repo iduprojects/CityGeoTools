@@ -55,7 +55,7 @@ class DataQueryInterface(QueryInterface):
 
         self.ServiceTypes = pd.read_sql_table(
             "city_service_types", con=self.engine, 
-            columns=["id", "code", "public_transport_time_normative", "walking_radius_normative"])
+            columns=["id", "code", "name", "public_transport_time_normative", "walking_radius_normative"])
         self.validation.validate_df("ServiceTypes", self.ServiceTypes, "json")
 
         self.Services = pickle.dumps(self.Services.to_crs(self.city_crs))
@@ -92,9 +92,11 @@ class DataQueryInterface(QueryInterface):
         )
         self.AdministrativeUnits = pickle.dumps(self.AdministrativeUnits.to_crs(self.city_crs))
 
-        self.ValueTypes = pd.read_sql('''SELECT id as value_type_id, name as value_types_name
-                                          FROM maintenance.value_types
-                                          ''', con = self.engine)
+        self.ValueTypes = pd.read_sql('''SELECT vt.id AS value_type_id, vt.name AS value_type, vg.id AS value_group_id, vg.name AS value_group
+                                         FROM maintenance.value_types vt
+                                         JOIN maintenance.value_groups vg ON vt.group_id = vg.id
+                                         ORDER BY vg.id, vt.id
+                                         ''', con = self.engine)
         self.ValueTypes = pickle.dumps(self.ValueTypes)               
         
         self.SocialGroups = pd.read_sql('''SELECT id as social_groups_id, name as social_groups_name
@@ -109,7 +111,7 @@ class DataQueryInterface(QueryInterface):
 
         self.LivingSituationsCityServiceTypes = pd.read_sql('''SELECT living_situation_id, city_service_type_id
                                                                    FROM maintenance.living_situations_city_service_types
-                                                                   ''', con = self.engine)
+                                                                   ''', con = self.engine).drop_duplicates()
         self.LivingSituationsCityServiceTypes = pickle.dumps(self.LivingSituationsCityServiceTypes) 
 
         self.LivingSituations = pd.read_sql('''SELECT id as living_situation_id, name as living_situations_name

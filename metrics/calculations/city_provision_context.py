@@ -5,10 +5,7 @@ import shapely
 import pandas as pd
 import numpy as np
 import shapely.wkt
-import io
 import networkit as nk
-import pulp
-from multiprocesspandas import applyparallel
 
 from typing import Any, Optional
 from .city_provision import CityProvision

@@ -8,7 +8,6 @@ import shapely.wkt
 import io
 import networkit as nk
 import pulp
-from multiprocesspandas import applyparallel
 
 from typing import Any, Optional
 from .base_method import BaseMethod
