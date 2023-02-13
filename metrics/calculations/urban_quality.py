@@ -30,7 +30,6 @@ class UrbanQuality(BaseMethod):
         self.city_crs = city_model.city_crs
         self.city_name = city_model.city_name
         self.engine = city_model.engine
-        self.file_server = os.environ['PROVISIONS_DATA_FILE_SERVER']
         
         self.main_services = ['cemeteries', 'post_boxes', 'recreational_areas', 'garbage_containers', 'child_goods', 'diagnostic_center',
         'book_store', 'copy_center', 'toy_store', 'art_goods', 'amusement_park', 'beach', 'sanatorium', 'holiday_goods', 'stops',
@@ -421,6 +420,6 @@ class UrbanQuality(BaseMethod):
         description = []
         for index, row in indicators.iterrows():
             description.append({f'Indicator {row.indicator_id}': json.loads(row[['indicator_id', 'description']].to_json())})
-        return {"urban_quality":{"values":values, "description":description}, 
+        return {"urban_quality_context":{"values":values, "description":description}, 
             "rank": int(urban_quality.indicator_value.sum().astype(int)),
             "max_rank": int(len(urban_quality.query('indicator_value > 0'))) * 10}
