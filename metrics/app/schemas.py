@@ -467,11 +467,6 @@ class CollocationMatrixQueryParams:
         self.city = city
 
 # Check during refactor
-class UrbanQualityOut(BaseModel):
-    urban_quality: FeatureCollection
-    urban_quality_data: FeatureCollection
-
-# Check during refactor
 class MasterPlanIn(BaseModel):
     city: enums.CitiesEnum
     polygon: Feature[Polygon, dict]

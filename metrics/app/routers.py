@@ -305,12 +305,19 @@ async def get_collocation_matrix(query_params: schemas.CollocationMatrixQueryPar
 
 @router.get(
     "/urban_quality/get_urban_quality",
-    response_model=schemas.UrbanQualityOut, tags=[Tags.urban_quality],
+    response_model = FeatureCollection, tags=[Tags.urban_quality],
 )
 def urban_quality_get_urban_quality(city: enums.CitiesEnum):
     city_model = city_models[city]
-    return urban_quality.Urban_Quality(city_model).get_urban_quality()
+    return urban_quality.UrbanQuality(city_model).get_urban_quality()
 
+@router.get(
+    "/urban_quality/get_urban_quality_context",
+    response_model = dict, tags=[Tags.urban_quality],
+)
+def urban_quality_get_urban_quality_context(city: enums.CitiesEnum):
+    city_model = city_models[city]
+    return urban_quality.UrbanQuality(city_model).get_urban_quality_context()
 
 # Check during refactor
 @router.post(
