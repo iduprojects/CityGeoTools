@@ -15,7 +15,7 @@ from .base_method import BaseMethod
 class CityProvision(BaseMethod): 
 
     def __init__(self, city_model: Any, service_types: list, valuation_type: str, year: int,
-                 user_provisions: Optional[dict[str, list[dict]]] = None, 
+                 user_provisions: Optional[dict[str, dict]] = None, 
                  user_changes_buildings: Optional[dict] = None,
                  user_changes_services: Optional[dict] = None,
                  user_selection_zone: Optional[dict] = None,
@@ -24,7 +24,7 @@ class CityProvision(BaseMethod):
                  calculation_type:str = 'gravity'
                  ):
         '''
-        >>> City_Provisions(city_model,service_types = "kindergartens", valuation_type = "normative", year = 2022).get_provisons()
+        >>> 
         >>>
         >>>
         '''
@@ -124,9 +124,7 @@ class CityProvision(BaseMethod):
             self.user_changes_buildings = self.buildings.copy()
         if user_provisions:
             for service_type in service_types:
-                self.user_provisions[service_type]  = pd.DataFrame(0, index =  self.user_changes_services.index.values,
-                                                                      columns =  self.user_changes_buildings.index.values)
-                self.user_provisions[service_type] = (self.user_provisions[service_type] + self._restore_user_provisions(user_provisions[service_type])).fillna(0)
+                self.user_provisions[service_type] = gpd.GeoDataFrame.from_features(user_provisions[service_type]['features']).set_crs(4326).to_crs(self.city_crs)
         else:
             self.user_provisions = None
         if user_selection_zone:
@@ -189,7 +187,9 @@ class CityProvision(BaseMethod):
         if self.return_jsons == True:  
             return {"houses": eval(self.buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
                     "services": eval(self.services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
-                    "provisions": {service_type: self._provision_matrix_transform(self.Provisions[service_type]['destination_matrix']) for service_type in self.service_types}}
+                    "provisions": {service_type: eval(self._provision_matrix_transform(self.Provisions[service_type]['destination_matrix'], 
+                                                                                       self.services[self.services['is_shown'] == True],
+                                                                                       self.buildings[self.buildings['is_shown'] == True]).to_json()) for service_type in self.service_types}}
         else:
             return self
 
@@ -267,12 +267,9 @@ class CityProvision(BaseMethod):
 
     @staticmethod
     def _restore_user_provisions(user_provisions):
-        restored_user_provisions = pd.DataFrame(user_provisions)
-        restored_user_provisions = pd.DataFrame(user_provisions, columns = ['service_id','house_id','demand']).groupby(['service_id','house_id']).first().unstack()
-        restored_user_provisions = restored_user_provisions.droplevel(level = 0, axis = 1)
+        restored_user_provisions = user_provisions[['service_id','house_id','demand']].groupby(['service_id','house_id']).first().unstack().droplevel(level = 0, axis = 1).fillna(0)
         restored_user_provisions.index.name = None
         restored_user_provisions.columns.name = None
-        restored_user_provisions = restored_user_provisions.fillna(0)
 
         return restored_user_provisions
 
@@ -406,15 +403,20 @@ class CityProvision(BaseMethod):
         return loc
 
     @staticmethod
-    def _provision_matrix_transform(destination_matrix):
+    def _provision_matrix_transform(destination_matrix, 
+                                    services, 
+                                    buildings):
         def subfunc(loc):
             try:
                 return [{"house_id":int(k),"demand":int(v), "service_id": int(loc.name)} for k,v in loc.to_dict().items()]
             except:
                 return np.NaN
+        buildings.geometry = buildings.centroid
         flat_matrix = destination_matrix.transpose().apply(lambda x: subfunc(x[x>0]), result_type = "reduce")
-        flat_matrix = [item for sublist in list(flat_matrix) for item in sublist]
-        return flat_matrix
+        distribution_links = gpd.GeoDataFrame(data = [item for sublist in list(flat_matrix) for item in sublist])
+        distribution_links['geometry'] = distribution_links.apply(lambda x: shapely.geometry.LineString((buildings['geometry'][x['house_id']], 
+                                                                                                         services['geometry'][x['service_id']])), axis = 1)
+        return distribution_links
 
     def _provision_loop_linear(self, houses_table, services_table, distance_matrix, selection_range, destination_matrix, service_type): 
         select = distance_matrix[distance_matrix.iloc[:] <= selection_range]
@@ -480,8 +482,7 @@ class CityProvision(BaseMethod):
             print(houses_table[f'{service_type}_service_demand_left_value_{self.valuation_type}'].sum(), services_table['capacity_left'].sum(),selection_range)
             return destination_matrix
 
-
-    def _provision_loop_gravity(self, houses_table, services_table, distance_matrix, selection_range, destination_matrix, service_type,temp_destination_matrix = None):
+    def _provision_loop_gravity(self, houses_table, services_table, distance_matrix, selection_range, destination_matrix, service_type, temp_destination_matrix = None):
         def _calculate_flows_y(loc):
             c = services_table.loc[loc.name]['capacity_left']
             d = houses_table.loc[loc.index][f'{service_type}_service_demand_left_value_{self.valuation_type}']
