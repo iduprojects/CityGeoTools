@@ -11,6 +11,7 @@ chache
 cache/
 # C extensions
 *.so
+notebook_examples/test.json
 notebook_examples/develop.ipynb
 notebook_examples/develop_context.ipynb
 notebook_examples/graphs_for_margareth.ipynb

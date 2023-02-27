@@ -316,7 +316,7 @@ class DiversityGetBuildingsQueryParams:
         self.service_type = service_type
 
 
-ProvisionsDestinationMatrix = dict[str, list[dict]]  # матрица назначений
+ProvisionsDestinationMatrix = dict[str, dict]  # матрица назначений
 
 
 class ProvisionInBase(BaseModel):
