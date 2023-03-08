@@ -6,7 +6,6 @@ from jsonschema.exceptions import ValidationError
 class BaseMethod():
 
     def __init__(self, city_model):
-
         self.city_model = city_model
         self.city_crs = city_model.city_crs
         self.mode = city_model.mode

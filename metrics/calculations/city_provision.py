@@ -102,6 +102,7 @@ class CityProvision(BaseMethod):
             self.services_old_values = self.user_changes_services[['capacity','capacity_left','carried_capacity_within','carried_capacity_without']]
             self.user_changes_services = self.user_changes_services.set_crs(self.city_crs)
             self.user_changes_services.index = self.user_changes_services['id'].values.astype(int)
+            self.user_changes_services.geometry = self.user_changes_services.centroid
         else:
             self.user_changes_services = self.services.copy(deep = True)
         if user_changes_buildings:
@@ -189,7 +190,7 @@ class CityProvision(BaseMethod):
                     "services": eval(self.services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
                     "provisions": {service_type: eval(self._provision_matrix_transform(self.Provisions[service_type]['destination_matrix'], 
                                                                                        self.services[self.services['is_shown'] == True],
-                                                                                       self.buildings[self.buildings['is_shown'] == True]).to_json()) for service_type in self.service_types}}
+                                                                                       self.buildings[self.buildings['is_shown'] == True]).to_json().replace('null', 'None')) for service_type in self.service_types}}
         else:
             return self
 
@@ -329,7 +330,9 @@ class CityProvision(BaseMethod):
             self.new_Provisions[service_type]['buildings'] = self.user_changes_buildings.copy(deep = True)
             self.new_Provisions[service_type]['services'] = self.user_changes_services[self.user_changes_services['service_code'] == service_type].copy(deep = True)
 
-            self.new_Provisions[service_type] =  self._calculate_provisions(self.new_Provisions[service_type], service_type)
+            self.new_Provisions[service_type] =  self._calculate_provisions(self.new_Provisions[service_type], 
+                                                                            service_type, 
+                                                                            calculation_type=self.calculation_type)
             self.new_Provisions[service_type]['buildings'], self.new_Provisions[service_type]['services'] = self._additional_options(self.new_Provisions[service_type]['buildings'].copy(), 
                                                                                                                                      self.new_Provisions[service_type]['services'].copy(),
                                                                                                                                      self.new_Provisions[service_type]['distance_matrix'].copy(),
@@ -360,9 +363,14 @@ class CityProvision(BaseMethod):
         self.user_changes_services = self.user_changes_services.to_crs(4326)
         self.user_changes_buildings = self.user_changes_buildings.to_crs(4326)
 
-        return {"houses": eval(self.user_changes_buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
-                "services": eval(self.user_changes_services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
-                "provisions": {service_type: self._provision_matrix_transform(self.new_Provisions[service_type]['destination_matrix']) for service_type in self.service_types}}
+        if self.return_jsons == True:  
+            return {"houses": eval(self.user_changes_buildings.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
+                    "services": eval(self.user_changes_services.to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False')), 
+                    "provisions": {service_type: eval(self._provision_matrix_transform(self.new_Provisions[service_type]['destination_matrix'], 
+                                                                                       self.user_changes_services[self.user_changes_services['is_shown'] == True],
+                                                                                       self.user_changes_buildings[self.user_changes_buildings['is_shown'] == True]).to_json().replace('null', 'None')) for service_type in self.service_types}}
+        else:
+            return self
 
     def _get_provisions_delta(self, service_type):
         #bad performance 
@@ -411,11 +419,16 @@ class CityProvision(BaseMethod):
                 return [{"house_id":int(k),"demand":int(v), "service_id": int(loc.name)} for k,v in loc.to_dict().items()]
             except:
                 return np.NaN
+        def subfunc_geom(loc):
+            return shapely.geometry.LineString((buildings['geometry'][loc['house_id']],services['geometry'][loc['service_id']]))
+
         buildings.geometry = buildings.centroid
+        services.geometry = services.centroid
         flat_matrix = destination_matrix.transpose().apply(lambda x: subfunc(x[x>0]), result_type = "reduce")
         distribution_links = gpd.GeoDataFrame(data = [item for sublist in list(flat_matrix) for item in sublist])
-        distribution_links['geometry'] = distribution_links.apply(lambda x: shapely.geometry.LineString((buildings['geometry'][x['house_id']], 
-                                                                                                         services['geometry'][x['service_id']])), axis = 1)
+        sel = distribution_links['house_id'].isin(buildings.index.values) & distribution_links['service_id'].isin(services.index.values)
+        sel = distribution_links.loc[sel[sel].index.values]
+        distribution_links['geometry'] = sel.apply(lambda x: subfunc_geom(x), axis = 1)
         return distribution_links
 
     def _provision_loop_linear(self, houses_table, services_table, distance_matrix, selection_range, destination_matrix, service_type): 
