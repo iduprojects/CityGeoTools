@@ -25,4 +25,3 @@ Rtree==1.0.1
 scipy==1.5.4
 Shapely==1.8.4
 SQLAlchemy==1.4.25
-xgboost==1.6.1
