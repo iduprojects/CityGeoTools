@@ -231,7 +231,7 @@ async def get_diversity_info(query_params: schemas.DiversityGetInfoQueryParams =
         )
 
 
-@router.post("/provision/get_provision", response_model=schemas.ProvisionGetProvisionOut,
+@router.post("/provision/get_provision", response_model=schemas.ProvisionOutBase,
              tags=[Tags.city_provision])
 async def get_provision(
         user_request: schemas.ProvisionGetProvisionIn,
@@ -249,7 +249,7 @@ async def get_provision(
     return result
 
 
-@router.post("/provision/recalculate_provisions", response_model=schemas.ProvisionGetProvisionOut,
+@router.post("/provision/recalculate_provisions", response_model=schemas.ProvisionOutBase,
              tags=[Tags.city_provision])
 async def recalculate_provisions(
         user_request: schemas.ProvisionRecalculateProvisionsIn,
@@ -257,9 +257,13 @@ async def recalculate_provisions(
     city_model = city_models[user_request.city]
     result = city_provision.CityProvision(
         city_model, user_request.service_types,
-        user_request.valuation_type, user_request.year,
-        user_changes_buildings=user_request.user_changes_buildings, user_changes_services=user_request.user_changes_services,
-        user_provisions=user_request.user_provisions, user_selection_zone=user_request.user_selection_zone,
+        user_request.valuation_type, 
+        user_request.year,
+        user_changes_buildings=user_request.user_changes_buildings, 
+        user_changes_services=user_request.user_changes_services,
+        user_provisions=user_request.user_provisions, 
+        user_selection_zone=user_request.user_selection_zone,
+        return_jsons=True,
         service_impotancy=user_request.service_impotancy
     ).recalculate_provisions()
     return result

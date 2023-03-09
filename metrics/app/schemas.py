@@ -1,4 +1,4 @@
-from typing import Union, Optional, Dict
+from typing import Union, Optional, Dict, Any
 
 from fastapi import Query
 from pydantic import BaseModel, validator, Field, conint, conlist, confloat, root_validator
@@ -315,8 +315,7 @@ class DiversityGetBuildingsQueryParams:
         self.block_id = block_id
         self.service_type = service_type
 
-
-ProvisionsDestinationMatrix = dict[str, dict]  # матрица назначений
+ # матрица назначений
 
 
 class ProvisionInBase(BaseModel):
@@ -344,7 +343,7 @@ class ProvisionGetProvisionIn(ProvisionInBase):
 
 
 class ProvisionRecalculateProvisionsIn(ProvisionInBase):
-    user_provisions: ProvisionsDestinationMatrix
+    user_provisions: dict
     user_changes_buildings: Optional[dict] = None
     user_changes_services: Optional[dict] = None
 
@@ -352,12 +351,7 @@ class ProvisionRecalculateProvisionsIn(ProvisionInBase):
 class ProvisionOutBase(BaseModel):
     houses: FeatureCollection
     services: FeatureCollection
-    provisions: ProvisionsDestinationMatrix
-
-
-class ProvisionGetProvisionOut(ProvisionOutBase):
-    ...
-
+    provisions: dict
 
 class CityContextGetContextIn(ProvisionInBase):
     class Config:
@@ -565,7 +559,3 @@ class CoverageZonesIsochroneQueryParams:
         self.service_type = service_type
         self.travel_type = travel_type
         self.weight_value = weight_value
-
-class BlocksAccessibilityIn(BaseModel):
-    city: enums.CitiesEnum
-    block_id: int
