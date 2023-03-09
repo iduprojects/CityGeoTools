@@ -24,6 +24,7 @@ class DataValidation:
         self.master_plan = MasterplanData()
         self.mobility_analysis_v2 = AccessibilityIsochronesV2Data()
         self.coverage_zone = CoverageZonesData()
+        self.blocks_accessibility = BlocksAccessibilityData()
 
     def check_methods(self, layer_name, validate_object, validation_func, cwd):
 
@@ -83,7 +84,7 @@ class DataValidation:
 
 class TrafficCalculatorData(DataValidation):
     def __init__(self):
-        self.specification_folder = "data_specification/traffic_calculator"
+        self.specification_folder = "data_specification/traffics_calculation"
         self.Buildings = None
         self.PublicTransportStops = None
         self.MobilityGraph = None
@@ -161,5 +162,12 @@ class CoverageZonesData(DataValidation):
         self.specification_folder = "data_specification/coverage_zones"
         self.Services = None
         self.ServiceTypes = None
+        self.message = {}
+
+class BlocksAccessibilityData(DataValidation):
+    def __init__(self):
+        self.specification_folder = "data_specification/blocks_accessibility"
+        self.MobilityGraph = None
+        self.Blocks = None
         self.message = {}
 

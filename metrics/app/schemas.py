@@ -316,7 +316,7 @@ class DiversityGetBuildingsQueryParams:
         self.service_type = service_type
 
 
-ProvisionsDestinationMatrix = dict[str, list[dict]]  # матрица назначений
+ProvisionsDestinationMatrix = dict[str, dict]  # матрица назначений
 
 
 class ProvisionInBase(BaseModel):
@@ -565,3 +565,7 @@ class CoverageZonesIsochroneQueryParams:
         self.service_type = service_type
         self.travel_type = travel_type
         self.weight_value = weight_value
+
+class BlocksAccessibilityIn(BaseModel):
+    city: enums.CitiesEnum
+    block_id: int

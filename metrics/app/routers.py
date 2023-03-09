@@ -24,7 +24,8 @@ from calculations import (
     city_provision_context,
     city_values,
     masterplan,
-    coverage_zones
+    coverage_zones,
+    blocks_accessibility
 )
 router = APIRouter()
 faulthandler.enable()
@@ -49,6 +50,7 @@ class Tags(str, enums.AutoName):
     master_plan = auto()
     coverage_zone = auto()
     city_values = auto()
+    blocks_accessibility = auto()
 
 
 @router.get("/")
@@ -332,7 +334,6 @@ def master_plan_get_master_plan(
     master_plan = masterplan.Masterplan(city_model)
     return master_plan.get_masterplan(**master_plan_params)
 
-
 # Check during refactor
 @router.get(
     "/coverage_zone/get_radius_zone",
@@ -361,4 +362,18 @@ def coverage_zone_get_isochrone(
     city_model = city_models[user_request.city]
     return coverage_zones.CoverageZones(city_model).get_isochrone_zone(
         user_request.service_type, user_request.travel_type, user_request.weight_value
+        )
+
+# Check during refactor
+@router.post(
+    "/blocks_accessibility/get_accessibility",
+    response_model=FeatureCollection, tags=[Tags.blocks_accessibility],
+)
+def blocks_accessibility_get_blocks_accessibility(
+        user_request: schemas.BlocksAccessibilityIn
+):
+    city_model = city_models[user_request.city]
+    blocks_accessibility_params = user_request.dict(exclude={"city"})
+    return blocks_accessibility.Blocks_accessibility(city_model).get_accessibility(
+        **blocks_accessibility_params
         )
