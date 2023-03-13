@@ -369,15 +369,12 @@ def coverage_zone_get_isochrone(
         )
 
 # Check during refactor
-@router.post(
+@router.get(
     "/blocks_accessibility/get_accessibility",
     response_model=FeatureCollection, tags=[Tags.blocks_accessibility],
 )
 def blocks_accessibility_get_blocks_accessibility(
-        user_request: schemas.BlocksAccessibilityIn
+        user_request: schemas.BlocksAccessibilityIn=Depends()
 ):
     city_model = city_models[user_request.city]
-    blocks_accessibility_params = user_request.dict(exclude={"city"})
-    return blocks_accessibility.Blocks_accessibility(city_model).get_accessibility(
-        **blocks_accessibility_params
-        )
+    return blocks_accessibility.Blocks_accessibility(city_model).get_accessibility(user_request.block_id)

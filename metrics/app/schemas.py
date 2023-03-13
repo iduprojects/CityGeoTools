@@ -559,3 +559,9 @@ class CoverageZonesIsochroneQueryParams:
         self.service_type = service_type
         self.travel_type = travel_type
         self.weight_value = weight_value
+
+
+class BlocksAccessibilityIn:
+     def __init__(self, city: enums.CitiesEnum, block_id: int):
+         self.city = city
+         self.block_id = block_id
