@@ -3,7 +3,7 @@ data_dictionary = {
                     "PublicTransportStops": ["traffic_calculator"],
                     "Services": ["blocks_clusterization", "services_clusterization", "diversity", "collocation_matrix", "coverage_zone"],
                     "ServiceTypes": ["diversity", "coverage_zones"],
-                    "Blocks": ["blocks_clusterization", "spacematrix", "diversity"],
-                    "MobilityGraph": ["traffics_calculation", "mobility_analysis", "diversity", "mobility_analysis_v2"],
+                    "Blocks": ["blocks_clusterization", "spacematrix", "diversity", "blocks_accessibility"],
+                    "MobilityGraph": ["traffics_calculation", "mobility_analysis", "diversity", "mobility_analysis_v2", "blocks_accessibility"],
                     "Municipalities": ["diversity"]
                   }       
