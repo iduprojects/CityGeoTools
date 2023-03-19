@@ -11,6 +11,7 @@ import json
 import geopandas as gpd
 import networkx as nx
 
+from app.core.config import settings
 from sqlalchemy import create_engine
 from typing import Optional
 from .DataValidation import DataValidation
@@ -70,13 +71,17 @@ class CityInformationModel:
     def set_city_layers(self) -> None:
 
         if self.mode == "general_mode":
-            self.get_city_layers_from_db()
-            self.get_supplementary_graphs()
+            if settings.UPDATE_CITIES_CACHE or \
+                    not self.try_get_city_layers_from_cache_dir(settings.CITIES_CACHE_DIR):
+                self.get_city_layers_from_db(settings.CITIES_CACHE_DIR)
+            if settings.UPDATE_CITIES_CACHE or \
+                    not self.try_get_supplementary_graphs_from_cache(settings.CITIES_CACHE_DIR):
+                self.get_supplementary_graphs(settings.CITIES_CACHE_DIR)
         else:
             self.set_none_layers()
         del self.attr_names
         
-    def get_city_layers_from_db(self) -> None:
+    def get_city_layers_from_db(self, cities_cache_dir: Optional[str] = None) -> None:
 
         rpyc_connect = rpyc.connect(
             self.rpyc_adr, self.rpyc_port,
@@ -84,13 +89,45 @@ class CityInformationModel:
                     "allow_pickle": True}
                     )
         rpyc_connect._config['sync_request_timeout'] = None
-        
+
+        cache_failed = False
         for attr_name in self.attr_names:
-            print(self.city_name, attr_name)
-            setattr(self, attr_name, pickle.loads(
-                rpyc_connect.root.get_city_model_attr(self.city_name, attr_name)))
+            print(f"Downloading {self.city_name} - {attr_name} from RPYC")
+            binary_data = rpyc_connect.root.get_city_model_attr(self.city_name, attr_name)
+            if cities_cache_dir is not None or cache_failed:
+                try:
+                    if not os.path.isdir(cities_cache_dir):
+                        os.makedirs(cities_cache_dir)
+                    filename = f"{self.city_name}_{attr_name}.pickle"
+                    with open(os.path.join(cities_cache_dir, filename), "wb") as file:
+                        file.write(binary_data)
+                except Exception as exc:
+                    print(f"Could not cache city {self.city_name} data to {filename}: {exc!r}")
+                    cache_failed = True
+            setattr(self, attr_name, pickle.loads(binary_data))
+            
+    def try_get_city_layers_from_cache_dir(self, cities_cache_dir: str) -> bool:
+        """Try to load city data from the given cache directory.
         
-    def get_supplementary_graphs(self) -> None:
+        Return true if the city was successfully loaded, false otherwise."""
+        if not os.path.isdir(cities_cache_dir):
+            return False
+        try:
+            for attr_name in self.attr_names:
+                if os.path.isfile(filename := os.path.join(cities_cache_dir, f"{self.city_name}_{attr_name}.pickle")):
+                    with open(filename, "rb") as file:
+                        setattr(self, attr_name, pickle.load(file))
+                    print(f"Loaded {self.city_name} - {attr_name} from cities cache directory")
+                else:
+                    print(f"Missing cache file for city {self.city} - {attr_name}. Redownloading fully.")
+                    return False
+        except Exception as exc:
+            print(f"Got an exception on attempt to read city {self.city_name} from cache dir {cities_cache_dir}: {exc!r}")
+            print(f"City {self.city_name} will be redownloaded.")
+            return False
+        return True
+        
+    def get_supplementary_graphs(self, cities_cache_dir: Optional[str] = None) -> None:
 
         sub_edges = ["subway", "bus", "tram", "trolleybus", "walk"] # exclude drive
         MobilitySubGraph = get_subgraph(self.MobilityGraph, "type", sub_edges)
@@ -99,6 +136,38 @@ class CityInformationModel:
         self.graph_nk_length = convert_nx2nk(MobilitySubGraph, idmap=self.nk_idmap, weight="length_meter")
         self.graph_nk_time = convert_nx2nk(MobilitySubGraph, idmap=self.nk_idmap, weight="time_min")
         self.MobilitySubGraph = load_graph_geometry(MobilitySubGraph)
+
+        if cities_cache_dir is not None:
+            try:
+                with open(os.path.join(cities_cache_dir, f"{self.city_name}_supplementary_graphs.pickle"), "wb") as file:
+                    pickle.dump({
+                        "nk_idmap": self.nk_idmap,
+                        "nk_attrs": self.nk_attrs,
+                        "graph_nk_length": self.graph_nk_length,
+                        "graph_nk_time": self.graph_nk_time,
+                    }, file)
+            except Exception:
+                print(f"Could not cache supplementary graphs for city {self.city_name}")
+
+    def try_get_supplementary_graphs_from_cache(self, cities_cache_dir: str) -> None:
+        if os.path.isfile(filename := os.path.join(cities_cache_dir, f"{self.city_name}_supplementary_graphs.pickle")):
+            try:
+                with open(filename, "rb") as file:
+                    data = pickle.load(file)
+                self.nk_idmap = data["nk_idmap"]
+                self.nk_attrs = data["nk_attrs"]
+                self.graph_nk_length = data["graph_nk_length"]
+                self.graph_nk_time = data["graph_nk_time"]
+
+                sub_edges = ["subway", "bus", "tram", "trolleybus", "walk"] # exclude drive
+                self.MobilitySubGraph = load_graph_geometry(get_subgraph(self.MobilityGraph, "type", sub_edges))
+
+                return True
+            except Exception as exc:
+                print(f"Could not get supplementary graphs for city {self.city_name} from cache: {exc!r}")
+                print("Recalculating supplementary graphs.")
+                return False
+        return False
 
     def set_none_layers(self) -> None:
         for attr_name in self.attr_names:
