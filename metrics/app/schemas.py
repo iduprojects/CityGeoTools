@@ -559,3 +559,9 @@ class CoverageZonesIsochroneQueryParams:
         self.service_type = service_type
         self.travel_type = travel_type
         self.weight_value = weight_value
+
+
+
+class DataUpdateIn(BaseModel):
+    city_name: str
+    attr_name: str
