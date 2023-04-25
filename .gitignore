@@ -9,6 +9,7 @@ output/
 !rpyc_server/data_classes/*.py
 chache
 cache/
+cities_cache/
 # C extensions
 *.so
 notebook_examples/test.json
