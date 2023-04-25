@@ -1,6 +1,7 @@
 coloredlogs==15.0.1
 fastapi==0.87.0
 scikit-learn==1.1.3
+SQLAlchemy==1.4.25
 geojson_pydantic==0.3.3
 geopandas==0.12.1
 joblib==1.1.0
@@ -24,4 +25,3 @@ rpyc==5.1.0
 Rtree==1.0.1 
 scipy==1.5.4
 Shapely==1.8.4
-SQLAlchemy==1.4.25
