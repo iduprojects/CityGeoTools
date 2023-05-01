@@ -561,6 +561,12 @@ class CoverageZonesIsochroneQueryParams:
         self.weight_value = weight_value
 
 
+
+class DataUpdateIn(BaseModel):
+    city_name: str
+    attr_name: str
+
+
 class BlocksAccessibilityIn:
      def __init__(self, city: enums.CitiesEnum, block_id: int):
          self.city = city

@@ -76,7 +76,7 @@ class CoverageZones(BaseMethod):
         return json.loads(services.reset_index().to_crs(4326).to_json())
 
 
-    def _get_isochrone_zone(self, service_type: str, travel_type:str, weight_value: int):
+    def get_isochrone_zone(self, service_type: str, travel_type:str, weight_value: int):
         """
         Creates an isochrone with defined way of transportation and time to travel (in minutes) for each service.
         The method calls Accessibility_Isochrones_v2.get_isochrone.

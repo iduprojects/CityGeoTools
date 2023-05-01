@@ -5,8 +5,10 @@ from geojson_pydantic import FeatureCollection
 
 from enum import auto
 from app import enums, schemas
-from data.city_models import city_models, city_names
+from data.city_models import city_models, city_names, cities
 from typing import Optional
+
+from data_update import InterfaceCityInformationModel as data_update 
 
 from calculations import utils, errors
 from calculations import (
@@ -50,6 +52,7 @@ class Tags(str, enums.AutoName):
     master_plan = auto()
     coverage_zone = auto()
     city_values = auto()
+    data_update = auto()
     blocks_accessibility = auto()
 
 
@@ -367,6 +370,26 @@ def coverage_zone_get_isochrone(
     return coverage_zones.CoverageZones(city_model).get_isochrone_zone(
         user_request.service_type, user_request.travel_type, user_request.weight_value
         )
+
+@router.post("/data_update", 
+             tags = [Tags.data_update])
+def updeate_data(user_request: schemas.DataUpdateIn):
+
+    city = [city for city in cities if city['code'] == user_request.city_name][0]
+
+    setattr(city_models[user_request.city_name], 
+            user_request.attr_name,
+            next(data_update.DataQueryInterface(city_name = city['code'], 
+                                                city_crs = city['local_crs'], 
+                                                city_db_id = city['id']).attr_names[user_request.attr_name]))
+    return f"{user_request.city_name} - {user_request.attr_name}, updated"
+
+@router.post("/data_update_check", 
+             tags = [Tags.data_update])
+def updeate_data_check(user_request: schemas.DataUpdateIn):
+
+    return eval(getattr(city_models[user_request.city_name],
+                        user_request.attr_name).to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False'))
 
 # Check during refactor
 @router.get(

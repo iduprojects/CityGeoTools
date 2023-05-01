@@ -5,7 +5,6 @@ import networkit as nk
 import json
 from .base_method import BaseMethod
 import requests
-from loguru import logger
 
 class Blocks_accessibility(BaseMethod):
 
