@@ -565,3 +565,9 @@ class CoverageZonesIsochroneQueryParams:
 class DataUpdateIn(BaseModel):
     city_name: str
     attr_name: str
+
+
+class BlocksAccessibilityIn:
+     def __init__(self, city: enums.CitiesEnum, block_id: int):
+         self.city = city
+         self.block_id = block_id

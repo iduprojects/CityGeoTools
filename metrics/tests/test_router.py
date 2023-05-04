@@ -453,3 +453,20 @@ class TestCityContextGetContext:
 
         resp = client.post(url, json=data)
         assert resp.status_code == 200
+
+
+class TestBlocksAccessibility:
+    URL = f"http://{testing_settings.APP_ADDRESS_FOR_TESTING}/blocks_accessibility"
+
+    @pytest.mark.parametrize("city", enums.CitiesEnum)
+    def test_get_blocks_accessibility(self, client, city, target_block):
+        """ Тестирование blocks accessibility для городов. """
+        url = self.URL + "/blocks_accessibility"
+
+        params = {
+            "city": city,
+            "target_block": target_block
+        }
+
+        resp = client.get(url, params=params)
+        assert resp.status_code == 200
