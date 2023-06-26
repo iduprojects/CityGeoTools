@@ -1,9 +1,9 @@
 data_dictionary = {
-                    "Buildings": ["traffic_calculator", "visibility_analysis", "spacematrix", "diversity", "master_plan"],
-                    "PublicTransportStops": ["traffic_calculator"],
-                    "Services": ["blocks_clusterization", "services_clusterization", "diversity", "collocation_matrix", "coverage_zone"],
+                    "Buildings": ["traffics_calculation", "visibility_analysis", "spacematrix", "diversity", "master_plan"],
+                    "PublicTransportStops": ["traffics_calculation"],
+                    "Services": ["blocks_clusterization", "services_clusterization", "diversity", "collocation_matrix", "coverage_zones"],
                     "ServiceTypes": ["diversity", "coverage_zones"],
                     "Blocks": ["blocks_clusterization", "spacematrix", "diversity", "blocks_accessibility"],
-                    "MobilityGraph": ["traffics_calculation", "mobility_analysis", "diversity", "mobility_analysis_v2", "blocks_accessibility"],
+                    "MobilityGraph": ["traffics_calculation", "coverage_zones", "mobility_analysis", "diversity", "blocks_accessibility"],
                     "Municipalities": ["diversity"]
                   }       

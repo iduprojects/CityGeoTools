@@ -14,7 +14,7 @@ from .base_method import BaseMethod
 class AccessibilityIsochrones(BaseMethod):
     def __init__(self, city_model):
         BaseMethod.__init__(self, city_model)
-        super().validation("accessibility_isochrones")
+        super().validation("mobility_analysis")
         self.mobility_graph = self.city_model.MobilityGraph.copy()
         self.walk_speed = 4 * 1000 / 60
         self.edge_types = {
@@ -103,7 +103,7 @@ class AccessibilityIsochrones(BaseMethod):
 class AccessibilityIsochrones_v2(BaseMethod):
     def __init__(self, city_model):
         BaseMethod.__init__(self, city_model)
-        super().validation("accessibility_isochrones_v2")
+        super().validation("mobility_analysis")
         self.mobility_graph = self.city_model.MobilityGraph.copy()
         self.graph_nk_time =  self.city_model.graph_nk_time
         self.graph_nk_length = self.city_model.graph_nk_length
