@@ -102,7 +102,10 @@ class QueryInterface:
             gdf = gdf.set_geometry("geometry").set_crs(4326)
             gdf = gdf[(gdf.geom_type == "MultiPolygon") | (gdf.geom_type == "Polygon")]
         if len(gdf) > 0:
-            gdf[["x", "y"]] = gdf["geometry"].to_crs(self.city_crs).centroid.apply(lambda obj: pd.Series((obj.x, obj.y)))
+            try:
+                gdf[["x", "y"]] = gdf["geometry"].to_crs(self.city_crs).centroid.apply(lambda obj: pd.Series((obj.x, obj.y)))
+            except:
+                gdf[["x", "y"]] = None
 
         return self.del_nan_units(gdf)
 
@@ -118,7 +121,10 @@ class QueryInterface:
             df['geometry'] = df['geometry'].apply(lambda x: shape(ast.literal_eval(x)))
             gdf = gdf.set_geometry("geometry").set_crs(4326)
         if len(gdf) > 0:
-            gdf[["x", "y"]] = gdf["geometry"].to_crs(self.city_crs).centroid.apply(lambda obj: pd.Series((obj.x, obj.y)))
+            try:
+                gdf[["x", "y"]] = gdf["geometry"].to_crs(self.city_crs).centroid.apply(lambda obj: pd.Series((obj.x, obj.y)))
+            except:
+                gdf[["x", "y"]] = None
 
         return self.del_nan_units(gdf)
 
