@@ -172,7 +172,8 @@ def get_intermodal_graph(city_osm_id, city_crs, public_transport_speeds=None, wa
 
     print("Union of graphs...")
     G_intermodal = graphs_spatial_union(G_walk, G_drive)
-    G_intermodal = graphs_spatial_union(G_intermodal, G_public_transport)
+    if G_public_transport.number_of_edges() > 0: 
+        G_intermodal = graphs_spatial_union(G_intermodal, G_public_transport)
 
     for u, v, d in G_intermodal.edges(data=True):
         if "time_min" not in d:
