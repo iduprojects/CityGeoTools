@@ -5,6 +5,7 @@ import glob
 import json
 import sklearn
 
+from typing import Optional
 from pandas.core.frame import DataFrame
 from pandas.core.series import Series
 from sklearn.metrics import make_scorer
@@ -28,17 +29,17 @@ Candidate parameter values are specified by user in config/config_learning.json.
 
 
 def learn_and_predict(x_learn: DataFrame, y_learn: Series, x_predict: DataFrame, is_categorical: bool, is_positive: bool,
-                      bunch_scores: list, save_log: bool, save_model: bool):
+                      bunch_scores: list, save_log: bool, save_model: bool, path: Optional[str]):
 
-    model = build_model(x_learn, y_learn, is_categorical, bunch_scores, save_model, save_log)
+    model = build_model(x_learn, y_learn, is_categorical, bunch_scores, save_model, save_log, path)
     prediction = predict_by_model(model, x_predict, is_positive)
     return prediction
 
 
 def build_model(x_learn: DataFrame, y_learn: Series, is_categorical: bool, scores: list,
-                save_model: bool, save_log: bool):
+                save_model: bool, save_log: bool, path: Optional[str]):
 
-    path = os.getcwd()
+    if not(path): path = os.getcwd()
     with open(path + "/CityGeoTools/data_imputer/config/config_learning.json") as f:
         config = json.load(f)
 
@@ -70,8 +71,8 @@ def predict_by_model(model, x_predict: DataFrame, is_positive: bool):
     return y_predict
 
 
-def parse_config_models(columns: list) -> dict:
-    path = os.getcwd()
+def parse_config_models(columns: list, path: Optional[str]) -> dict:
+    if not(path): path = os.getcwd()
     with open(path + "/CityGeoTools/data_imputer/config/config_prediction.json") as f:
         config = json.load(f)
 
