@@ -2,7 +2,7 @@ version: '3.9.7'
 services:
   rpyc_metrics_server:
     build: rpyc_server/
-    image: oneonwar/rpyc_metrics_server:0.0.7.4
+    image: oneonwar/rpyc_metrics_server:0.0.7.5
     env_file:
       - .env
     container_name: rpyc
@@ -16,7 +16,7 @@ services:
 
   idu_metrics:
     build: metrics/
-    image: oneonwar/idu_metrics:2.5.3.4
+    image: oneonwar/idu_metrics:2.5.3.5
     container_name: metrics
     env_file:
       - .env

@@ -239,7 +239,7 @@ async def get_diversity_info(query_params: schemas.DiversityGetInfoQueryParams =
 async def get_provision(
         user_request: schemas.ProvisionGetProvisionIn,
 ):
-    city_model = city_models[user_request.city.value]
+    city_model = city_models[user_request.city]
     result = city_provision.CityProvision(
         city_model, user_request.service_types,
         user_request.valuation_type, user_request.year,
@@ -257,7 +257,7 @@ async def get_provision(
 async def recalculate_provisions(
         user_request: schemas.ProvisionRecalculateProvisionsIn,
 ):
-    city_model = city_models[user_request.city.value]
+    city_model = city_models[user_request.city]
     result = city_provision.CityProvision(
         city_model, user_request.service_types,
         user_request.valuation_type, 
@@ -279,7 +279,7 @@ async def recalculate_provisions(
 def city_context_get_context(
         user_request: schemas.CityContextGetContextIn
 ):
-    city_model = city_models[user_request.city.value]
+    city_model = city_models[user_request.city]
     return city_provision_context.CityProvisionContext(
         city_model, service_types=user_request.service_types,
         valuation_type=user_request.valuation_type,
@@ -295,7 +295,7 @@ def city_context_get_context(
 def city_values_get_values(
         user_request: schemas.CityValuestGetValuesIn
 ):
-    city_model = city_models[user_request.city.value]
+    city_model = city_models[user_request.city]
     return city_values.CityValues(
         city_model,
         valuation_type=user_request.valuation_type,
@@ -317,7 +317,7 @@ async def get_collocation_matrix(query_params: schemas.CollocationMatrixQueryPar
     response_model = FeatureCollection, tags=[Tags.urban_quality],
 )
 def urban_quality_get_urban_quality(city: enums.CitiesEnum):
-    city_model = city_models[city]
+    city_model = city_models[city.value]
     return urban_quality.UrbanQuality(city_model).get_urban_quality()
 
 @router.get(
@@ -325,7 +325,7 @@ def urban_quality_get_urban_quality(city: enums.CitiesEnum):
     response_model = dict, tags=[Tags.urban_quality],
 )
 def urban_quality_get_urban_quality_context(city: enums.CitiesEnum):
-    city_model = city_models[city]
+    city_model = city_models[city.value]
     return urban_quality.UrbanQuality(city_model).get_urban_quality_context()
 
 # Check during refactor
@@ -336,7 +336,7 @@ def urban_quality_get_urban_quality_context(city: enums.CitiesEnum):
 def master_plan_get_master_plan(
         user_request: schemas.MasterPlanIn
 ):
-    city_model = city_models[user_request.city.value]
+    city_model = city_models[user_request.city]
     master_plan_params = user_request.dict(exclude={"city"})
     master_plan = masterplan.Masterplan(city_model)
     return master_plan.get_masterplan(**master_plan_params)
@@ -350,7 +350,7 @@ def coverage_zone_get_radius(
         user_request: schemas.CoverageZonesRadiusQueryParams=Depends()
 ):
     try:
-        city_model = city_models[user_request.city.value]
+        city_model = city_models[user_request.city]
         return coverage_zones.CoverageZones(city_model).get_radius_zone(user_request.service_type, user_request.radius)
     except errors.NormativeError as e:
         raise HTTPException(
@@ -366,7 +366,7 @@ def coverage_zone_get_radius(
 def coverage_zone_get_isochrone(
         user_request: schemas.CoverageZonesIsochroneQueryParams=Depends()
 ):
-    city_model = city_models[user_request.city.value]
+    city_model = city_models[user_request.city]
     return coverage_zones.CoverageZones(city_model).get_isochrone_zone(
         user_request.service_type, user_request.travel_type, user_request.weight_value
         )
@@ -375,20 +375,20 @@ def coverage_zone_get_isochrone(
              tags = [Tags.data_update])
 def updeate_data(user_request: schemas.DataUpdateIn):
 
-    city = [city for city in cities if city['code'] == user_request.city_name.value][0]
+    city = [city for city in cities if city['code'] == user_request.city_name][0]
 
-    setattr(city_models[user_request.city_name.value], 
+    setattr(city_models[user_request.city_name], 
             user_request.attr_name,
             next(data_update.DataQueryInterface(city_name = city['code'], 
                                                 city_crs = city['local_crs'], 
                                                 city_db_id = city['id']).attr_names[user_request.attr_name]))
-    return f"{user_request.city_name.value} - {user_request.attr_name}, updated"
+    return f"{user_request.city_name} - {user_request.attr_name}, updated"
 
 @router.post("/data_update_check", 
              tags = [Tags.data_update])
 def updeate_data_check(user_request: schemas.DataUpdateIn):
 
-    return eval(getattr(city_models[user_request.city_name.value],
+    return eval(getattr(city_models[user_request.city_name],
                         user_request.attr_name).to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False'))
 
 # Check during refactor
@@ -397,7 +397,7 @@ def updeate_data_check(user_request: schemas.DataUpdateIn):
     response_model=FeatureCollection, tags=[Tags.blocks_accessibility],
 )
 def blocks_accessibility_get_blocks_accessibility(
-        user_request: schemas.BlocksAccessibilityIn=Depends()
+        query_params: schemas.BlocksAccessibilityIn=Depends()
 ):
-    city_model = city_models[user_request.city.value]
-    return blocks_accessibility.Blocks_accessibility(city_model).get_accessibility(user_request.block_id)
+    city_model = city_models[query_params.city.value]
+    return blocks_accessibility.Blocks_accessibility(city_model).get_accessibility(query_params.block_id)
