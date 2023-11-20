@@ -11,6 +11,7 @@ from data_classes.InterfaceCityInformationModel import DataQueryInterface
 
 
 class MyService(rpyc.Service):
+    ready_cities = []
 
     def get_city_model_attr(self, city_name, atr_name):
         print(city_name, datetime.datetime.now(), atr_name)
@@ -22,7 +23,7 @@ if __name__ == "__main__":
     cities = pd.read_sql(
         """SELECT * 
         FROM cities
-        WHERE local_crs is not null AND code is not null""", con=engine)
+        WHERE local_crs is not null AND code is not null and id != 15""", con=engine)
 
     cities = cities.sort_values(["id"])[["id", "code", "local_crs"]].to_dict("records")
     city_models = {
@@ -31,6 +32,8 @@ if __name__ == "__main__":
 
     ready_for_metrics = [city for city, model in city_models.items() if pickle.loads(model.readiness)]
     logger.warning(", ".join(ready_for_metrics) + " are ready for metrics.")
+
+    MyService.ready_cities = ready_for_metrics
 
     t = ThreadedServer(MyService, port=18861
                                 , protocol_config={"allow_public_attrs": True, 

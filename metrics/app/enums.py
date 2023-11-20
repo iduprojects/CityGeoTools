@@ -1,4 +1,5 @@
 from enum import Enum, auto
+from app.enums_utils import add_enums_of_ready_for_metrics_cities
 
 
 class AutoName(Enum):
@@ -11,10 +12,7 @@ class MobilityAnalysisRoutesTravelTypeEnum(str, Enum):
     WALK = "walk"
 
 
-class CitiesEnum(str, Enum):
-    SAINT_PETERSBURG = "saint-petersburg"
-    KRASNODAR = "krasnodar"
-    SEVASTOPOL = "sevastopol"
+CitiesEnum = add_enums_of_ready_for_metrics_cities()
 
 
 class TerritorialEnum(str, Enum):
