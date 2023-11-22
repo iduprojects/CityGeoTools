@@ -23,7 +23,7 @@ if __name__ == "__main__":
     cities = pd.read_sql(
         """SELECT * 
         FROM cities
-        WHERE local_crs is not null AND code is not null and id != 15""", con=engine)
+        WHERE local_crs is not null AND code is not null""", con=engine)
 
     cities = cities.sort_values(["id"])[["id", "code", "local_crs"]].to_dict("records")
     city_models = {

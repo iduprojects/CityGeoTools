@@ -7,6 +7,7 @@ from typing import List, Dict
 def get_rpyc_addr_port():
     DEFAULT_RPYC_PORT = 18861
     rpyc_server = os.environ["RPYC_SERVER"]
+    # rpyc_server = '0.0.0.0'
     address, port = (
         rpyc_server.split(":")
         if ":" in rpyc_server
@@ -17,6 +18,7 @@ def get_rpyc_addr_port():
 
 
 def connect_to_rpyc(address, port):
+    print(address, port)
     return rpyc.connect(address, port)
 
 
