@@ -11,6 +11,7 @@ from data_classes.InterfaceCityInformationModel import DataQueryInterface
 
 
 class MyService(rpyc.Service):
+    ready_cities = []
 
     def get_city_model_attr(self, city_name, atr_name):
         print(city_name, datetime.datetime.now(), atr_name)
@@ -31,6 +32,8 @@ if __name__ == "__main__":
 
     ready_for_metrics = [city for city, model in city_models.items() if pickle.loads(model.readiness)]
     logger.warning(", ".join(ready_for_metrics) + " are ready for metrics.")
+
+    MyService.ready_cities = ready_for_metrics
 
     t = ThreadedServer(MyService, port=18861
                                 , protocol_config={"allow_public_attrs": True, 

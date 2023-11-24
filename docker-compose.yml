@@ -1,22 +1,24 @@
-version: '3.9'
+version: '3.9.7'
 services:
   rpyc_metrics_server:
     build: rpyc_server/
-    image: oneonwar/rpyc_metrics_server:0.0.7.3
+    image: oneonwar/rpyc_metrics_server:0.0.7.6
     env_file:
       - .env
-    container_name: rpyc
+    container_name: rpyc_server
     ports:
       - "18861:18861"
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "18861"]
       interval: 1m
       retries: 30
+    networks:
+      - network
 
 
   idu_metrics:
     build: metrics/
-    image: oneonwar/idu_metrics:2.5.3.2
+    image: oneonwar/idu_metrics:2.5.3.6
     container_name: metrics
     env_file:
       - .env
@@ -26,6 +28,13 @@ services:
         condition: service_healthy
     ports:
       - "5000:5000"
+    networks:
+      - network
     volumes:
       - ./metrics/app:/app/app
       - ./metrics/calculations:/app/calculations
+
+
+networks:
+  network:
+    driver: bridge
