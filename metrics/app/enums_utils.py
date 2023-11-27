@@ -49,6 +49,8 @@ def get_all_ready_cities_dict() -> Dict[str, str]:
         "SEVASTOPOL": "sevastopol",
     }
 
+    # BASE_CITIES={}
+
     ready_cities = get_ready_for_metrics_cities()
     all_cities = create_dict_of_ready_cities(BASE_CITIES, ready_cities)
     all_cities.update(BASE_CITIES)

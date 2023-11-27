@@ -1,5 +1,4 @@
-FROM python:3.9.7
-FROM tiangolo/uvicorn-gunicorn-fastapi:python3.9
+FROM tiangolo/uvicorn-gunicorn-fastapi:python3.9-2021-10-02
 
 RUN apt-get update && apt-get -qq -y install curl \
     && apt-get update && apt-get -y install libspatialindex-dev \

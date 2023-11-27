@@ -42,15 +42,15 @@ class CityProvision(BaseMethod):
         self.graph_nk_time =  city_model.graph_nk_time
         self.nx_graph =  city_model.MobilityGraph
         self.buildings = city_model.Buildings.copy(deep = True)
-        self.buildings = self.buildings.dropna(subset = 'functional_object_id')
-        self.buildings['functional_object_id'] = self.buildings['functional_object_id'].astype(int)
-        self.buildings.index = self.buildings['functional_object_id'].values
+        self.buildings = self.buildings.dropna(subset = 'id')
+        self.buildings['id'] = self.buildings['id'].astype(int)
+        self.buildings.index = self.buildings['id'].values
         self.calculation_type = calculation_type
         
         self.services = city_model.Services[city_model.Services['service_code'].isin(service_types)].copy(deep = True)
         self.services.index = self.services['id'].values.astype(int)
 
-        self.file_server = "http://10.32.1.60:8090/"
+        self.file_server = "http://10.32.1.107:8090/"
         #self.file_server = os.environ['PROVISIONS_DATA_FILE_SERVER']
 
         try:
@@ -64,12 +64,12 @@ class CityProvision(BaseMethod):
         self.services_old_values = None
         self.errors = []
         #try:
-        self.demands = pd.read_sql(f'''SELECT functional_object_id, {", ".join(f"{service_type}_service_demand_value_{self.valuation_type}" for service_type in service_types)}
+        self.demands = pd.read_sql(f'''SELECT building_id as id, {", ".join(f"{service_type}_service_demand_value_{self.valuation_type}" for service_type in service_types)}
                                 FROM social_stats.buildings_load_future
                                 WHERE year = {self.year}
                                 ''', con = self.engine)
-        self.demands.index = self.demands['functional_object_id'].values
-        self.buildings = self.buildings.merge(self.demands, left_index = True, right_on = ['functional_object_id'], how = 'left')
+        self.demands.index = self.demands['id'].values
+        self.buildings = self.buildings.merge(self.demands, left_on=['id'], right_on = ['id'], how = 'left')
 
         #except:
             #self.errors.append(service_type)
@@ -78,7 +78,7 @@ class CityProvision(BaseMethod):
             self.buildings = self.buildings.dropna(subset = f'{service_type}_service_demand_value_{self.valuation_type}')
             
         self.service_types= [x for x in service_types if x not in self.errors]
-        self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
+        self.buildings.index = self.buildings['id'].values.astype(int)
         self.services['capacity_left'] = self.services['capacity']
         self.Provisions = {service_type:{'destination_matrix': None, 
                                          'distance_matrix': None,
@@ -108,9 +108,9 @@ class CityProvision(BaseMethod):
         if user_changes_buildings:
             old_cols = []
             self.user_changes_buildings = gpd.GeoDataFrame.from_features(user_changes_buildings['features']).set_crs(4326).to_crs(self.city_crs)
-            self.user_changes_buildings.index = self.user_changes_buildings['functional_object_id'].values.astype(int)
+            self.user_changes_buildings.index = self.user_changes_buildings['id'].values.astype(int)
             self.user_changes_buildings = self.user_changes_buildings.combine_first(self.buildings)
-            self.user_changes_buildings.index = self.user_changes_buildings['functional_object_id'].values.astype(int)
+            self.user_changes_buildings.index = self.user_changes_buildings['id'].values.astype(int)
             for service_type in service_types:
                 old_cols.extend([f'{service_type}_provison_value', 
                                  f'{service_type}_service_demand_left_value_{self.valuation_type}', 
@@ -120,7 +120,7 @@ class CityProvision(BaseMethod):
                 self.user_changes_buildings[f'{service_type}_service_demand_left_value_{self.valuation_type}'] = self.user_changes_buildings[f'{service_type}_service_demand_value_{self.valuation_type}'].values
             self.buildings_old_values = self.user_changes_buildings[old_cols]
             self.user_changes_buildings = self.user_changes_buildings.set_crs(self.city_crs)
-            self.user_changes_buildings.index = self.user_changes_buildings['functional_object_id'].values.astype(int)
+            self.user_changes_buildings.index = self.user_changes_buildings['id'].values.astype(int)
         else:
             self.user_changes_buildings = self.buildings.copy()
         if user_provisions:
@@ -170,14 +170,14 @@ class CityProvision(BaseMethod):
         self.buildings = self.buildings.drop(columns = cols_to_drop)
         for service_type in self.service_types: 
             self.buildings = self.buildings.merge(self.Provisions[service_type]['buildings'], 
-                                                    left_on = 'functional_object_id', 
-                                                    right_on = 'functional_object_id')
+                                                    left_on = 'id', 
+                                                    right_on = 'id')
         to_rename_x = [x for x in self.buildings.columns if '_x' in x]
         to_rename_y = [x for x in self.buildings.columns if '_y' in x]
         self.buildings = self.buildings.rename(columns = dict(zip(to_rename_x, [x.split('_x')[0] for x in to_rename_x])))
         self.buildings = self.buildings.rename(columns = dict(zip(to_rename_y, [y.split('_y')[0] for y in to_rename_y])))
         self.buildings = self.buildings.loc[:,~self.buildings.columns.duplicated()].copy()
-        self.buildings.index = self.buildings['functional_object_id'].values.astype(int)
+        self.buildings.index = self.buildings['id'].values.astype(int)
         self.services = pd.concat([self.Provisions[service_type]['services'] for service_type in self.service_types])
         self.buildings, self.services = self._is_shown(self.buildings,self.services, self.Provisions)
         self.buildings = self._provisions_impotancy(self.buildings)
@@ -310,7 +310,7 @@ class CityProvision(BaseMethod):
         buildings[f'{service_type}_provison_value'] = buildings[f'{service_type}_supplyed_demands_within'] / buildings[f'{service_type}_service_demand_value_{valuation_type}']
         services['service_load'] = services['capacity'] - services['capacity_left']
 
-        buildings = buildings[[x for x in buildings.columns if service_type in x] + ['functional_object_id']]
+        buildings = buildings[[x for x in buildings.columns if service_type in x] + ['id']]
         return buildings, services 
 
     def recalculate_provisions(self, ):
@@ -346,15 +346,15 @@ class CityProvision(BaseMethod):
         self.user_changes_buildings = self.user_changes_buildings.drop(columns = cols_to_drop)
         for service_type in self.service_types:
             self.user_changes_buildings = self.user_changes_buildings.merge(self.new_Provisions[service_type]['buildings'], 
-                                                                            left_on = 'functional_object_id', 
-                                                                            right_on = 'functional_object_id')                                                             
+                                                                            left_on = 'id', 
+                                                                            right_on = 'id')                                                             
         to_rename_x = [x for x in self.user_changes_buildings.columns if '_x' in x]
         to_rename_y = [x for x in self.user_changes_buildings.columns if '_y' in x]
         self.user_changes_buildings = self.user_changes_buildings.rename(columns = dict(zip(to_rename_x, [x.split('_x')[0] for x in to_rename_x])))
         self.user_changes_buildings = self.user_changes_buildings.rename(columns = dict(zip(to_rename_y, [y.split('_y')[0] for y in to_rename_y])))
         self.user_changes_buildings = self.user_changes_buildings.loc[:,~self.user_changes_buildings.columns.duplicated()].copy()
 
-        self.user_changes_buildings.index = self.user_changes_buildings['functional_object_id'].values.astype(int)
+        self.user_changes_buildings.index = self.user_changes_buildings['id'].values.astype(int)
         self.user_changes_services = pd.concat([self.new_Provisions[service_type]['services'] for service_type in self.service_types])
         self.user_changes_buildings, self.user_changes_services = self._is_shown(self.user_changes_buildings,self.user_changes_services, self.new_Provisions)
         self.user_changes_buildings = self._provisions_impotancy(self.user_changes_buildings)
