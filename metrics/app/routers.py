@@ -69,7 +69,7 @@ async def get_cities_names():
     response_model=schemas.PedastrianWalkTrafficsCalculationOut, tags=[Tags.traffics_calculation]
 )
 def pedastrian_walk_traffics_calculation(query_params: schemas.PedastrianWalkTrafficsCalculationIn):
-    city_model = city_models[query_params.city.value]
+    city_model = city_models[query_params.city]
     try:
         result = traffics_calculation.TrafficCalculator(city_model).get_trafic_calculation(query_params.geojson.dict())
         return result
@@ -98,7 +98,7 @@ async def get_visibility_analysis(query_params: schemas.VisibilityAnalisysQueryP
     response_model=schemas.WeightedVoronoiCalculationOut, tags=[Tags.weighted_voronoi]
 )
 async def wighted_voronoi_calculation(query_params: schemas.WeightedVoronoiCalculationIn):
-    city_model = city_models[query_params.city.value]
+    city_model = city_models[query_params.city]
     return weighted_voronoi.WeightedVoronoi(city_model).get_weighted_voronoi_result(query_params.geojson.dict())
 
 
@@ -107,7 +107,7 @@ async def wighted_voronoi_calculation(query_params: schemas.WeightedVoronoiCalcu
     response_model=FeatureCollection, tags=[Tags.blocks_clusterization]
 )
 async def get_blocks_clusterization(query_params: schemas.BlocksClusterizationGetBlocks):
-    city_model = city_models[query_params.city.value]
+    city_model = city_models[query_params.city]
     geojson = query_params.geojson.dict() if query_params.geojson else None
     return blocks_clusterization.BlocksClusterization(city_model).get_blocks(
         query_params.service_types, query_params.clusters_number, 
@@ -125,7 +125,7 @@ async def get_blocks_clusterization(query_params: schemas.BlocksClusterizationGe
     response_class=StreamingResponse, tags=[Tags.blocks_clusterization]
 )
 async def get_blocks_clusterization_dendrogram(query_params: schemas.BlocksClusterizationGetBlocks):
-    city_model = city_models[query_params.city.value]
+    city_model = city_models[query_params.city]
     result = blocks_clusterization.BlocksClusterization(city_model).get_dendrogram(query_params.service_types)
     return StreamingResponse(content=result, media_type="image/png")
 
@@ -134,7 +134,7 @@ async def get_blocks_clusterization_dendrogram(query_params: schemas.BlocksClust
     "/services_clusterization/get_clusters_polygons",
     response_model=schemas.ServicesClusterizationGetClustersPolygonsOut, tags=[Tags.services_clusterization])
 async def get_services_clusterization(query_params: schemas.ServicesClusterizationGetClustersPolygonsIn):
-    city_model = city_models[query_params.city.value]
+    city_model = city_models[query_params.city]
     geojson = query_params.geojson.dict() if query_params.geojson else None
 
     try:
@@ -155,7 +155,7 @@ async def get_services_clusterization(query_params: schemas.ServicesClusterizati
     response_model=FeatureCollection, tags=[Tags.spacematrix]
 )
 async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
-    city_model = city_models[query_params.city.value]
+    city_model = city_models[query_params.city]
     geojson = query_params.geojson.dict() if query_params.geojson else None
     try:
         return spacematrix.Spacematrix(city_model).get_morphotypes(
@@ -194,7 +194,7 @@ async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIso
 @router.post("/diversity/diversity", response_model=schemas.DiversityOut,
             tags=[Tags.diversity])
 async def get_diversity(query_params: schemas.DiversityIn):  # todo validate service_type?
-    city_model = city_models[query_params.city.value]
+    city_model = city_models[query_params.city]
     geojson = query_params.geojson.dict() if query_params.geojson else None
     try:
         result = diversity.Diversity(city_model).get_diversity(query_params.service_type, geojson)
@@ -350,7 +350,7 @@ def coverage_zone_get_radius(
         user_request: schemas.CoverageZonesRadiusQueryParams=Depends()
 ):
     try:
-        city_model = city_models[user_request.city]
+        city_model = city_models[user_request.city.value]
         return coverage_zones.CoverageZones(city_model).get_radius_zone(user_request.service_type, user_request.radius)
     except errors.NormativeError as e:
         raise HTTPException(
@@ -366,7 +366,7 @@ def coverage_zone_get_radius(
 def coverage_zone_get_isochrone(
         user_request: schemas.CoverageZonesIsochroneQueryParams=Depends()
 ):
-    city_model = city_models[user_request.city]
+    city_model = city_models[user_request.city.value]
     return coverage_zones.CoverageZones(city_model).get_isochrone_zone(
         user_request.service_type, user_request.travel_type, user_request.weight_value
         )

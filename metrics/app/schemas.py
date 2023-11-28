@@ -337,7 +337,7 @@ class ProvisionGetProvisionIn(ProvisionInBase):
                 "city": "saint-petersburg",
                 "service_types": ["kindergartens"],
                 "valuation_type": "normative",
-                "year": 2022,
+                "year": 2023,
             }
         }
 
@@ -360,7 +360,7 @@ class CityContextGetContextIn(ProvisionInBase):
                 "city": "saint-petersburg",
                 "service_types": ["schools", "kindergartens", 'colleges', 'saunas', 'zoos', 'optics'],
                 "valuation_type": "normative",
-                "year": 2022,
+                "year": 2023,
             }
         }
 

@@ -42,6 +42,8 @@ class CityProvision(BaseMethod):
         self.graph_nk_time =  city_model.graph_nk_time
         self.nx_graph =  city_model.MobilityGraph
         self.buildings = city_model.Buildings.copy(deep = True)
+        
+        
         self.buildings = self.buildings.dropna(subset = 'id')
         self.buildings['id'] = self.buildings['id'].astype(int)
         self.buildings.index = self.buildings['id'].values
@@ -65,17 +67,18 @@ class CityProvision(BaseMethod):
         self.errors = []
         #try:
         self.demands = pd.read_sql(f'''SELECT building_id as id, {", ".join(f"{service_type}_service_demand_value_{self.valuation_type}" for service_type in service_types)}
-                                FROM social_stats.buildings_load_future
+                                FROM provision.buildings_load_future
                                 WHERE year = {self.year}
                                 ''', con = self.engine)
         self.demands.index = self.demands['id'].values
         self.buildings = self.buildings.merge(self.demands, left_on=['id'], right_on = ['id'], how = 'left')
-
         #except:
             #self.errors.append(service_type)
         for service_type in service_types:
             self.buildings[f'{service_type}_service_demand_left_value_{self.valuation_type}'] = self.buildings[f'{service_type}_service_demand_value_{self.valuation_type}']
             self.buildings = self.buildings.dropna(subset = f'{service_type}_service_demand_value_{self.valuation_type}')
+
+            
             
         self.service_types= [x for x in service_types if x not in self.errors]
         self.buildings.index = self.buildings['id'].values.astype(int)
@@ -149,11 +152,55 @@ class CityProvision(BaseMethod):
             
             try:
                 self.Provisions[service_type]['services'] = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_services').content))
+                self.Provisions[service_type]['services'].dropna(subset=['building_id'], inplace=True)
+                self.Provisions[service_type]['services']['building_id'] = self.Provisions[service_type]['services']['building_id'].astype(int)
+                
                 self.Provisions[service_type]['buildings'] = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_buildings').content))
+                new_building_ids = pd.read_sql(
+                                                f"select building_id as id, functional_object_id from all_buildings "
+                                                f"where functional_object_id in {tuple(self.Provisions[service_type]['buildings']['functional_object_id'].values)}",
+                                                con=self.engine,
+                                            )
+                self.Provisions[service_type]['buildings'] = self.Provisions[service_type]['buildings'].join(new_building_ids.set_index('functional_object_id'))
+                self.Provisions[service_type]['buildings'].dropna(subset=['id'], inplace=True)
+                self.Provisions[service_type]['buildings']['id'] = self.Provisions[service_type]['buildings']['id'].astype(int)
+                col_to_rename_map = self.Provisions[service_type]['buildings']['id'].to_dict()
+                rows_to_rename_map = self.Provisions[service_type]['services']['building_id'].to_dict()
+
                 self.Provisions[service_type]['distance_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_distance_matrix').content))
+            
+                mask = self.Provisions[service_type]['distance_matrix'].index.isin(self.Provisions[service_type]['services']['id'])
+                self.Provisions[service_type]['distance_matrix'] = self.Provisions[service_type]['distance_matrix'].loc[self.Provisions[service_type]['distance_matrix'].index[mask], :]
+                
+
+                mask = self.Provisions[service_type]['distance_matrix'].columns.isin(self.Provisions[service_type]['buildings']['functional_object_id'])
+                self.Provisions[service_type]['distance_matrix'] = self.Provisions[service_type]['distance_matrix'].loc[:, self.Provisions[service_type]['distance_matrix'].columns[mask]]
+                
+                self.Provisions[service_type]['distance_matrix'].rename(mapper=col_to_rename_map, axis=1, inplace=True)
+                self.Provisions[service_type]['distance_matrix'].rename(mapper=rows_to_rename_map, axis=0, inplace=True)
+
                 self.Provisions[service_type]['destination_matrix'] = pd.read_pickle(io.BytesIO(requests.get(f'{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_destination_matrix').content))
+
+                mask = self.Provisions[service_type]['destination_matrix'].index.isin(self.Provisions[service_type]['services']['id'])
+                self.Provisions[service_type]['destination_matrix'] = self.Provisions[service_type]['destination_matrix'].loc[self.Provisions[service_type]['destination_matrix'].index[mask], :]
+
+                mask = self.Provisions[service_type]['destination_matrix'].columns.isin(self.Provisions[service_type]['buildings']['functional_object_id'])
+                self.Provisions[service_type]['destination_matrix'] = self.Provisions[service_type]['destination_matrix'].loc[:, self.Provisions[service_type]['destination_matrix'].columns[mask]]
+
+                self.Provisions[service_type]['destination_matrix'].rename(mapper=col_to_rename_map, axis=1, inplace=True)
+                self.Provisions[service_type]['destination_matrix'].rename(mapper=rows_to_rename_map, axis=0, inplace=True)
+
+                self.Provisions[service_type]['services'].reset_index(drop=True, inplace=True)
+                self.Provisions[service_type]['services'].rename(columns={'id':'functional_object_id'}, inplace=True)
+                self.Provisions[service_type]['services'].rename(columns={'building_id': 'id'}, inplace=True)
+                mask = self.Provisions[service_type]['services']['id'].isin(self.Provisions[service_type]['buildings']['id'])
+                self.Provisions[service_type]['services'] = self.Provisions[service_type]['services'][mask]
+
+                self.Provisions[service_type]['services'].index = self.Provisions[service_type]['services']['id'].values.astype(int)
+                self.Provisions[service_type]['buildings'].index = self.Provisions[service_type]['buildings']['id'].values.astype(int)
+
                 print(service_type + ' loaded')
-            except:
+            except Exception as ex:
                 print(service_type + ' not loaded')
                 self.Provisions[service_type]['buildings'] = self.buildings.copy(deep = True)
                 self.Provisions[service_type]['services'] = self.services[self.services['service_code'] == service_type].copy(deep = True)    
@@ -178,6 +225,7 @@ class CityProvision(BaseMethod):
         self.buildings = self.buildings.rename(columns = dict(zip(to_rename_y, [y.split('_y')[0] for y in to_rename_y])))
         self.buildings = self.buildings.loc[:,~self.buildings.columns.duplicated()].copy()
         self.buildings.index = self.buildings['id'].values.astype(int)
+        
         self.services = pd.concat([self.Provisions[service_type]['services'] for service_type in self.service_types])
         self.buildings, self.services = self._is_shown(self.buildings,self.services, self.Provisions)
         self.buildings = self._provisions_impotancy(self.buildings)
@@ -225,12 +273,14 @@ class CityProvision(BaseMethod):
         from_houses = self.graph_gdf['geometry'].sindex.nearest(Provisions['buildings']['geometry'], 
                                                                 return_distance = True, 
                                                                 return_all = False) 
+        
         to_services = self.graph_gdf['geometry'].sindex.nearest(Provisions['services']['geometry'], 
                                                                 return_distance = True, 
                                                                 return_all = False)
+        
         Provisions['distance_matrix'] = pd.DataFrame(0, index = to_services[0][1], 
                                                         columns = from_houses[0][1])
-
+        
         splited_matrix = np.array_split(Provisions['distance_matrix'].copy(deep = True), int(len(Provisions['distance_matrix']) / 1000) + 1)
         
         for i in range(len(splited_matrix)):
@@ -245,8 +295,11 @@ class CityProvision(BaseMethod):
         Provisions['distance_matrix'].columns = Provisions['buildings'].index
         Provisions['destination_matrix'] = pd.DataFrame(0, index = Provisions['distance_matrix'].index, 
                                                            columns = Provisions['distance_matrix'].columns)
-        print(Provisions['buildings'][f'{service_type}_service_demand_left_value_{self.valuation_type}'].sum(), 
+        print(f"\nProvisions['buildings'][f'{service_type}_service_demand_left_value_{self.valuation_type}'].sum()",
+              Provisions['buildings'][f'{service_type}_service_demand_left_value_{self.valuation_type}'].sum(), 
+              "\nProvisions['services']['capacity_left'].sum(),",
               Provisions['services']['capacity_left'].sum(), 
+              "\nProvisions['normative_distance']",
               Provisions['normative_distance'])
 
         if calculation_type == 'gravity':
@@ -426,8 +479,10 @@ class CityProvision(BaseMethod):
         services.geometry = services.centroid
         flat_matrix = destination_matrix.transpose().apply(lambda x: subfunc(x[x>0]), result_type = "reduce")
         distribution_links = gpd.GeoDataFrame(data = [item for sublist in list(flat_matrix) for item in sublist])
+
         sel = distribution_links['house_id'].isin(buildings.index.values) & distribution_links['service_id'].isin(services.index.values)
         sel = distribution_links.loc[sel[sel].index.values]
+
         distribution_links['geometry'] = sel.apply(lambda x: subfunc_geom(x), axis = 1)
         return distribution_links
 
@@ -492,7 +547,9 @@ class CityProvision(BaseMethod):
         if len(distance_matrix.columns) > 0 and len(distance_matrix.index) > 0:
             return self._provision_loop_linear(houses_table, services_table, distance_matrix, selection_range, destination_matrix, service_type)
         else: 
-            print(houses_table[f'{service_type}_service_demand_left_value_{self.valuation_type}'].sum(), services_table['capacity_left'].sum(),selection_range)
+                houses_table[f'{service_type}_service_demand_left_value_{self.valuation_type}'].sum(),
+                services_table['capacity_left'].sum(),
+                selection_range)
             return destination_matrix
 
     def _provision_loop_gravity(self, houses_table, services_table, distance_matrix, selection_range, destination_matrix, service_type, temp_destination_matrix = None):
@@ -501,6 +558,7 @@ class CityProvision(BaseMethod):
             d = houses_table.loc[loc.index][f'{service_type}_service_demand_left_value_{self.valuation_type}']
             p = d/loc
             p = p/p.sum()
+
             if p.sum() == 0:
                 return loc
             else:
@@ -545,6 +603,5 @@ class CityProvision(BaseMethod):
             
             return self._provision_loop_gravity(houses_table, services_table, distance_matrix, selection_range, destination_matrix, service_type,temp_destination_matrix)                              
         else: 
-            print(houses_table[f'{service_type}_service_demand_left_value_{self.valuation_type}'].sum(), services_table['capacity_left'].sum(),selection_range)
             return destination_matrix
 
