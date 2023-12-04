@@ -23,6 +23,7 @@ class Diversity(BaseMethod):
 
         self.buildings = self.city_model.Buildings.copy()
         self.living_buildings = self.buildings[self.buildings['is_living'] == True].reset_index(drop=True)
+        # print('\n', self.living_buildings, '\n')
         if len(self.living_buildings) == 0:
             raise TerritorialSelectError("living buildings")
 
@@ -56,7 +57,7 @@ class Diversity(BaseMethod):
             services = self.services[self.services["service_code"] == service_type]
             if len(services) == 0:
                 raise SelectedValueError("services", service_type, "service_code")
-            travel_type, weigth, limit_value, graph = self.define_service_normative(service_type)
+            travel_type, weigth, limit_value, graph = self._define_service_normative(service_type)
 
         if valuation_type == 'custom':
             if type(service_type) == str:

@@ -149,3 +149,23 @@ SAINT_PETERSBURG_VORONOI_GEOJSON = {
          "geometry": {"type": "Point", "coordinates": [30.31658510317982, 59.935217355409094]}},
     ]
 }
+
+
+SAINT_PETERSBURG_DIVERSITY_GEOJSON = {
+
+                    "type": "FeatureCollection",
+                    "name": "test_area",
+                    "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}},
+                    "features": [
+                        {"type": "Feature", "properties": {},
+                         "geometry": {"type": "Polygon",
+                                      "coordinates": [[
+                                        [30.310845, 59.945431], 
+                                        [30.189368, 59.969446], 
+                                        [30.165860, 59.932500], 
+                                        [30.263008, 59.917023], 
+                                        [30.274934, 59.930412], 
+                                        [30.314616, 59.944886],
+                                        [30.310845, 59.945431]
+                                        ]
+]}}]}

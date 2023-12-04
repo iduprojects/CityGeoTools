@@ -69,7 +69,7 @@ async def get_cities_names():
     response_model=schemas.PedastrianWalkTrafficsCalculationOut, tags=[Tags.traffics_calculation]
 )
 def pedastrian_walk_traffics_calculation(query_params: schemas.PedastrianWalkTrafficsCalculationIn):
-    city_model = city_models[query_params.city]
+    city_model = city_models[query_params.city.value]
     try:
         result = traffics_calculation.TrafficCalculator(city_model).get_trafic_calculation(query_params.geojson.dict())
         return result
@@ -98,7 +98,7 @@ async def get_visibility_analysis(query_params: schemas.VisibilityAnalisysQueryP
     response_model=schemas.WeightedVoronoiCalculationOut, tags=[Tags.weighted_voronoi]
 )
 async def wighted_voronoi_calculation(query_params: schemas.WeightedVoronoiCalculationIn):
-    city_model = city_models[query_params.city]
+    city_model = city_models[query_params.city.value]
     return weighted_voronoi.WeightedVoronoi(city_model).get_weighted_voronoi_result(query_params.geojson.dict())
 
 
@@ -107,7 +107,7 @@ async def wighted_voronoi_calculation(query_params: schemas.WeightedVoronoiCalcu
     response_model=FeatureCollection, tags=[Tags.blocks_clusterization]
 )
 async def get_blocks_clusterization(query_params: schemas.BlocksClusterizationGetBlocks):
-    city_model = city_models[query_params.city]
+    city_model = city_models[query_params.city.value]
     geojson = query_params.geojson.dict() if query_params.geojson else None
     return blocks_clusterization.BlocksClusterization(city_model).get_blocks(
         query_params.service_types, query_params.clusters_number, 
@@ -125,7 +125,7 @@ async def get_blocks_clusterization(query_params: schemas.BlocksClusterizationGe
     response_class=StreamingResponse, tags=[Tags.blocks_clusterization]
 )
 async def get_blocks_clusterization_dendrogram(query_params: schemas.BlocksClusterizationGetBlocks):
-    city_model = city_models[query_params.city]
+    city_model = city_models[query_params.city.value]
     result = blocks_clusterization.BlocksClusterization(city_model).get_dendrogram(query_params.service_types)
     return StreamingResponse(content=result, media_type="image/png")
 
@@ -134,7 +134,7 @@ async def get_blocks_clusterization_dendrogram(query_params: schemas.BlocksClust
     "/services_clusterization/get_clusters_polygons",
     response_model=schemas.ServicesClusterizationGetClustersPolygonsOut, tags=[Tags.services_clusterization])
 async def get_services_clusterization(query_params: schemas.ServicesClusterizationGetClustersPolygonsIn):
-    city_model = city_models[query_params.city]
+    city_model = city_models[query_params.city.value]
     geojson = query_params.geojson.dict() if query_params.geojson else None
 
     try:
@@ -155,7 +155,7 @@ async def get_services_clusterization(query_params: schemas.ServicesClusterizati
     response_model=FeatureCollection, tags=[Tags.spacematrix]
 )
 async def get_spacematrix_indices(query_params: schemas.SpacematrixIn):
-    city_model = city_models[query_params.city]
+    city_model = city_models[query_params.city.value]
     geojson = query_params.geojson.dict() if query_params.geojson else None
     try:
         return spacematrix.Spacematrix(city_model).get_morphotypes(
@@ -194,9 +194,10 @@ async def mobility_analysis_isochrones(query_params: schemas.MobilityAnalysisIso
 @router.post("/diversity/diversity", response_model=schemas.DiversityOut,
             tags=[Tags.diversity])
 async def get_diversity(query_params: schemas.DiversityIn):  # todo validate service_type?
-    city_model = city_models[query_params.city]
+    city_model = city_models[query_params.city.value]
     geojson = query_params.geojson.dict() if query_params.geojson else None
     try:
+        print(query_params.service_type)
         result = diversity.Diversity(city_model).get_diversity(query_params.service_type, geojson)
         return result
     except (errors.TerritorialSelectError, errors.SelectedValueError) as e:
@@ -239,7 +240,7 @@ async def get_diversity_info(query_params: schemas.DiversityGetInfoQueryParams =
 async def get_provision(
         user_request: schemas.ProvisionGetProvisionIn,
 ):
-    city_model = city_models[user_request.city]
+    city_model = city_models[user_request.city.value]
     result = city_provision.CityProvision(
         city_model, user_request.service_types,
         user_request.valuation_type, user_request.year,
@@ -257,7 +258,7 @@ async def get_provision(
 async def recalculate_provisions(
         user_request: schemas.ProvisionRecalculateProvisionsIn,
 ):
-    city_model = city_models[user_request.city]
+    city_model = city_models[user_request.city.value]
     result = city_provision.CityProvision(
         city_model, user_request.service_types,
         user_request.valuation_type, 
@@ -279,7 +280,7 @@ async def recalculate_provisions(
 def city_context_get_context(
         user_request: schemas.CityContextGetContextIn
 ):
-    city_model = city_models[user_request.city]
+    city_model = city_models[user_request.city.value]
     return city_provision_context.CityProvisionContext(
         city_model, service_types=user_request.service_types,
         valuation_type=user_request.valuation_type,
@@ -295,7 +296,7 @@ def city_context_get_context(
 def city_values_get_values(
         user_request: schemas.CityValuestGetValuesIn
 ):
-    city_model = city_models[user_request.city]
+    city_model = city_models[user_request.city.value]
     return city_values.CityValues(
         city_model,
         valuation_type=user_request.valuation_type,
@@ -336,7 +337,7 @@ def urban_quality_get_urban_quality_context(city: enums.CitiesEnum):
 def master_plan_get_master_plan(
         user_request: schemas.MasterPlanIn
 ):
-    city_model = city_models[user_request.city]
+    city_model = city_models[user_request.city.value]
     master_plan_params = user_request.dict(exclude={"city"})
     master_plan = masterplan.Masterplan(city_model)
     return master_plan.get_masterplan(**master_plan_params)
@@ -375,7 +376,7 @@ def coverage_zone_get_isochrone(
              tags = [Tags.data_update])
 def updeate_data(user_request: schemas.DataUpdateIn):
 
-    city = [city for city in cities if city['code'] == user_request.city_name][0]
+    city = [city for city in cities if city['code'] == user_request.city_name.value][0]
 
     setattr(city_models[user_request.city_name], 
             user_request.attr_name,
@@ -388,7 +389,7 @@ def updeate_data(user_request: schemas.DataUpdateIn):
              tags = [Tags.data_update])
 def updeate_data_check(user_request: schemas.DataUpdateIn):
 
-    return eval(getattr(city_models[user_request.city_name],
+    return eval(getattr(city_models[user_request.city_name.value],
                         user_request.attr_name).to_json().replace('true', 'True').replace('null', 'None').replace('false', 'False'))
 
 # Check during refactor

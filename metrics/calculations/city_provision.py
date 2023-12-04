@@ -888,6 +888,9 @@ class CityProvision(BaseMethod):
         flat_matrix = destination_matrix.transpose().apply(
             lambda x: subfunc(x[x > 0]), result_type="reduce"
         )
+
+        print(flat_matrix)
+
         distribution_links = gpd.GeoDataFrame(
             data=[item for sublist in list(flat_matrix) for item in sublist]
         )

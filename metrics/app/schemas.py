@@ -320,7 +320,7 @@ class DiversityGetBuildingsQueryParams:
 
 class ProvisionInBase(BaseModel):
     """Базовый класс схемы входных параметров для обеспеченности. """
-    city: str
+    city: enums.CitiesEnum
     service_types: conlist(str, min_items=1)
     valuation_type: str
     year: int
@@ -374,7 +374,7 @@ class CityValuestGetValuesOut(BaseModel):
     city_values: dict[str,dict]
 
 class CityValuestGetValuesIn(BaseModel):
-    city: str
+    city: enums.CitiesEnum
     valuation_type: str
     year: int
 
@@ -563,7 +563,7 @@ class CoverageZonesIsochroneQueryParams:
 
 
 class DataUpdateIn(BaseModel):
-    city_name: str
+    city_name: enums.CitiesEnum
     attr_name: str
 
 

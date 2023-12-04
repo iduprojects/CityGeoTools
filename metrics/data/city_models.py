@@ -11,7 +11,7 @@ address, port = rpyc_server.split(":") if ":" in rpyc_server else (rpyc_server, 
 
 cities = pd.read_sql(
     """SELECT * FROM cities
-    WHERE local_crs is not null AND code is not null and id in (1)""", 
+    WHERE local_crs is not null AND code is not null and id in (1,2,5)""", 
     con=engine)
 
 city_names = cities.set_index("code")["name"].to_dict()

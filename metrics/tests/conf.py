@@ -11,7 +11,7 @@ logger.addHandler(handler)
 
 
 class TestingSettings(BaseSettings):
-    APP_ADDRESS_FOR_TESTING: str = "127.0.0.1:5000/api/v2"
+    APP_ADDRESS_FOR_TESTING: str = "10.32.1.65:5000/api/v2"
 
     SPB_MUNICIPALITIES: str = 'http://10.32.1.101:1244/api/city/1/municipalities'
 

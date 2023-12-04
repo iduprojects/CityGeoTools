@@ -15,13 +15,13 @@ class Blocks_accessibility(BaseMethod):
         self.graph_nk_time =  self.city_model.graph_nk_time
         self.mobility_graph = self.city_model.MobilityGraph.copy()
         self.city_name = city_model.city_name
-        self.file_server = "http://10.32.1.60:8090/"
+        self.file_server = "http://10.32.1.107:8090/"
 
-    def reset_id_blocks(self) -> None:
-        self.blocks.reset_index(drop=True, inplace=True)
-        self.blocks.reset_index(drop=False, inplace=True)
-        self.blocks.drop(columns=['id'], inplace=True)
-        self.blocks.rename(columns={'index': 'id'}, inplace=True)
+    # def reset_id_blocks(self) -> None:
+    #     self.blocks.reset_index(drop=True, inplace=True)
+    #     self.blocks.reset_index(drop=False, inplace=True)
+    #     self.blocks.drop(columns=['id'], inplace=True)
+    #     self.blocks.rename(columns={'index': 'id'}, inplace=True)
     
     def get_accessibility(self, target_block: int = None) -> json:
 
@@ -43,9 +43,9 @@ class Blocks_accessibility(BaseMethod):
             return self.blocks
 
         else:
-            if self.blocks['id'].min() != 0:
-                print(self.blocks['id'].min())
-                self.reset_id_blocks()
+            # if self.blocks['id'].min() != 0:
+            #     print(self.blocks['id'].min())
+            #     self.reset_id_blocks()
 
             edges_to_remove = list(((u, v) for u,v,e in self.mobility_graph.edges(data=True) if e['type'] == 'car'))
             self.mobility_graph.remove_edges_from(edges_to_remove)
@@ -59,6 +59,11 @@ class Blocks_accessibility(BaseMethod):
                                                             return_all = False)[1]
             
             target_node = self.blocks[self.blocks['id'] == target_block]['nearest_node']
+
+            if isinstance(target_node, pd.Series):
+                target_node = target_node.iloc[0]
+
+            print('\n', target_node, '\n')
 
             nk_dists = nk.distance.SPSP(G = self.graph_nk_time, sources = [target_node]).run()
 
