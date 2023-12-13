@@ -18,7 +18,7 @@ def get_boundary(osm_id):
             );
     out geom;
     """
-    result = requests.get(overpass_url, params={'data': overpass_query})
+    result = requests.get(overpass_url, params={'data': overpass_query}, timeout=600)
     json_result = result.json()
     
     return json_result
@@ -37,7 +37,7 @@ def get_routes(osm_id, public_transport_type):
             );
     out geom;
     """
-    result = requests.get(overpass_url, params={'data': overpass_query})
+    result = requests.get(overpass_url, params={'data': overpass_query}, timeout=600)
     json_result = result.json()["elements"]
     
     return pd.DataFrame(json_result)

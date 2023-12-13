@@ -243,7 +243,8 @@ class CityProvision(BaseMethod):
                 self.Provisions[service_type]["services"] = pd.read_pickle(
                     io.BytesIO(
                         requests.get(
-                            f"{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_services"
+                            f"{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_services",
+                            timeout=600
                         ).content
                     )
                 )
@@ -257,7 +258,8 @@ class CityProvision(BaseMethod):
                 self.Provisions[service_type]["buildings"] = pd.read_pickle(
                     io.BytesIO(
                         requests.get(
-                            f"{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_buildings"
+                            f"{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_buildings",
+                            timeout=600
                         ).content
                     )
                 )
@@ -285,7 +287,8 @@ class CityProvision(BaseMethod):
                 self.Provisions[service_type]["distance_matrix"] = pd.read_pickle(
                     io.BytesIO(
                         requests.get(
-                            f"{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_distance_matrix"
+                            f"{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_distance_matrix",
+                            timeout=600
                         ).content
                     )
                 )
@@ -318,7 +321,8 @@ class CityProvision(BaseMethod):
                 self.Provisions[service_type]["destination_matrix"] = pd.read_pickle(
                     io.BytesIO(
                         requests.get(
-                            f"{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_destination_matrix"
+                            f"{self.file_server}provision_1/{self.city_name}_{service_type}_{self.year}_{self.valuation_type}_destination_matrix",
+                            timeout=600
                         ).content
                     )
                 )

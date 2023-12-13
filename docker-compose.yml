@@ -2,7 +2,7 @@ version: '3.9.7'
 services:
   rpyc_metrics_server:
     build: rpyc_server/
-    image: oneonwar/rpyc_metrics_server:0.0.7.7
+    image: oneonwar/rpyc_metrics_server:0.0.7.8
     ulimits:
       nproc: 1024
       nofile:
@@ -23,7 +23,7 @@ services:
 
   idu_metrics:
     build: metrics/
-    image: oneonwar/idu_metrics:2.5.3.7
+    image: oneonwar/idu_metrics:2.5.3.8
     ulimits:
       nproc: 1024
       nofile:

@@ -2,7 +2,7 @@ import faulthandler
 from fastapi import APIRouter, HTTPException, status, Body, Depends
 from fastapi.responses import StreamingResponse
 from geojson_pydantic import FeatureCollection
-
+from app.enums_utils import get_ready_for_metrics_cities
 from enum import auto
 from app import enums, schemas
 from data.city_models import city_models, city_names, cities
@@ -63,6 +63,10 @@ async def read_root():
 @router.get("/cities")
 async def get_cities_names():
     return city_names
+
+@router.get("/ready_cities")
+async def get_ready_cities_names():
+    return get_ready_for_metrics_cities()
 
 @router.post(
     '/pedastrian_walk_traffics/pedastrian_walk_traffics_calculation',

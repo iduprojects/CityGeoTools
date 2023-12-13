@@ -38,7 +38,7 @@ class Blocks_accessibility(BaseMethod):
         """
 
         if not target_block:
-            self.blocks = requests.get(f'{self.file_server}blocks_accessibility/median_accs_{self.city_name}.geojson').json()
+            self.blocks = requests.get(f'{self.file_server}blocks_accessibility/median_accs_{self.city_name}.geojson', timeout=600).json()
 
             return self.blocks
 

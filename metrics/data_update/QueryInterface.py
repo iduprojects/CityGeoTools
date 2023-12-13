@@ -16,7 +16,7 @@ class QueryInterface:
     def get_graph_for_city(self, city: str, graph_type: str, node_type: type) -> MultiDiGraph:
 
         file_name = city.lower() + "_" + graph_type
-        response = requests.get(self.mongo_address + "/uploads/city_graphs/" + file_name)
+        response = requests.get(self.mongo_address + "/uploads/city_graphs/" + file_name, timeout=600)
         if response.status_code == 200:
             graph = nx.readwrite.graphml.parse_graphml(response.text, node_type=node_type)
             return graph

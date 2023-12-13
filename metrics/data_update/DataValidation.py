@@ -31,7 +31,7 @@ class DataValidation():
         else: 
             json_obj = json.loads(df.to_json(orient="records"))
             
-        schema = requests.get(self.mongo_address + f"/uploads/specification/{layer_name}").json()
+        schema = requests.get(self.mongo_address + f"/uploads/specification/{layer_name}", timeout=600).json()
         validator = jsonschema.Draft7Validator(schema)
         if validator.is_valid(json_obj):
             setattr(self, layer_name, True)
