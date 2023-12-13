@@ -229,7 +229,7 @@ async def get_buildings_diversity(query_params: schemas.DiversityGetBuildingsQue
 async def get_diversity_info(query_params: schemas.DiversityGetInfoQueryParams = Depends()):
     city_model = city_models[query_params.city.value]
     try:
-        result = diversity.Diversity(city_model).get_info(query_params.house_id, query_params.service_type)
+        result = diversity.Diversity(city_model).get_info(query_params.building_id, query_params.service_type)
         return result
     except (errors.TerritorialSelectError, errors.SelectedValueError) as e:
 

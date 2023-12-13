@@ -385,16 +385,16 @@ class TestDiversity:
         assert resp.status_code == 200
 
     @pytest.mark.parametrize("service_type", [RANDOM_SERVICE_TYPE])
-    @pytest.mark.parametrize("city, house_id", [
+    @pytest.mark.parametrize("city, building_id", [
         (enums.CitiesEnum.SAINT_PETERSBURG.value, 915),
         (enums.CitiesEnum.KRASNODAR.value, 137701),
         (enums.CitiesEnum.SEVASTOPOL.value, 397343),
     ])
-    def test_get_diversity_get_info(self, client, city, house_id, service_type):
+    def test_get_diversity_get_info(self, client, city, building_id, service_type):
         url = self.URL + "/get_info"
         params = {
             "city": city,
-            "house_id": house_id,
+            "building_id": building_id,
             "service_type": service_type,
         }
 
@@ -433,7 +433,7 @@ class TestProvision:
             "city": enums.CitiesEnum.SAINT_PETERSBURG.value,
             "service_types": ["kindergartens"],
             "valuation_type": "normative",
-            "year": 2023,
+            "year": 2022,
             "user_changes_buildings": user_changes_buildings,
             "user_changes_services": user_changes_services,
             "user_provisions": provision_geojson_examples.provisions_tests_kinders_provisions,
@@ -472,7 +472,7 @@ class TestCityContextGetContext:
             "city": enums.CitiesEnum.SAINT_PETERSBURG.value,
             "service_types": ["schools", "kindergartens",'colleges', 'saunas', 'zoos','optics'],
             "valuation_type": "normative",
-            "year": 2023,
+            "year": 2022,
         }
 
         resp = client.post(url, json=data)

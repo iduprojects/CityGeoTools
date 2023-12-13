@@ -291,11 +291,11 @@ class DiversityOut(BaseModel):
 class DiversityGetInfoQueryParams:
     def __init__(self,
                  city: enums.CitiesEnum,
-                 house_id: int = Query(..., example=45793),
+                 building_id: int = Query(..., example=45793),
                  service_type: str = Query(..., example="cafes")
                  ):
         self.city = city
-        self.house_id = house_id
+        self.building_id = building_id
         self.service_type = service_type
 
 

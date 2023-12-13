@@ -111,15 +111,15 @@ class Diversity(BaseMethod):
 
         return json.loads(houses_in_block.to_crs(4326).to_json())
 
-    def get_info(self, house_id, service_type):
+    def get_info(self, building_id, service_type):
 
         services = self.services[self.services["service_code"] == service_type]
         if len(services) == 0:
             raise SelectedValueError("services", service_type, "service_code")
 
-        house = self.living_buildings[self.living_buildings['id'] == house_id].reset_index(drop=True)
+        house = self.living_buildings[self.living_buildings['id'] == building_id].reset_index(drop=True)
         if len(house) == 0:
-            raise SelectedValueError("living building", house_id, "id")
+            raise SelectedValueError("living building", building_id, "id")
             
         house_x, house_y = house[["x", "y"]].values[0]
         travel_type, weigth, limit_value, graph = self._define_service_normative(service_type)

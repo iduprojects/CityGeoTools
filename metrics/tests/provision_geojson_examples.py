@@ -38,7 +38,7 @@ provisions_tests_kinders_houses = {
             "type": "Feature",
             "properties": {
                 "id": 15448.0,
-                "house_id": 15448.0,
+                "building_id": 15448.0,
                 "basement_area": 243.263,
                 "is_living": True,
                 "living_area": 158.6,
@@ -77,7 +77,7 @@ provisions_tests_kinders_houses = {
 }
 
 provisions_tests_kinders_provisions = {
-    "house_id": 131560,
+    "building_id": 131560,
     "demand": 19.0,
     "service_id": 145813,
     "kindergartens": provisions_tests_kinders
