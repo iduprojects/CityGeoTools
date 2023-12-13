@@ -259,7 +259,7 @@ class TestSpacematrix:
         }
         resp = client.post(url, json=data)
         print(resp.content)
-        assert resp.status_code == 200
+        assert resp.status_code == 200 
 
 
 class TestMobilityAnalysisIsochrones:
