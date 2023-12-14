@@ -52,7 +52,7 @@ class CityProvision(BaseMethod):
         self.nx_graph = city_model.MobilityGraph
         self.buildings = city_model.Buildings.copy(deep=True)
 
-        print(self.buildings)
+        # print(self.buildings)
 
         self.buildings = self.buildings.dropna(subset="id")
         self.buildings["id"] = self.buildings["id"].astype(int)
@@ -92,8 +92,8 @@ class CityProvision(BaseMethod):
         self.buildings = self.buildings.merge(
             self.demands, left_on=["id"], right_on=["id"], how="left"
         )
-        print(self.demands)
-        print(self.buildings)
+        # print(self.demands)
+        # print(self.buildings)
         # except:
         # self.errors.append(service_type)
         for service_type in service_types:
@@ -132,8 +132,8 @@ class CityProvision(BaseMethod):
             for service_type in service_types
         }
 
-        print(self.buildings)
-        self.buildings.to_file('self.buildings000.geojson')
+        # print(self.buildings)
+        # self.buildings.to_file('self.buildings000.geojson')
         # Bad interface , raise error must be
         if user_changes_services:
             self.user_changes_services = (
@@ -297,6 +297,8 @@ class CityProvision(BaseMethod):
                     "building_id"
                 ].to_dict()
 
+                # print('\n\n\n\col_to_rename_map\n\n\n', rows_to_rename_map, col_to_rename_map)
+
                 self.Provisions[service_type]["distance_matrix"] = pd.read_pickle(
                     io.BytesIO(
                         requests.get(
@@ -315,7 +317,7 @@ class CityProvision(BaseMethod):
                     self.Provisions[service_type]["distance_matrix"].index[mask], :
                 ]
 
-                print(self.Provisions[service_type]["distance_matrix"])
+                
 
                 mask = self.Provisions[service_type]["distance_matrix"].columns.isin(
                     self.Provisions[service_type]["buildings"]["functional_object_id"]
@@ -370,35 +372,47 @@ class CityProvision(BaseMethod):
                 self.Provisions[service_type]["services"].reset_index(
                     drop=True, inplace=True
                 )
-                # self.Provisions[service_type]["services"].rename(
-                #     columns={"id": "functional_object_id"}, inplace=True
-                # )
+                self.Provisions[service_type]["services"].rename(
+                    columns={"id": "functional_object_id"}, inplace=True
+                )
 
-                self.Provisions[service_type]["services"]['functional_object_id'] = self.Provisions[service_type]["services"]['id']
-                # self.Provisions[service_type]["services"].rename(
-                #     columns={"building_id": "id"}, inplace=True
-                # )
+                # self.Provisions[service_type]["services"]['functional_object_id'] = self.Provisions[service_type]["services"]['id']
+                self.Provisions[service_type]["services"].rename(
+                    columns={"building_id": "id"}, inplace=True
+                )
 
-                print(self.Provisions[service_type]["services"])
-
-                # mask = self.Provisions[service_type]["services"]["building_id"].isin(
+                
+                
+                # print('1')
+                # mask = self.Provisions[service_type]["services"]["id"].isin(
                 #     self.Provisions[service_type]["buildings"]["id"]
                 # )
+
+                # print('1.1')
+
                 # self.Provisions[service_type]["services"] = self.Provisions[
                 #     service_type
                 # ]["services"][mask]
 
+                # print('2')
+
                 self.Provisions[service_type]["services"].index = self.Provisions[
                     service_type
                 ]["services"]["id"].values.astype(int)
+
+                # print('3')
+
                 self.Provisions[service_type]["buildings"].index = self.Provisions[
                     service_type
                 ]["buildings"]["id"].values.astype(int)
-
-                print(self.Provisions[service_type]["services"])
-                self.Provisions[service_type]["services"].to_file('services01.geojson')
+                
+                # print(self.Provisions[service_type]["services"])
+                # self.Provisions[service_type]["services"].to_file('services01.geojson')
+                # print(self.Provisions[service_type]["distance_matrix"])
+                # print(self.Provisions[service_type]["services"])
                 print(service_type + " loaded")
             except Exception as ex:
+                print(ex)
                 print(service_type + " not loaded")
                 self.Provisions[service_type]["buildings"] = self.buildings.copy(
                     deep=True
@@ -432,8 +446,8 @@ class CityProvision(BaseMethod):
         ]
         self.buildings = self.buildings.drop(columns=cols_to_drop)
 
-        print(self.Provisions['kindergartens']["buildings"])
-        print(self.buildings)
+        # print(self.Provisions['kindergartens']["buildings"])
+        # print(self.buildings)
         # self.Provisions['kindergartens']["buildings"].to_file('self.Provisions[service_type]["buildings"].geojson')
         # self.buildings.to_file('self.buildings.geojson')
 
@@ -442,8 +456,8 @@ class CityProvision(BaseMethod):
             self.buildings = self.buildings.merge(
                 self.Provisions[service_type]["buildings"], left_on="id", right_on="id"
             )
-        print(self.buildings)
-        self.buildings.to_file('self.buildings2.geojson')
+        # print(self.buildings)
+        # self.buildings.to_file('self.buildings2.geojson')
 
         to_rename_x = [x for x in self.buildings.columns if "_x" in x]
         to_rename_y = [x for x in self.buildings.columns if "_y" in x]
@@ -469,7 +483,7 @@ class CityProvision(BaseMethod):
             self.buildings, self.services, self.Provisions
         )
 
-        self.services.to_file('self.services01.geojson')
+        # self.services.to_file('self.services01.geojson')
 
         self.buildings = self._provisions_impotancy(self.buildings)
         self.buildings = self.buildings.fillna(0)
@@ -532,8 +546,8 @@ class CityProvision(BaseMethod):
     def _is_shown(self, buildings, services, Provisions):
         if self.user_selection_zone:
             buildings["is_shown"] = buildings.within(self.user_selection_zone)
-            buildings.to_file('buildings.geojson')
-            services.to_file('services.geojson')
+            # buildings.to_file('buildings.geojson')
+            # services.to_file('services.geojson')
             # Provisions[service_type]["destination_matrix"].to_csv('Provisions[service_type]["destination_matrix"].csv')
             a = buildings["is_shown"].copy()
             t = []
@@ -942,14 +956,20 @@ class CityProvision(BaseMethod):
             data=[item for sublist in list(flat_matrix) for item in sublist]
         )
 
+        # print(distribution_links)
+
         sel = distribution_links["building_id"].isin(
             buildings["id"].values
         ) & distribution_links["service_id"].isin(services["id"].values)
+        
+
         sel = distribution_links.loc[sel[sel].index.values]
 
         print(sel)
-
+# 
         distribution_links["geometry"] = sel.apply(lambda x: subfunc_geom(x), axis=1)
+
+        # distribution_links.to_file('distribution_links.geojson')
         return distribution_links
 
     def _provision_loop_linear(

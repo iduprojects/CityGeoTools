@@ -23,7 +23,7 @@ if __name__ == "__main__":
     cities = pd.read_sql(
         """SELECT * 
         FROM cities
-        WHERE local_crs is not null AND code is not null and id in (1,2,5)""",
+        WHERE local_crs is not null AND code is not null""",
         con=engine,
     )
 
